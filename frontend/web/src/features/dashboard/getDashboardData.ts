@@ -95,6 +95,7 @@ export interface DashboardViewData {
   totalJobs:             number;
   totalNew:              number;
   totalApplied:          number;
+  appliedThisWeek:       number;
   activeCount:           number;
   mergedExcludeKeywords: string;
   isNewView:             boolean;
@@ -404,7 +405,28 @@ export function computeLensData(input: {
 // `description` is deliberately absent: it is ~64% of this query's payload
 // (~230KB across ~120 rows) and no board card renders it. The detail pane and
 // the edit modal fetch it per-job from /api/jobs/[id]/board-detail instead.
-const JOB_SELECT = "id, profile_id, url, title, company, location, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, starred_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address, jd_quality, role_match, has_email, distance_km, distance_method, employment_types, work_rights_requirement, extracted_emails, salary_period, closing_date, shift_patterns, is_agency";
+/**
+ * Applications sent since `sinceMs` — the momentum figure on the dashboard's
+ * progress line.
+ *
+ * Excludes dismissed jobs for the same reason the Applied count does: the
+ * Applied view filters `dismissed_at IS NULL` server-side, so counting them
+ * here would print a number the user cannot find in any list.
+ *
+ * An unparseable or absent applied_at is not counted — Date.parse returns NaN
+ * and every comparison against it is false, which is the behaviour we want
+ * (never inflate the streak on bad data).
+ */
+export function countAppliedSince(
+  rows: Array<{ applied_at: string | null; dismissed_at: string | null }>,
+  sinceMs: number,
+): number {
+  return rows.filter(
+    (j) => j.applied_at && !j.dismissed_at && Date.parse(j.applied_at) >= sinceMs,
+  ).length;
+}
+
+const JOB_SELECT ="id, profile_id, url, title, company, location, source, source_tier, posted_at, created_at, visa_likelihood, sponsorship_status, citizen_pr_only, visa_extracted_text, keywords_matched, applied_at, dismissed_at, starred_at, is_dead_link, seen_at, is_expired, dedup_status, manual_jd_text, contact_email, hiring_manager, company_address, jd_quality, role_match, has_email, distance_km, distance_method, employment_types, work_rights_requirement, extracted_emails, salary_period, closing_date, shift_patterns, is_agency";
 
 export async function getDashboardData(args: {
   supabase: SupabaseClient;
@@ -585,6 +607,7 @@ export async function getDashboardData(args: {
   const totalJobs    = activeJobRows.length;
   const totalNew     = activeJobRows.filter((j) => !j.seen_at).length;
   const totalApplied = allRows.filter((j) => j.applied_at && !j.dismissed_at).length;
+  const appliedThisWeek = countAppliedSince(allRows, Date.now() - 7 * 86_400_000);
 
   // ── BATCH 2 — six parallel queries (need IDs from BATCH 1) ───────────────
   // Previously: 5 sequential round-trips. Now: 1 parallel batch.
@@ -677,6 +700,7 @@ export async function getDashboardData(args: {
       totalJobs,
       totalNew,
       totalApplied,
+      appliedThisWeek,
       activeCount,
       mergedExcludeKeywords,
       isNewView,

@@ -18,6 +18,7 @@ import {
   narrowToLatestFetch,
   computeFunnelCounts,
   computeLensData,
+  countAppliedSince,
   type DashboardProfile,
   type AllCountRow,
   type ActiveJobRow,
@@ -407,5 +408,51 @@ describe("computeLensData", () => {
       ],
     });
     expect(d.analysis.avgAtsLift).toBeNull();
+  });
+});
+
+/**
+ * The dashboard's momentum figure. A lifetime "applied" total only ever goes
+ * up, so it stops distinguishing "moving" from "stalled" — this is the number
+ * that does.
+ */
+describe("countAppliedSince", () => {
+  const WEEK_MS = 7 * 86_400_000;
+  // Fixed clock: these assertions must not drift with the real date.
+  const NOW = Date.parse("2026-08-10T00:00:00Z");
+  const since = NOW - WEEK_MS;
+
+  const applied = (applied_at: string | null, dismissed_at: string | null = null) =>
+    ({ applied_at, dismissed_at });
+
+  it("counts only applications inside the window", () => {
+    expect(countAppliedSince([
+      applied("2026-08-09T00:00:00Z"),  // 1 day ago  — in
+      applied("2026-08-05T00:00:00Z"),  // 5 days ago — in
+      applied("2026-08-01T00:00:00Z"),  // 9 days ago — out
+    ], since)).toBe(2);
+  });
+
+  it("counts a job applied to exactly on the boundary", () => {
+    expect(countAppliedSince([applied("2026-08-03T00:00:00Z")], since)).toBe(1);
+  });
+
+  /**
+   * REGRESSION: mirrors computeFunnelCounts' rule. The Applied view filters
+   * dismissed_at IS NULL server-side, so counting a dismissed job here would
+   * print a number the user cannot find in any list.
+   */
+  it("excludes dismissed jobs, even when recently applied", () => {
+    expect(countAppliedSince([
+      applied("2026-08-09T00:00:00Z"),
+      applied("2026-08-09T00:00:00Z", "2026-08-09T12:00:00Z"),
+    ], since)).toBe(1);
+  });
+
+  it("ignores never-applied and unparseable dates rather than inflating", () => {
+    expect(countAppliedSince([
+      applied(null),
+      applied("not-a-date"),
+    ], since)).toBe(0);
   });
 });

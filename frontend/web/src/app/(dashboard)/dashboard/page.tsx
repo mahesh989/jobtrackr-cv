@@ -26,7 +26,8 @@ import { cookies } from "next/headers";
 import { Suspense } from "react";
 import Link from "next/link";
 import { HowItWorksDeck } from "@/features/onboarding/HowItWorksDeck";
-import { StatCards } from "@/features/dashboard/StatCards";
+import { ProgressLine } from "@/features/dashboard/ProgressLine";
+import { NextActions } from "@/features/dashboard/NextActions";
 import { PipelineDonut } from "@/features/dashboard/PipelineDonut";
 import { ScrollToJobsOnFilter } from "@/features/jobs/components/ScrollToJobsOnFilter";
 import { JobBoard } from "@/features/jobs/components/JobBoard";
@@ -77,13 +78,13 @@ export default async function DashboardPage({
   }
   const {
     typedJobs, funnelCounts, lensData,
-    totalJobs, totalNew, totalApplied, activeCount,
+    totalJobs, totalNew, totalApplied, appliedThisWeek,
     mergedExcludeKeywords, isNewView,
   } = result.data;
 
   // Favourite/Applied are opened from their own sidebar links, not from a
   // funnel click inside the dashboard — the user came here for the filtered
-  // board, not the account-wide stats. Skip the header/StatCards/PipelineDonut
+  // board, not the account-wide stats. Skip the progress line/callouts/donut
   // so the board panels start right at the top of the page.
   const isFocusedStage = sp.stage === "favourite" || sp.stage === "applied";
 
@@ -92,16 +93,51 @@ export default async function DashboardPage({
       <div className="px-4 sm:px-6 py-5 space-y-6">
         {!isFocusedStage && (
           <>
-            {/* ── KPI bar (interactive) ── */}
-            <StatCards
-              totalJobs={totalJobs}
-              totalNew={totalNew}
-              totalApplied={totalApplied}
-              activeCount={activeCount}
-            />
+            {/* ── Summary row: facts left, actions right ──
+                One line. The left side is progress (what has happened), the
+                right is the only things on this page that tell the user what
+                to DO — including "N new to review", which is an action and so
+                belongs with the others rather than beside the stats.
+                Wraps to two stacked rows on narrow screens. */}
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+              <Suspense>
+                <ProgressLine
+                  totalJobs={totalJobs}
+                  totalApplied={totalApplied}
+                  appliedThisWeek={appliedThisWeek}
+                />
+              </Suspense>
+              <Suspense>
+                <NextActions callouts={lensData.callouts} totalNew={totalNew} />
+              </Suspense>
+            </div>
 
-            {/* ── Pipeline analytics donut ── */}
-            <PipelineDonut data={lensData} />
+            {/* ── Pipeline analytics (collapsed by default) ──
+                This is a REPORT, not a next action: it answers "how is my
+                funnel distributed", which nobody acts on differently day to
+                day. It stays available — the slices are real triage
+                shortcuts into filtered board views — but it no longer
+                outranks the action bar above it for attention or space.
+
+                It is NOT moved to /admin: this donut renders ONE user's
+                funnel, while /admin/sourcing and /admin/pipeline already
+                answer the same questions platform-wide from run_logs /
+                global_jobs / search_coverage. Putting a per-user copy there
+                would duplicate a strictly better view.
+
+                Native <details> so this costs no JS and stays keyboard- and
+                screen-reader-accessible on a server component. */}
+            <details className="group rounded-lg border border-border bg-surface">
+              <summary
+                className="flex cursor-pointer list-none items-center gap-2 px-5 py-3 text-label
+                           font-medium text-text-2 transition-colors hover:text-text
+                           focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]/40"
+              >
+                <span aria-hidden className="transition-transform group-open:rotate-90">›</span>
+                Pipeline analytics
+              </summary>
+              <PipelineDonut data={lensData} />
+            </details>
           </>
         )}
 
