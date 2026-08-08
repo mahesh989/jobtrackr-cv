@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "version": "0.35",
+    "version": "0.36",
     "updated": "2026-08-08",
     "purpose": "Authoritative live state for JobTrackr-CV. Read at session start. Update on significant changes.",
     "changelog": "docs/build_log.md",
@@ -640,6 +640,14 @@
       "detail": "A rebuild from the migration files silently omitted both. email_integrations is live-critical (settings/account, admin/retention, admin/users, lib/setupStatus.ts, lib/email/tokens.ts).",
       "resolution": "Reconstructed both in 001_full_schema.sql from the live schema over PostgREST, plus RLS-on (service-role-only, matching every call site's use of createAdminClient) in 002_rls.sql. Columns/types/NOT NULL/defaults/PK/FK faithful; ON DELETE actions, CHECK constraints, secondary indexes and triggers could NOT be read over REST and are documented as not reproduced. Verified by rebuilding all four files on a throwaway local Postgres: applications 15 cols, email_integrations 6 cols, both rls=true, matching the live column counts.",
       "resolved": "2026-08-08"
+    },
+    {
+      "id": "BUG-17",
+      "title": "Bare-suburb geocoding relocated interstate aged-care jobs into the searched metro",
+      "detail": "geocode() in lib/distance.ts scores Nominatim candidates as importance + a 0.15 in-box bonus around the search origin. For a BARE suburb (no state) from the national aged-care boards, that bonus let a low-importance local feature beat the real, far suburb. On a Sydney search this showed Regis Brisbane jobs at Birkdale 12.5km, Oxley 43.6km, Greenbank 53.4km - the same suburbs measured 917-922km on the legacy path. bucket.ts's serve radius then admitted them, and the feed displayed the fabricated distance. The auto-analyze gate used a different origin and correctly saw 655-703km, so the same job carried two contradictory distances ('home 53.4, search 703.2') - which is what exposed it. Confirmed by the job URL literally reading Queensland-Australia-Assistant-in-Nursing-Oxley.",
+      "resolution": "Two composing parts. (1) Ambiguity guard in geocode(): if the in-box bonus is the only reason a candidate won - i.e. Nominatim's own best answer is a different out-of-box place - and the query carries no AU state, return null instead of guessing. Null coordinates are DROPPED by the bucket radius, so silent exclusion replaces silent fabrication. State-qualified strings (SEEK/Adzuna/Careerjet emit 'Westmead, NSW') keep the old behaviour. (2) extractAuState() enriches avature/Regis locations from the URL slug and ad body so recoverable ones take the trusted path. Coverage of (2) is knowingly partial - measured on the three leaked jobs: Birkdale had the state in the body only, Oxley in the URL only, Greenbank nowhere - which is exactly why (1) is the gate and (2) only restores recall. 14 new tests; guard verified by mutation (disabling it fails only the Birkdale case). 195 worker tests pass.",
+      "resolved": "2026-08-08",
+      "follow_up": "Durable fix for recall is a per-tenant facility->state table (Regis/Opal facility locations are a knowable fixed list); Regis pages carry no JSON-LD or addressRegion, so no structured field exists to read. Fix is committed on dev-5 but NOT deployed - the Fly worker still runs the old image."
     }
   ]
 }

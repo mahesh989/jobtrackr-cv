@@ -20,6 +20,66 @@ const REQUEST_TIMEOUT_MS = 8000;
 
 export interface LatLng { lat: number; lng: number; }
 
+/**
+ * An Australian state/territory anywhere in a string. Used two ways: to decide
+ * whether a location is qualified enough to trust proximity bias (see the
+ * ambiguity guard in geocode), and to pull a state out of free text
+ * (extractAuState).
+ *
+ * Abbreviations are matched case-SENSITIVELY via the alternation below because
+ * lowercase "act", "nt", "sa", "wa" and "vic" are ordinary words or fragments
+ * ("act now", "Vic" as a name); requiring capitals costs nothing on real ads,
+ * which always write them uppercase. Full names are matched case-insensitively
+ * since "Queensland" is unambiguous however it is cased.
+ */
+export const AU_STATE_RE =
+  /\b(?:NSW|VIC|QLD|WA|SA|TAS|NT|ACT)\b|\b(?:new\s+south\s+wales|victoria|queensland|western\s+australia|south\s+australia|tasmania|northern\s+territory|australian\s+capital\s+territory)\b/i;
+
+// [canonical, full-name (case-insensitive), abbreviation (case-SENSITIVE)]
+const STATE_CANON: Array<[string, RegExp, RegExp]> = [
+  ["NSW", /\bnew\s+south\s+wales\b/i,               /\bNSW\b/ ],
+  ["QLD", /\bqueensland\b/i,                        /\bQLD\b/ ],
+  ["VIC", /\bvictoria\b/i,                          /\bVIC\b/ ],
+  ["WA",  /\bwestern\s+australia\b/i,               /\bWA\b/  ],
+  ["SA",  /\bsouth\s+australia\b/i,                 /\bSA\b/  ],
+  ["TAS", /\btasmania\b/i,                          /\bTAS\b/ ],
+  ["NT",  /\bnorthern\s+territory\b/i,              /\bNT\b/  ],
+  ["ACT", /\baustralian\s+capital\s+territory\b/i,  /\bACT\b/ ],
+];
+
+/**
+ * Pull an Australian state out of free text (a JD body, a URL slug), returning
+ * the canonical abbreviation or null.
+ *
+ * This exists because the national aged-care boards emit BARE suburbs, which
+ * the geocoder cannot place: "Birkdale" is both a Brisbane suburb and, to a
+ * Sydney-biased search, a plausible local match. Where a state is recoverable
+ * we append it at the source so geocoding is unambiguous; where it is not, the
+ * ambiguity guard drops the job rather than guess.
+ *
+ * Coverage is genuinely partial — measured on the three jobs that leaked into a
+ * Sydney search on 2026-08-08: Birkdale had "QLD" in the JD body only, Oxley
+ * had "Queensland" in the URL slug only, and Greenbank had NO state anywhere in
+ * either. That is why this is a best-effort ENRICHMENT and not the fix on its
+ * own. Regis/avature pages carry no JSON-LD and no addressRegion, so there is
+ * no structured field to read instead; a per-tenant facility→state table is the
+ * durable answer.
+ *
+ * Only ONE distinct state may appear. A national provider's ad that lists
+ * several ("roles across NSW, VIC and QLD") tells us nothing about THIS job, so
+ * we return null rather than pick the first.
+ */
+export function extractAuState(...texts: Array<string | null | undefined>): string | null {
+  // URL slugs separate words with - / _ ("Queensland-Australia-…"), so flatten
+  // those to spaces before matching on word boundaries.
+  const hay = texts.filter(Boolean).join(" ").replace(/[-_/]+/g, " ");
+  const found = new Set<string>();
+  for (const [canon, fullRe, abbrRe] of STATE_CANON) {
+    if (fullRe.test(hay) || abbrRe.test(hay)) found.add(canon);
+  }
+  return found.size === 1 ? [...found][0] : null;
+}
+
 /** Result of resolving a location string to a driving distance. */
 export interface DistanceResult {
   /** Distance in kilometres, rounded to two decimals. */
@@ -100,13 +160,46 @@ export async function geocode(
     const IN_BOX_BONUS = 0.15;
     let chosen = arr[0];
     if (near) {
-      let best = -Infinity;
+      let best = -Infinity, bestNoBonus = -Infinity;
+      let chosenNoBonus = arr[0];
       for (const r of arr) {
         const la = parseFloat(r.lat), lo = parseFloat(r.lon);
         const inBox = la >= near.lat - D && la <= near.lat + D && lo >= near.lng - D && lo <= near.lng + D;
         const imp = typeof r.importance === "number" ? r.importance : parseFloat(String(r.importance ?? "0")) || 0;
         const score = imp + (inBox ? IN_BOX_BONUS : 0);
         if (score > best) { best = score; chosen = r; }
+        // Same ranking WITHOUT the in-box thumb on the scale.
+        if (imp > bestNoBonus) { bestNoBonus = imp; chosenNoBonus = r; }
+      }
+
+      // Ambiguity guard. If the bonus is the ONLY reason we picked this result
+      // — i.e. Nominatim's own best answer is a different, out-of-box place —
+      // and the query carries no state to corroborate it, then we are about to
+      // relocate a job into the search metro on nothing but proximity bias.
+      // That is not hypothetical: on 2026-08-08 a Sydney search showed Regis
+      // aged-care jobs in Birkdale (12.5km), Oxley (43.6km) and Greenbank
+      // (53.4km) — all Brisbane suburbs, ~700-920km away. Because a flip means
+      // the rival sits outside the ~165km box, the two candidates are always
+      // genuinely different places, never a local near-miss.
+      //
+      // Returning null (rather than the far candidate) is deliberate: we do not
+      // know which is right, and a job with no coordinates is DROPPED by the
+      // bucket serve radius, whereas a confidently-wrong one is shown at a
+      // fabricated distance. Silent exclusion beats silent fabrication.
+      //
+      // State-qualified strings ("Kilsyth, VIC") keep the old behaviour, and so
+      // do the location-scoped boards — SEEK/Adzuna/Careerjet already filter
+      // server-side and emit "Westmead, NSW"-style strings. The aged-care
+      // adapters are national, which is why bare suburbs from them are the ones
+      // that leak. Enrich those at the source (see extractAuState) so they take
+      // the trusted path instead of being dropped here.
+      if (chosenNoBonus !== chosen && !AU_STATE_RE.test(query)) {
+        console.warn(
+          `[distance] ambiguous bare locality "${query}" — in-box match only wins on proximity bias; ` +
+          `refusing to guess (dropping coordinates)`,
+        );
+        geocodeCache.set(key, null);
+        return null;
       }
     }
     const hit = { lat: parseFloat(chosen.lat), lng: parseFloat(chosen.lon) };
