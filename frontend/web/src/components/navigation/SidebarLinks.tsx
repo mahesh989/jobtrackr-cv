@@ -208,7 +208,8 @@ function Logo({ href }: { href: string }) {
 export function SidebarLinks({ email, profiles = [], favouriteCount = 0, role, userView = false }: Props) {
   const isAdmin = (ADMIN_ROLES as readonly string[]).includes(role ?? "");
   const pathname = usePathname();
-  const [savedOpen, setSavedOpen] = useState(false);
+  const isSavedActive = (pathname === "/profiles" || pathname.startsWith("/profiles/")) && !pathname.startsWith("/profiles/new");
+  const [savedOpen, setSavedOpen] = useState(isSavedActive);
   const [showAllProfiles, setShowAllProfiles] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
 
@@ -268,8 +269,6 @@ export function SidebarLinks({ email, profiles = [], favouriteCount = 0, role, u
   const MAX_VISIBLE = 4;
   const displayedProfiles = showAllProfiles ? profiles : profiles.slice(0, MAX_VISIBLE);
   const hasMore = profiles.length > MAX_VISIBLE;
-
-  const isSavedActive = (pathname === "/profiles" || pathname.startsWith("/profiles/")) && !pathname.startsWith("/profiles/new");
 
   return (
     <aside className="flex flex-col h-full w-full overflow-y-auto select-none">

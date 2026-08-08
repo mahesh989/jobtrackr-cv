@@ -42,9 +42,14 @@ export function ResizableSidebar({ children }: { children: ReactNode }) {
     return () => ro.disconnect();
   }, []);
 
-  const startDrag = useCallback((e: React.MouseEvent) => {
+  const startDrag = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     draggingRef.current = true;
+    // Captures the pointer to this element so drag continues to track mouse,
+    // touch, or pen input even once the pointer leaves the handle's bounds —
+    // covers all three pointer types through one path (see onMove/onUp below,
+    // which stay on `window` the same way the old mouse listeners did).
+    e.currentTarget.setPointerCapture(e.pointerId);
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
   }, []);
@@ -90,7 +95,7 @@ export function ResizableSidebar({ children }: { children: ReactNode }) {
   }, [width, measuredDefault, persist, reset]);
 
   useEffect(() => {
-    function onMove(e: MouseEvent) {
+    function onMove(e: PointerEvent) {
       if (!draggingRef.current) return;
       setWidth(Math.min(MAX, Math.max(MIN, e.clientX)));
     }
@@ -104,11 +109,16 @@ export function ResizableSidebar({ children }: { children: ReactNode }) {
         return w;
       });
     }
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    // A touch drag interrupted by the OS (e.g. an incoming call, or the
+    // browser reclaiming the gesture) fires `pointercancel` instead of
+    // `pointerup` — without this the drag state would stick.
+    window.addEventListener("pointercancel", onUp);
     return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
     };
   }, []);
 
@@ -126,7 +136,7 @@ export function ResizableSidebar({ children }: { children: ReactNode }) {
           focused, resets to the default. Arrow keys resize in 16px steps;
           Home/End jump to the min/max width. */}
       <div
-        onMouseDown={startDrag}
+        onPointerDown={startDrag}
         onDoubleClick={reset}
         onKeyDown={handleKeyDown}
         role="separator"
@@ -138,6 +148,7 @@ export function ResizableSidebar({ children }: { children: ReactNode }) {
         tabIndex={0}
         title="Drag to resize · double-click to reset"
         className="group absolute inset-y-0 right-0 z-20 flex w-2 translate-x-1/2 cursor-col-resize items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]/60"
+        style={{ touchAction: "none" }}
       >
         <span className="h-full w-px bg-transparent transition-colors group-hover:bg-[var(--brand)]/40 group-active:bg-[var(--brand)]/60 group-focus-visible:bg-[var(--brand)]/60" />
       </div>

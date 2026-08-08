@@ -105,8 +105,12 @@ export function AnalyzeJobButton({ jobId, hasAnalysis = false, analysisHref, ove
         setErr({ message, action, cta: { label: "Upgrade", href: `/billing?denied=${reason}` } });
       } else if (/active CV/i.test(message)) {
         setErr({ message, action, cta: { label: "Upload CV", href: "/cv" } });
-      } else if (/AI key/i.test(message)) {
-        setErr({ message, action, cta: { label: "Add AI key", href: "/integrations" } });
+      } else if (/AI key|AI is temporarily unavailable/i.test(message)) {
+        // No CTA on purpose. BYOK was removed (D20) — the AI provider is
+        // admin-managed in platform_ai_settings, so /integrations has had
+        // nothing for a user to add since. "Add AI key" sent people to a
+        // page where they could do nothing about the failure.
+        setErr({ message, action });
       } else {
         setErr({ message, action });
       }
@@ -154,7 +158,7 @@ export function AnalyzeJobButton({ jobId, hasAnalysis = false, analysisHref, ove
             )}
             {err.cta && (
               <Button
-                variant="primary"
+                variant="brand"
                 size="sm"
                 className="px-2 py-1"
                 onClick={() => router.push(err.cta!.href)}
