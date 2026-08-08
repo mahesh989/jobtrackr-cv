@@ -69,6 +69,35 @@ const STATE_CANON: Array<[string, RegExp, RegExp]> = [
  * several ("roles across NSW, VIC and QLD") tells us nothing about THIS job, so
  * we return null rather than pick the first.
  */
+/**
+ * Is this Nominatim hit an actual populated place, as opposed to a street,
+ * building or land parcel that merely shares the name?
+ *
+ * `boundary/administrative` covers gazetted suburbs and LGAs ("Randwick",
+ * "Strathfield South"); the `place` class covers nodes not mapped as polygons.
+ * Everything else — highway, building, landuse, amenity, shop — is a
+ * same-named feature, which under proximity bias is exactly how a Queensland
+ * job ends up with Sydney coordinates.
+ */
+export function isLocalityResult(r: { class?: string; type?: string }): boolean {
+  const cls = (r.class ?? "").toLowerCase();
+  const typ = (r.type ?? "").toLowerCase();
+  if (cls === "boundary" && typ === "administrative") return true;
+  if (cls === "place") {
+    return [
+      "suburb", "town", "city", "village", "hamlet", "locality",
+      "neighbourhood", "quarter", "borough", "municipality", "county",
+      "state", "region", "island",
+    ].includes(typ);
+  }
+  // Missing class/type (older cached shapes, or a stubbed response) is treated
+  // as a locality so the guard can only ever act on POSITIVE evidence that the
+  // match is a street or building — it must not start dropping jobs wholesale
+  // if the API shape changes.
+  if (!cls && !typ) return true;
+  return false;
+}
+
 export function extractAuState(...texts: Array<string | null | undefined>): string | null {
   // URL slugs separate words with - / _ ("Queensland-Australia-…"), so flatten
   // those to spaces before matching on word boundaries.
@@ -147,7 +176,7 @@ export async function geocode(
       geocodeCache.set(key, null);
       return null;
     }
-    const arr = (await res.json()) as Array<{ lat: string; lon: string; importance?: number | string }>;
+    const arr = (await res.json()) as Array<{ lat: string; lon: string; importance?: number | string; class?: string; type?: string }>;
     if (!arr.length) {
       geocodeCache.set(key, null);
       return null;
@@ -160,43 +189,44 @@ export async function geocode(
     const IN_BOX_BONUS = 0.15;
     let chosen = arr[0];
     if (near) {
-      let best = -Infinity, bestNoBonus = -Infinity;
-      let chosenNoBonus = arr[0];
+      let best = -Infinity;
       for (const r of arr) {
         const la = parseFloat(r.lat), lo = parseFloat(r.lon);
         const inBox = la >= near.lat - D && la <= near.lat + D && lo >= near.lng - D && lo <= near.lng + D;
         const imp = typeof r.importance === "number" ? r.importance : parseFloat(String(r.importance ?? "0")) || 0;
         const score = imp + (inBox ? IN_BOX_BONUS : 0);
         if (score > best) { best = score; chosen = r; }
-        // Same ranking WITHOUT the in-box thumb on the scale.
-        if (imp > bestNoBonus) { bestNoBonus = imp; chosenNoBonus = r; }
       }
 
-      // Ambiguity guard. If the bonus is the ONLY reason we picked this result
-      // — i.e. Nominatim's own best answer is a different, out-of-box place —
-      // and the query carries no state to corroborate it, then we are about to
-      // relocate a job into the search metro on nothing but proximity bias.
-      // That is not hypothetical: on 2026-08-08 a Sydney search showed Regis
-      // aged-care jobs in Birkdale (12.5km), Oxley (43.6km) and Greenbank
-      // (53.4km) — all Brisbane suburbs, ~700-920km away. Because a flip means
-      // the rival sits outside the ~165km box, the two candidates are always
-      // genuinely different places, never a local near-miss.
+      // Locality guard. A BARE suburb from the national aged-care boards
+      // cannot be trusted to a proximity-biased lookup, because the viewbox
+      // biases the RESULT SET and not merely the ranking: querying "Greenbank"
+      // near Sydney returns nine Sydney streets and never returns the real
+      // Greenbank in Queensland at all. So there is nothing to compare against
+      // and no "wrong winner" to detect — the only usable signal is WHAT the
+      // match is. Real suburbs come back as administrative boundaries or place
+      // nodes; the false local matches are streets, buildings and landuse:
+      //   Greenbank        -> highway/tertiary, building/apartments   (street)
+      //   Birkdale         -> landuse/residential                     (parcel)
+      //   Strathfield South-> boundary/administrative                 (real)
+      //   Randwick         -> boundary/administrative                 (real)
+      // Measured against live Nominatim on 2026-08-08, after a Sydney search
+      // showed Brisbane aged-care jobs at 12.5km, 43.6km and 53.4km.
       //
-      // Returning null (rather than the far candidate) is deliberate: we do not
-      // know which is right, and a job with no coordinates is DROPPED by the
-      // bucket serve radius, whereas a confidently-wrong one is shown at a
-      // fabricated distance. Silent exclusion beats silent fabrication.
+      // Returning null rather than the bad point is deliberate: coordinates are
+      // what the bucket serve radius filters on, so a null DROPS the job while
+      // a confident-but-wrong point displays a fabricated distance. Silent
+      // exclusion beats silent fabrication.
       //
-      // State-qualified strings ("Kilsyth, VIC") keep the old behaviour, and so
-      // do the location-scoped boards — SEEK/Adzuna/Careerjet already filter
-      // server-side and emit "Westmead, NSW"-style strings. The aged-care
-      // adapters are national, which is why bare suburbs from them are the ones
-      // that leak. Enrich those at the source (see extractAuState) so they take
-      // the trusted path instead of being dropped here.
-      if (chosenNoBonus !== chosen && !AU_STATE_RE.test(query)) {
+      // Only applies to unqualified queries under a bias. State-qualified
+      // strings keep the old behaviour, which is why the location-scoped boards
+      // are untouched — SEEK/Adzuna/Careerjet emit "Westmead, NSW". Where a
+      // state IS recoverable we append it upstream (extractAuState) so the
+      // string takes this trusted path instead of being dropped.
+      if (!AU_STATE_RE.test(query) && !isLocalityResult(chosen)) {
         console.warn(
-          `[distance] ambiguous bare locality "${query}" — in-box match only wins on proximity bias; ` +
-          `refusing to guess (dropping coordinates)`,
+          `[distance] "${query}" resolved to ${chosen.class ?? "?"}/${chosen.type ?? "?"} ` +
+          `(not a locality) under proximity bias — refusing to guess (dropping coordinates)`,
         );
         geocodeCache.set(key, null);
         return null;

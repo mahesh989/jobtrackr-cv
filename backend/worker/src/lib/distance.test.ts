@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { extractAuState, AU_STATE_RE, geocode } from "./distance.js";
+import { extractAuState, AU_STATE_RE, geocode, isLocalityResult } from "./distance.js";
 
 // Regression cases are the three Regis aged-care jobs that leaked into a
 // Sydney search on 2026-08-08 — Brisbane suburbs shown at 12.5km, 43.6km and
@@ -78,55 +78,73 @@ describe("AU_STATE_RE — decides whether a location is trusted by the geocoder"
   });
 });
 
-// ── The ambiguity guard ─────────────────────────────────────────────────────
-// The Birkdale scenario, reproduced exactly: Nominatim's own best answer is the
-// real Brisbane suburb (higher importance, far outside the box), but a
-// low-importance Sydney feature sits inside the bias box and wins on the
-// proximity bonus alone. That flip is what put a Queensland job 12.5km from a
-// Sydney home, so the guard must refuse it.
-describe("geocode ambiguity guard", () => {
+// ── The locality guard ─────────────────────────────────────────────────────
+// Fixtures are REAL Nominatim responses, captured 2026-08-08 for a Sydney-
+// biased search. They matter because the first version of this guard was built
+// on a wrong assumption — that the real, distant suburb comes back alongside
+// the local one so a "wrong winner" could be detected. It does not: the
+// viewbox biases the RESULT SET, so "Greenbank" returns nine Sydney streets
+// and the Queensland original never appears. What actually separates them is
+// the feature class.
+describe("geocode locality guard", () => {
   const SYDNEY = { lat: -33.87, lng: 151.21 };
 
-  function mockNominatim(results: Array<{ lat: number; lon: number; importance: number }>) {
-    vi.stubGlobal("fetch", async () => ({
-      ok: true,
-      status: 200,
-      json: async () => results.map((r) => ({ lat: String(r.lat), lon: String(r.lon), importance: r.importance })),
-    }));
+  function mockNominatim(results: Array<Record<string, unknown>>) {
+    vi.stubGlobal("fetch", async () => ({ ok: true, status: 200, json: async () => results }));
   }
   afterEach(() => vi.unstubAllGlobals());
 
-  it("drops a bare suburb when the in-box match wins only on proximity bias", async () => {
+  it("drops a bare suburb that resolves to a STREET (the real Greenbank case)", async () => {
     mockNominatim([
-      { lat: -27.50, lon: 153.20, importance: 0.45 },  // real Birkdale, QLD — far
-      { lat: -33.90, lon: 151.10, importance: 0.35 },  // spurious in-box Sydney feature
+      { lat: "-33.93", lon: "151.15", importance: 0,     class: "building", type: "apartments" },
+      { lat: "-33.75", lon: "150.74", importance: 0.053, class: "highway",  type: "tertiary" },
+    ]);
+    expect(await geocode("Greenbank", "au", SYDNEY)).toBeNull();
+  });
+
+  it("drops a bare suburb that resolves to a LAND PARCEL (the real Birkdale case)", async () => {
+    // The single candidate Nominatim actually returns — note it is in-box and
+    // unopposed, so no ranking-based check could ever have caught this.
+    mockNominatim([
+      { lat: "-33.94", lon: "151.20", importance: 0.080, class: "landuse", type: "residential" },
     ]);
     expect(await geocode("Birkdale", "au", SYDNEY)).toBeNull();
   });
 
-  it("still resolves a bare suburb that is genuinely the best answer", async () => {
-    // No flip: the in-box result also has the highest raw importance, so the
-    // bonus changed nothing. Normal behaviour must be preserved.
+  it("keeps a real suburb (boundary/administrative)", async () => {
     mockNominatim([
-      { lat: -33.88, lon: 151.10, importance: 0.60 },  // real local suburb, in box
-      { lat: -27.50, lon: 153.20, importance: 0.20 },  // weak far namesake
+      { lat: "-33.88", lon: "151.08", importance: 0.235, class: "boundary", type: "administrative" },
     ]);
     const hit = await geocode("Strathfield South", "au", SYDNEY);
     expect(hit).not.toBeNull();
     expect(hit!.lat).toBeCloseTo(-33.88, 2);
   });
 
-  it("trusts a state-qualified string even if the bonus flips the pick", async () => {
-    // "…, VIC" is corroborated, so the old bias behaviour is kept deliberately.
-    mockNominatim([
-      { lat: -37.81, lon: 144.96, importance: 0.45 },
-      { lat: -33.90, lon: 151.10, importance: 0.35 },
-    ]);
-    expect(await geocode("Kilsyth, VIC", "au", SYDNEY)).not.toBeNull();
+  it("keeps a place-class node", async () => {
+    mockNominatim([{ lat: "-33.89", lon: "151.24", importance: 0.4, class: "place", type: "suburb" }]);
+    expect(await geocode("Randwick place-node", "au", SYDNEY)).not.toBeNull();
   });
 
-  it("does not apply the guard when there is no bias origin at all", async () => {
-    mockNominatim([{ lat: -27.50, lon: 153.20, importance: 0.45 }]);
-    expect(await geocode("Birkdale unbiased")).not.toBeNull();
+  it("trusts a state-qualified string even when it resolves to a street", async () => {
+    // Corroborated by the state, so the old behaviour is kept deliberately —
+    // this is the path extractAuState upgrades jobs INTO.
+    mockNominatim([{ lat: "-27.50", lon: "153.20", importance: 0.05, class: "highway", type: "residential" }]);
+    expect(await geocode("Birkdale, QLD", "au", SYDNEY)).not.toBeNull();
+  });
+
+  it("does not drop when class/type are absent (guard acts only on positive evidence)", async () => {
+    mockNominatim([{ lat: "-33.88", lon: "151.10", importance: 0.3 }]);
+    expect(await geocode("Shape-less response", "au", SYDNEY)).not.toBeNull();
+  });
+});
+
+describe("isLocalityResult", () => {
+  it("accepts gazetted places, rejects same-named features", () => {
+    expect(isLocalityResult({ class: "boundary", type: "administrative" })).toBe(true);
+    expect(isLocalityResult({ class: "place", type: "town" })).toBe(true);
+    expect(isLocalityResult({ class: "highway", type: "tertiary" })).toBe(false);
+    expect(isLocalityResult({ class: "building", type: "apartments" })).toBe(false);
+    expect(isLocalityResult({ class: "landuse", type: "residential" })).toBe(false);
+    expect(isLocalityResult({})).toBe(true);   // no evidence -> do not drop
   });
 });
