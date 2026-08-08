@@ -22,14 +22,15 @@
 -- ALTER TABLE ADD COLUMN appends physically and this file's column order is
 -- kept byte-comparable with pg_dump (see the note below).
 --
--- CLOSED 2026-08-08: `email_integrations` and `applications` existed in the
--- live database but in no migration file, so a rebuild silently omitted them.
--- Both are now defined near the end of this file, reconstructed from the live
--- schema over PostgREST. Columns, types, NOT NULL, defaults, PKs and FKs are
--- faithful; ON DELETE actions, CHECK constraints, secondary indexes and
--- triggers could NOT be read over the REST API and are not reproduced. See
--- the comment on that block — re-capture with pg_dump when a working DB
--- password is available (the SUPABASE_DB_URL in backend/api/.env is stale).
+-- NOTE ON GREPPING THIS FILE: it mixes cases. Most tables are declared
+-- `create table public.x`, but the ones consolidated from the older migrations
+-- are `CREATE TABLE x (` — uppercase AND without the `public.` schema prefix
+-- (applications and email_integrations, from 031/034/035, are the examples).
+-- A case-sensitive search, or one that assumes the `public.` prefix, will
+-- report them as missing. That is not hypothetical: on 2026-08-08 exactly that
+-- mistake produced a phantom "these tables are in no migration" finding and a
+-- duplicate set of definitions, which had to be reverted. Search with
+-- `grep -iE 'create table[[:space:]]+(if not exists[[:space:]]+)?(public\.)?x'`.
 --
 -- Column order inside each CREATE TABLE deliberately mirrors the order
 -- the columns reached the live table (base columns first, then each
@@ -1581,63 +1582,6 @@ create table if not exists public.pending_job_notifications (
 create index if not exists pending_job_notifications_unsent_idx
   on public.pending_job_notifications (user_id, created_at)
   where sent_at is null;
-
--- ============================================================
--- EMAIL INTEGRATIONS + APPLICATIONS (083 — reconstructed)
---
--- Both tables exist in the live database but were defined in NO migration
--- file: they were created out of band and the squash never captured them, so
--- a rebuild from this file silently omitted them. `email_integrations` is
--- live-critical — settings/account, admin/retention, admin/users,
--- lib/setupStatus.ts and lib/email/tokens.ts all read it.
---
--- RECONSTRUCTED from the live schema over PostgREST (column names, types,
--- NOT NULL, defaults, primary keys and foreign keys are all faithful — note
--- `user_id` genuinely carries NO foreign key on either table, that is the
--- live state, not an omission here).
---
--- What the REST API could NOT expose, and is therefore NOT reproduced below:
---   * ON DELETE / ON UPDATE actions on the three foreign keys
---   * CHECK constraints (e.g. any allowed-value list behind `channel` /
---     `status` — left unconstrained rather than guessed wrong)
---   * secondary indexes
---   * triggers (nothing here maintains `updated_at`; the live table may)
--- Re-capture these with `pg_dump -s -t public.email_integrations
--- -t public.applications` once a working DB password is available, and
--- replace this block with the authoritative DDL.
--- ============================================================
-
--- One row per user (user_id IS the primary key — no surrogate id).
--- oauth_token is AES-256-GCM ciphertext written by lib/email/tokens.ts.
-create table if not exists public.email_integrations (
-  user_id      uuid primary key,
-  provider     text,
-  oauth_token  text,
-  from_address text,
-  created_at   timestamptz not null default now(),
-  updated_at   timestamptz not null default now()
-);
-
-comment on column public.email_integrations.oauth_token is
-  'Encrypted OAuth token blob (AES-256-GCM, INTEGRATION_ENCRYPTION_KEY). Never expose to the browser.';
-
-create table if not exists public.applications (
-  id              uuid primary key default gen_random_uuid(),
-  user_id         uuid not null,
-  job_id          uuid not null references public.jobs(id),
-  analysis_run_id uuid references public.analysis_runs(id),
-  cover_letter_id uuid references public.cover_letters(id),
-  channel         text not null,
-  email_draft     text,
-  email_subject   text,
-  status          text not null default 'draft',
-  sent_at         timestamptz,
-  sent_to         text,
-  error_message   text,
-  user_verified   boolean not null default false,
-  created_at      timestamptz not null default now(),
-  updated_at      timestamptz not null default now()
-);
 
 -- touch_user_engagement() — bump last_seen_at, throttled to once/hour.
 create or replace function public.touch_user_engagement()
