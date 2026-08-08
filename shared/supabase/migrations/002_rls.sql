@@ -42,6 +42,16 @@ alter table public.profile_jobs    enable row level security;
 alter table public.user_engagement enable row level security;
 alter table public.profile_pause_state enable row level security;
 alter table public.pending_job_notifications enable row level security;
+-- 083: both reconstructed in 001 (see the block there). RLS on with NO policy
+-- = service_role only, which is exactly how the app uses them — every call
+-- site goes through createAdminClient() (settings/account, admin/retention,
+-- admin/users, lib/setupStatus.ts, lib/email/tokens.ts), and service_role
+-- bypasses RLS. email_integrations holds an encrypted OAuth token, so
+-- defaulting it closed to anon/authenticated is also the safe posture.
+-- NOTE: the live tables' actual RLS state could not be read over the REST
+-- API; verify against pg_dump when re-capturing their DDL.
+alter table public.email_integrations enable row level security;
+alter table public.applications enable row level security;
 
 -- ============================================================
 -- INVITE CODES
