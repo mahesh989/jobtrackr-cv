@@ -144,6 +144,9 @@
   --sidebar-active:    #F2CA50;
   --sidebar-avatar-bg: #2A2418;
 
+  /* Dark surface — the light default would be invisible here. */
+  --shadow-card-hover: 0 2px 12px rgba(0, 0, 0, 0.55);
+
   --bg:         #16130B;
   --surface:    #231F17;
   --surface-2:  #1C1810;
@@ -956,6 +959,9 @@ input[type="radio"] {
   --sidebar-active:    #19E3C8;
   --sidebar-avatar-bg: #1B2230;
 
+  /* Dark surface — the light default would be invisible here. */
+  --shadow-card-hover: 0 2px 12px rgba(0, 0, 0, 0.55);
+
   --bg:         #0A0D12;
   --surface:    #11151C;
   --surface-2:  #171C26;
@@ -1217,6 +1223,16 @@ input[type="radio"] {
   --card-bg:      var(--surface);
   --input-border: var(--border);
   --input-bg:     var(--surface);
+
+  /* Card hover elevation. Both call sites (the job card in FeedCards/shell
+     and AppliedRow in FeedCards/cards) hardcoded
+     `0 2px 10px rgba(16,24,40,0.07)` — a LIGHT-mode shadow, so on the dark
+     themes a hovered job card had no elevation cue at all. This default is
+     that exact value, so the five light themes are unchanged; the dark
+     themes override it below with something that actually reads on a dark
+     surface. Deliberately NOT --elev-2: that is a much stronger lift and
+     only exists on the two Auroras. */
+  --shadow-card-hover: 0 2px 10px rgba(16, 24, 40, 0.07);
 
   /* Chart palette — defaults preserve the current donut/funnel colours.
      Aurora overrides below harmonise them with the teal/violet accent. */
