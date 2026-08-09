@@ -202,12 +202,15 @@ incident from this repo behind it.
 
 ## Production Safety
 
-This repo's `main` deploys to Vercel preview, not to the production JobTrackr domain. Until we explicitly decide to promote:
+**Corrected 2026-08-09 — this section was stale and said the opposite of reality.** This repo's `main` branch deploys straight to production: Vercel's own git integration builds and aliases `https://jobtrackr.com.au` on every push to `main` (confirmed via `vercel project ls` — project `jobtrackr-cv`'s Latest Production URL is `jobtrackr.com.au` directly, no separate promotion step). Likewise `backend/worker` and `backend/api` deploy straight to their live Fly apps on merge to `main` (`.github/workflows/deploy.yml`, path-filtered). There is no dormant "preview-only" state to promote out of — treat every `dev-5 → main` merge as a real production deploy, because it is one.
 
-- DO NOT change DNS or Vercel project aliases on the production JobTrackr.
-- DO NOT push to the production JobTrackr repo.
-- DO NOT alter existing JobTrackr Supabase tables (only new tables + new provider values).
+The **separate, legacy JobTrackr app** this section actually means to protect is a genuinely different Vercel project — literally named `jobtrackr` (`au-jobtrackr.vercel.app`), confirmed to exist alongside `jobtrackr-cv` in the same Vercel account, with its own codebase at `/Users/mahesh/Documents/Next Phase Cleaning/APPlication/JobTrackr`. That project, not this repo's own production domain, is what the rules below protect:
+
+- DO NOT change DNS or Vercel project aliases on the legacy JobTrackr app (`au-jobtrackr.vercel.app`).
+- DO NOT push to the legacy JobTrackr repo.
+- DO NOT alter existing JobTrackr Supabase tables (only new tables + new provider values) — this still applies to the *shared* Supabase project regardless of which app is deploying.
 - DO seed test data freely in shared Supabase — new tables are isolated from JobTrackr code paths.
+- DO treat every push to `jobtrackr-cv`'s own `main` as a real, live production deploy — because it is.
 
 ## Model Routing
 
@@ -274,7 +277,7 @@ manually rather than skipping the handoff.
 - **Tailwind 4** — uses CSS-native config (`@theme` in globals.css), not `tailwind.config.js`
 - **Theme system** — **7 themes; `classic` is the default** (aurora-dark, aurora-light, default, classic, gilded-noir, notion, clay). CSS variables under `:root.theme-*` in globals.css; `default` is the bare `:root` palette with no class. Auth pages use the `.auth-shell` scoped token block, not hardcoded hex. Contrast for all seven + `.auth-shell` is asserted by `lib/themeContrast.test.ts`.
 - **Never hardcode colours in components.** Use the semantic vocabulary — `bg-{success|warning|danger|info|accent}-subtle`, `border-{…}-border`, `text-{…}`, or the bare token for a solid fill. `scripts/check-theme-tokens.mjs` is a **hard CI gate**: a raw Tailwind palette class, arbitrary hex in a className, literal hex in an inline `style`, a `dark:` variant, or `text-white` on `bg-[var(--brand)]` fails the build. Fix it or add an allowlist entry with a written reason. `--brand-fg` is DARK on Gilded Noir, Clay and Aurora Dark — never assume white.
-- **Deploy** — `main` branch → Vercel preview (not production). Production JobTrackr is a separate repo.
+- **Deploy** — `main` branch → **live production** at `jobtrackr.com.au` (Vercel git integration, direct, no promotion step — corrected 2026-08-09, this used to say the opposite). `backend/worker`/`backend/api` deploy to their live Fly apps the same way, path-filtered. The legacy JobTrackr app is a genuinely separate Vercel project (`au-jobtrackr.vercel.app`) — see Production Safety above.
 - **Platform-wide AI provider** — BYOK removed 2026-06-16; single admin-managed key in `platform_ai_settings` (`/dashboard/admin/ai-settings`), not per-user. Encrypted with AES-256-GCM.
 - **One CV active per user** — partial unique index on `(user_id) WHERE is_active = true`
 - **Additive DB changes only** — Never ALTER existing tables. Only INSERT new tables and extend value sets.
