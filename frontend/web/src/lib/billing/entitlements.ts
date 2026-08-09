@@ -57,7 +57,10 @@ export async function getEntitlement(userId: string): Promise<Entitlement> {
   const admin = createAdminClient();
 
   // Fetch user role + subscription in parallel — saves ~400ms avg vs sequential.
-  const [{ data: userRow }, { data: sub }] = await Promise.all([
+  const [
+    { data: userRow, error: userErr },
+    { data: sub, error: subErr },
+  ] = await Promise.all([
     admin.from("users").select("role").eq("id", userId).maybeSingle(),
     admin
       .from("subscriptions")
@@ -65,6 +68,20 @@ export async function getEntitlement(userId: string): Promise<Entitlement> {
       .eq("user_id", userId)
       .maybeSingle(),
   ]);
+  // Both `error`s were silently discarded until 2026-08-09. A query failure
+  // (bad/expired SUPABASE_SERVICE_ROLE_KEY, transient DB blip, anything) left
+  // userRow/sub both null — indistinguishable from "this account genuinely has
+  // no role or subscription yet". That sent a real founder/paying account
+  // through the exact same path as a brand-new signup: role fell back to
+  // 'beta', the ADMIN_ROLES bypass below never got a chance to fire, and
+  // `!sub` below returned status:'none' — the dashboard layout's gate then
+  // redirected a confirmed-active, confirmed-founder account to
+  // /onboarding/plan, with zero visibility into why. Logging here doesn't
+  // change the fail-closed behavior (this file's own convention for billing
+  // safety — see rpcConsume's comment), but a silent paywall outage with no
+  // error anywhere is worse than a loud one.
+  if (userErr) console.error(`[entitlements] users query failed for ${userId}:`, userErr.message);
+  if (subErr)  console.error(`[entitlements] subscriptions query failed for ${userId}:`, subErr.message);
   const role = (userRow as { role?: string } | null)?.role ?? "beta";
 
   // Founder/admin bypass everything.

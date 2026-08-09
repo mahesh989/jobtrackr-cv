@@ -75,15 +75,30 @@ create table public.users (
 comment on column public.users.applications_seen_at is
   'When the user last opened the Applications outbox. The sidebar badge counts only pool items whose cover letter completed after this time. NULL = never visited.';
 
--- Auto-create public.users row when a new auth user is confirmed
+-- Auto-create public.users row when a new auth user is confirmed.
+--
+-- 2026-08-09: known founder emails get role='founder' at signup, not the
+-- column default 'beta' + a manual UPDATE afterward. Without this, a
+-- founder's very first page load (before anyone remembers to promote the
+-- row) hits the entitlement gate in getEntitlement() and gets sent to
+-- /onboarding/plan like any new signup — the ADMIN_ROLES bypass there is
+-- correct once role IS 'founder', it just can't retroactively apply to page
+-- loads from before that happened. A single hardcoded email is proportionate
+-- here (there is exactly one founder account); promote this to a small
+-- allowlist table if a second one is ever added.
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
 security definer set search_path = public
 as $$
 begin
-  insert into public.users (id, email)
-  values (new.id, new.email)
+  insert into public.users (id, email, role)
+  values (
+    new.id,
+    new.email,
+    case when lower(new.email) in ('maheshtwari99@gmail.com')
+      then 'founder' else 'beta' end
+  )
   on conflict (id) do nothing;
   return new;
 end;
