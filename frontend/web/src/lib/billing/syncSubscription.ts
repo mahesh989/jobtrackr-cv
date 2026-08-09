@@ -56,7 +56,19 @@ export async function upsertFromSubscription(stripe: Stripe, sub: Stripe.Subscri
 
   // As of the dahlia API the billing period lives on the subscription ITEM,
   // not the subscription object.
-  await admin.from("subscriptions").upsert(
+  //
+  // MUST check `error` and throw. supabase-js never throws on a Postgrest
+  // error — it resolves { data, error } — and this call's result used to be
+  // discarded entirely (2026-08-09 fix). Both callers already have correct
+  // handling for a thrown error (checkout/confirm's catch logs it and still
+  // redirects; the webhook's catch returns 500 so Stripe retries with
+  // backoff), but neither could ever engage it: a failed write here was
+  // completely invisible, so a user whose row failed to upsert — a Stripe
+  // status the DB's CHECK constraint doesn't allow (e.g. `paused`), or any
+  // transient blip — got redirected as if it had succeeded, then bounced
+  // back to /onboarding/plan by the dashboard's entitlement gate forever,
+  // with no error anywhere and no retry ever firing.
+  const { error } = await admin.from("subscriptions").upsert(
     {
       user_id:                userId,
       stripe_customer_id:     customerId,
@@ -71,4 +83,8 @@ export async function upsertFromSubscription(stripe: Stripe, sub: Stripe.Subscri
     },
     { onConflict: "user_id" },
   );
+  if (error) {
+    console.error(`[billing] subscriptions upsert failed for sub ${sub.id} (status=${sub.status}):`, error.message);
+    throw new Error(`subscriptions upsert failed: ${error.message}`);
+  }
 }
