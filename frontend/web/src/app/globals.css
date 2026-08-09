@@ -599,146 +599,172 @@ input[type="radio"] {
    component consuming this class (see Button.tsx's sizeClass map) — every
    consumer of .gh-btn* (component or hand-typed) must bring its own
    text-[..]/px-../py-.. classes. Keep this class limited to shape/color. */
-.gh-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  font-weight: 500;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.12s, border-color 0.12s;
-}
-.gh-btn:hover  { background: var(--surface-2); border-color: var(--border); }
-.gh-btn:active { background: #EAEEF2; }
-.gh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+/* ── @layer components ──────────────────────────────────────────────
+   BUG-11. These component classes used to sit OUTSIDE Tailwind's cascade
+   layers, and unlayered CSS beats every layered utility regardless of
+   specificity — so any utility passed via className that touched a
+   property one of these rules sets was silently dead. Measured on the
+   running app BEFORE this change:
 
-.gh-btn-blue {
-  background: var(--blue);
-  border-color: rgba(9,105,218,0.4);
-  color: var(--blue-fg, #fff);
-  font-weight: 600;
-}
-.gh-btn-blue:hover  { background: var(--blue-dark); }
+     .field                                    -> 13px, padding 8px 10px
+     .field + text-label py-1.5                -> 13px, padding 8px 10px   IDENTICAL
+     .gh-btn                                   -> radius 6px, border --border
+     .gh-btn + rounded-full border-[var(--red)] -> radius 6px, border --border  IDENTICAL
 
-.gh-btn-danger {
-  background: var(--red);
-  border-color: rgba(207,34,46,0.4);
-  color: #fff;
-  font-weight: 600;
-}
+   That is why ResumePausedBanner's button colours did nothing, why
+   SmartToolbar carries an inline-style padding workaround, and why the
+   hover:border-[var(--red)]/30 on five destructive buttons never showed.
 
-/* The app's primary-CTA look (Analyze, Full Analysis, Save, Generate, Send,
-   Apply, Upload). Every theme defines --brand/--brand-fg, so this always
-   matches the active theme's accent color. Single source of truth for that
-   CTA family: change --brand per theme, or this rule for the shape, and every
-   variant="brand" (or the deprecated variant="primary", now an alias) Button
-   plus every hand-typed "gh-btn gh-btn-brand" updates together. */
-.gh-btn-brand {
-  background: var(--brand);
-  border-color: transparent;
-  color: var(--brand-fg);
-  font-weight: 600;
-}
-/* Explicit background on hover/active: .gh-btn:hover's surface background
-   (specificity 0-2-0) would otherwise beat .gh-btn-brand's base (0-1-0) and
-   flash the button white on themes without their own override. */
-.gh-btn-brand:hover  { background: var(--brand); border-color: transparent; color: var(--brand-fg); opacity: 0.9; }
-.gh-btn-brand:active { background: var(--brand); border-color: transparent; color: var(--brand-fg); opacity: 0.85; }
+   Inside @layer components these sit BELOW utilities, so a className
+   override wins — which is what every author already expected. Sizing
+   utilities on .gh-btn are unaffected: it deliberately never set
+   padding/font-size, so those already worked.
 
-/* Table */
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-.data-table thead th {
-  padding: 8px 12px;
-  text-align: left;
-  font-weight: 600;
-  font-size: 12px;
-  color: var(--text-2);
-  background: var(--surface-2);
-  border-bottom: 1px solid var(--border);
-  white-space: nowrap;
-  user-select: none;
-}
-.data-table thead th:first-child { border-radius: 6px 0 0 0; }
-.data-table thead th:last-child  { border-radius: 0 6px 0 0; }
-.data-table tbody tr {
-  border-bottom: 1px solid var(--border-muted);
-  transition: background 0.1s;
-}
-.data-table tbody tr:hover { background: #F3F4F6; }
-.data-table tbody tr:last-child { border-bottom: none; }
-.data-table tbody td {
-  padding: 10px 12px;
-  vertical-align: middle;
-}
+   .select-chevron is deliberately left OUT — it documents a dependency on
+   being unlayered, and carries !important besides.
+   ─────────────────────────────────────────────────────────────────── */
+@layer components {
+  .gh-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-weight: 500;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .gh-btn:hover  { background: var(--surface-2); border-color: var(--border); }
+  .gh-btn:active { background: #EAEEF2; }
+  .gh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* Badges */
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 7px;
-  height: 20px;
-  font-size: 11px;
-  font-weight: 500;
-  border-radius: 12px;
-  border: 1px solid;
-  white-space: nowrap;
-}
-.badge-blue    { background: var(--blue-light);   color: var(--blue);   border-color: var(--info-border); }
-.badge-green   { background: var(--green-light);  color: var(--green);  border-color: var(--success-border); }
-.badge-red     { background: var(--red-light);    color: var(--red);    border-color: var(--danger-border); }
-.badge-amber   { background: var(--amber-light);  color: var(--amber);  border-color: var(--warning-border); }
-.badge-purple  { background: var(--purple-light); color: var(--purple); border-color: var(--accent-border); }
-.badge-gray    { background: var(--surface-2);    color: var(--text-2); border-color: var(--border); }
-.badge-teal    { background: var(--teal-light);   color: var(--teal);   border-color: rgba(27,124,131,0.3); }
+  .gh-btn-blue {
+    background: var(--blue);
+    border-color: rgba(9,105,218,0.4);
+    color: var(--blue-fg, #fff);
+    font-weight: 600;
+  }
+  .gh-btn-blue:hover  { background: var(--blue-dark); }
 
-/* Input — single source of truth for field geometry across every form,
-   toolbar, and modal. Mirrors form-patterns.html Pattern A (.form-input):
-   8px/10px padding, 13px text, 6px radius. Focus ring is theme-tokenized
-   (var(--brand)) so it matches the active theme instead of a fixed blue —
-   Aurora keeps its own rounded override below. */
-.field {
-  width: 100%;
-  padding: 8px 10px;
-  font-size: 13px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--text);
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-.field::placeholder { color: var(--text-3); }
-.field:focus {
-  outline: none;
-  border-color: var(--brand);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
-}
+  .gh-btn-danger {
+    background: var(--red);
+    border-color: rgba(207,34,46,0.4);
+    color: #fff;
+    font-weight: 600;
+  }
 
-/* Invalid-field ring. This MUST be a class here rather than a Tailwind
-   utility at the call site: `.field` sets the `border` SHORTHAND and lives
-   outside Tailwind's cascade layers, so an unlayered rule beats every
-   layered utility regardless of specificity — which meant the
-   `border-[var(--red)]` that Input/Select/Textarea/ProfileFormComponents/
-   VerticalsSection have all been passing for error states resolved to
-   `--border`, not `--red`. Validation errors have never actually shown a
-   red border anywhere in the app. Verified in the browser: computed
-   border-color was the --border teal-mix while --red was #fb7185.
-   Declared after `.field` so it wins on equal specificity, and BELOW
-   `.field:focus` (0-2-0) on purpose — a focused invalid field shows the
-   focus ring, which is the more useful signal while typing.
-   The real fix is moving these component rules into @layer components
-   (see BUG-11 in graph.json); this unblocks the user-visible half of it
-   without touching the cascade for every button, table and badge. */
-.field-error { border-color: var(--red); }
+  /* The app's primary-CTA look (Analyze, Full Analysis, Save, Generate, Send,
+     Apply, Upload). Every theme defines --brand/--brand-fg, so this always
+     matches the active theme's accent color. Single source of truth for that
+     CTA family: change --brand per theme, or this rule for the shape, and every
+     variant="brand" (or the deprecated variant="primary", now an alias) Button
+     plus every hand-typed "gh-btn gh-btn-brand" updates together. */
+  .gh-btn-brand {
+    background: var(--brand);
+    border-color: transparent;
+    color: var(--brand-fg);
+    font-weight: 600;
+  }
+  /* Explicit background on hover/active: .gh-btn:hover's surface background
+     (specificity 0-2-0) would otherwise beat .gh-btn-brand's base (0-1-0) and
+     flash the button white on themes without their own override. */
+  .gh-btn-brand:hover  { background: var(--brand); border-color: transparent; color: var(--brand-fg); opacity: 0.9; }
+  .gh-btn-brand:active { background: var(--brand); border-color: transparent; color: var(--brand-fg); opacity: 0.85; }
+
+  /* Table */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .data-table thead th {
+    padding: 8px 12px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--text-2);
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    user-select: none;
+  }
+  .data-table thead th:first-child { border-radius: 6px 0 0 0; }
+  .data-table thead th:last-child  { border-radius: 0 6px 0 0; }
+  .data-table tbody tr {
+    border-bottom: 1px solid var(--border-muted);
+    transition: background 0.1s;
+  }
+  .data-table tbody tr:hover { background: #F3F4F6; }
+  .data-table tbody tr:last-child { border-bottom: none; }
+  .data-table tbody td {
+    padding: 10px 12px;
+    vertical-align: middle;
+  }
+
+  /* Badges */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 7px;
+    height: 20px;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: 12px;
+    border: 1px solid;
+    white-space: nowrap;
+  }
+  .badge-blue    { background: var(--blue-light);   color: var(--blue);   border-color: var(--info-border); }
+  .badge-green   { background: var(--green-light);  color: var(--green);  border-color: var(--success-border); }
+  .badge-red     { background: var(--red-light);    color: var(--red);    border-color: var(--danger-border); }
+  .badge-amber   { background: var(--amber-light);  color: var(--amber);  border-color: var(--warning-border); }
+  .badge-purple  { background: var(--purple-light); color: var(--purple); border-color: var(--accent-border); }
+  .badge-gray    { background: var(--surface-2);    color: var(--text-2); border-color: var(--border); }
+  .badge-teal    { background: var(--teal-light);   color: var(--teal);   border-color: rgba(27,124,131,0.3); }
+
+  /* Input — single source of truth for field geometry across every form,
+     toolbar, and modal. Mirrors form-patterns.html Pattern A (.form-input):
+     8px/10px padding, 13px text, 6px radius. Focus ring is theme-tokenized
+     (var(--brand)) so it matches the active theme instead of a fixed blue —
+     Aurora keeps its own rounded override below. */
+  .field {
+    width: 100%;
+    padding: 8px 10px;
+    font-size: 13px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .field::placeholder { color: var(--text-3); }
+  .field:focus {
+    outline: none;
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
+  }
+
+  /* Invalid-field ring. This MUST be a class here rather than a Tailwind
+     utility at the call site: `.field` sets the `border` SHORTHAND and lives
+     outside Tailwind's cascade layers, so an unlayered rule beats every
+     layered utility regardless of specificity — which meant the
+     `border-[var(--red)]` that Input/Select/Textarea/ProfileFormComponents/
+     VerticalsSection have all been passing for error states resolved to
+     `--border`, not `--red`. Validation errors have never actually shown a
+     red border anywhere in the app. Verified in the browser: computed
+     border-color was the --border teal-mix while --red was #fb7185.
+     Declared after `.field` so it wins on equal specificity, and BELOW
+     `.field:focus` (0-2-0) on purpose — a focused invalid field shows the
+     focus ring, which is the more useful signal while typing.
+     The real fix is moving these component rules into @layer components
+     (see BUG-11 in graph.json); this unblocks the user-visible half of it
+     without touching the cascade for every button, table and badge. */
+  .field-error { border-color: var(--red); }
+}
 
 /* Native <select> arrows are invisible on the dark themes, so a <select> can
    read as a plain text box. Hide the native arrow and reserve room on the
