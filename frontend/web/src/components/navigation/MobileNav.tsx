@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import { SidebarLinks } from "@/components/navigation/SidebarLinks";
@@ -19,6 +20,23 @@ interface Profile {
  * open the drawer. This avoids CLS from the button popping in after Suspense.
  *
  * Closes on overlay tap, Escape, and route change. Locks body scroll while open.
+ *
+ * Portal to document.body — 2026-08-09 fix. This component is a child of
+ * Sidebar, which (dashboard)/layout.tsx renders inside ResizableSidebar's
+ * `{children}` slot. ResizableSidebar's own wrapper div is `hidden md:flex`
+ * (correctly hiding the desktop sidebar chrome below the md breakpoint), but
+ * that hid THIS component too — its `fixed inset-0` drawer inherited
+ * `display:none` from that ancestor at exactly the widths (<md) where its own
+ * `md:hidden` says it should show. The two conditions are inverses of each
+ * other, so the drawer could never render at any screen size: opening it
+ * (confirmed via direct DOM inspection) updated React state and mounted the
+ * drawer correctly, but getBoundingClientRect() on it and every ancestor up to
+ * ResizableSidebar's wrapper read 0x0 — display:none propagates to descendants
+ * regardless of their own position scheme. A portal is the standard fix for
+ * an overlay that must escape an ancestor's visibility/stacking context — it
+ * also protects against the more general version of this bug (a future
+ * ancestor with `transform`/`filter`/`contain` would make `position: fixed`
+ * relative to THAT box instead of the viewport).
  */
 export function MobileNav({
   email,
@@ -67,7 +85,11 @@ export function MobileNav({
 
   if (!open) return null;
 
-  return (
+  // document.body always exists here: this is a client component, `open` can
+  // only become true from the useEffect above (a client-side event, after
+  // hydration), and the server-rendered pass never gets past the `!open`
+  // guard above. No SSR/mount guard needed.
+  return createPortal(
     <div className="fixed inset-0 z-[9998] md:hidden">
       {/* Dimmed overlay */}
       <div
@@ -100,6 +122,7 @@ export function MobileNav({
           userView={userView}
         />
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
