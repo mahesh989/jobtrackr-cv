@@ -31,6 +31,39 @@ jobs:
         run: node frontend/web/scripts/check-route-auth.mjs
       - name: Migration version lint
         run: node shared/supabase/scripts/lint-migrations.mjs
+      # Theme-token guard — became a hard gate on 2026-08-07 once the
+      # 630-finding palette backlog was migrated (Phases 0-5 of
+      # docs/UI_IMPROVEMENT_2026-08-06.md). Same deal as the auth guard:
+      # a finding is fixed, or allowlisted with a written reason.
+      - name: Theme token guard
+        run: node frontend/web/scripts/check-theme-tokens.mjs
+      # Schema guards — added after the 2026-08-08 outage, in which save.ts
+      # wrote three columns `jobs` did not have, every upsert failed, no job
+      # was ever saved, and the pipeline still logged "run complete". Nothing
+      # compared the code, the migrations and the live database to each other.
+      #
+      # Both SKIP (exit 0, with a loud notice) when the Supabase secrets are
+      # absent, so forks and secret-less runs are not blocked — a skip is
+      # visible in the log rather than being a silent pass.
+      - name: Code vs live schema
+        run: node shared/supabase/scripts/check-code-schema.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      # Catches the OTHER half: a column hand-applied to the database and never
+      # written into a migration. That is how the visa columns were lost — they
+      # existed in the old Supabase project but in no file, so a new project
+      # built from the files alone came up without them.
+      - name: Migrations vs live schema
+        run: node shared/supabase/scripts/check-schema-drift.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      # Proves the check-code-schema parser still detects the historical bug —
+      # a guard whose detector silently breaks is worse than none, and this one
+      # needs no credentials, so it runs everywhere.
+      - name: Schema guard self-test
+        run: node shared/supabase/scripts/check-code-schema.mjs --self-test
 
   web-typecheck:
     name: web · typecheck

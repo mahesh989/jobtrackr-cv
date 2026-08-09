@@ -101,7 +101,7 @@ export function ProfilesTable({
                   {p.name}
                 </HoverPrefetchLink>
                 {!p.is_manual && (
-                  <span className={`text-caption ${p.is_active ? "text-[#1A7F37]" : "text-text-3"}`}>
+                  <span className={`text-caption ${p.is_active ? "text-success" : "text-text-3"}`}>
                     {p.is_active ? `● ${scheduleLabel(p.schedule_cron)}` : "○ Manual"}
                   </span>
                 )}
@@ -147,7 +147,7 @@ export function ProfilesTable({
                   Running…
                 </span>
               ) : failed ? (
-                <span className="text-label text-[#CF222E]">✗ Failed</span>
+                <span className="text-label text-danger">✗ Failed</span>
               ) : (
                 <div className="whitespace-nowrap">
                   {/* relativeDate() reads Date.now() — the bucket can differ
@@ -156,7 +156,7 @@ export function ProfilesTable({
                       mismatch — see the identical note in FeedCards.tsx. */}
                   <span className="text-label text-text-2" suppressHydrationWarning>{relativeDate(run.started_at)}</span>
                   {run.jobs_saved > 0 && (
-                    <span className="text-caption text-[#1A7F37] ml-1.5">+{run.jobs_saved}</span>
+                    <span className="text-caption text-success ml-1.5">+{run.jobs_saved}</span>
                   )}
                 </div>
               )}

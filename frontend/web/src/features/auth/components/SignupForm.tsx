@@ -130,29 +130,29 @@ export function SignupForm() {
       headline={
         <>
           Stop hunting.<br />
-          <em style={{ fontStyle: "italic", color: "#3B82F6" }}>Start tracking.</em>
+          <em style={{ fontStyle: "italic" }} className="text-[var(--brand)]">Start tracking.</em>
         </>
       }
       tagline="Set up in 60 seconds. Your ranked feed will be ready before you wake up tomorrow."
       switchPrompt="Already have an account?"
       switchHref="/auth/login"
       switchLabel="Sign in"
-      trustLabels={["5 AU sources", "AI-ranked feed", "Visa signal", "3-day free trial"]}
+      trustLabels={["6 AU sources", "AI-ranked feed", "Visa signal", "3-day free trial"]}
     >
       {submitted ? (
         /* ── Email sent state ── */
         <div className="text-center">
-          <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-5" style={{ background: "rgba(11, 125, 116, 0.12)", border: "1px solid rgba(11, 125, 116, 0.2)" }}>
-            <svg width="22" height="22" fill="none" stroke="#3B82F6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-5 bg-success-subtle border border-success-border">
+            <svg width="22" height="22" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-success" stroke="currentColor">
               <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
           </div>
           <h1 className="mb-2" style={{ fontFamily: "var(--font-cv-serif)", fontSize: 28, lineHeight: 1.15, letterSpacing: "-0.5px" }}>
             Check your inbox
           </h1>
-          <p style={{ color: "#475569", fontSize: 14, lineHeight: 1.65, fontWeight: 300 }}>
+          <p className="text-text-2" style={{ fontSize: 14, lineHeight: 1.65, fontWeight: 300 }}>
             We sent a confirmation link to{" "}
-            <span style={{ color: "#0F172A", fontWeight: 500 }}>{email}</span>.
+            <span className="text-text" style={{ fontWeight: 500 }}>{email}</span>.
             Click it to activate your account.
           </p>
 
@@ -161,7 +161,7 @@ export function SignupForm() {
           {/* Resend */}
           <div className="mt-5">
             {resendCooldown > 0 ? (
-              <p style={{ fontSize: 12, color: "#667085" }}>
+              <p className="text-text-3" style={{ fontSize: 12 }}>
                 Didn&apos;t get it? Resend in {resendCooldown}s
               </p>
             ) : (
@@ -171,14 +171,14 @@ export function SignupForm() {
                     <TurnstileBox ref={resendTurnstileRef} onToken={setResendCaptchaToken} />
                   </div>
                 )}
-                <button onClick={handleResend} disabled={resendLoading || (TURNSTILE_CONFIGURED && !resendCaptchaToken)} className="text-body underline underline-offset-2 cursor-pointer transition-colors disabled:cursor-not-allowed disabled:opacity-50" style={{ color: "#3B82F6" }}>
+                <button onClick={handleResend} disabled={resendLoading || (TURNSTILE_CONFIGURED && !resendCaptchaToken)} className="text-body underline underline-offset-2 cursor-pointer transition-colors disabled:cursor-not-allowed disabled:opacity-50 text-[var(--brand)]">
                   {resendLoading ? "Resending…" : "Resend confirmation email"}
                 </button>
               </>
             )}
           </div>
 
-          <button onClick={handleTryDifferentEmail} className="mt-4 text-body underline underline-offset-2 cursor-pointer transition-colors" style={{ color: "#475569" }} onMouseEnter={(e) => { e.currentTarget.style.color = "#3B82F6"; }} onMouseLeave={(e) => { e.currentTarget.style.color = "#475569"; }}>
+          <button onClick={handleTryDifferentEmail} className="mt-4 text-body underline underline-offset-2 cursor-pointer transition-colors text-text-2 hover:text-[var(--brand)]">
             Try a different email
           </button>
         </div>
@@ -188,22 +188,22 @@ export function SignupForm() {
             <h1 style={{ fontFamily: "var(--font-cv-serif)", fontSize: "clamp(1.75rem, 4vw, 2.25rem)", lineHeight: 1.12, letterSpacing: "-0.8px", marginBottom: 8 }}>
               Create your account.
             </h1>
-            <p style={{ color: "#475569", fontSize: 14, lineHeight: 1.7, fontWeight: 300 }}>
-              Start your 3-day free trial — no commitment required.
+            <p className="text-text-2" style={{ fontSize: 14, lineHeight: 1.7, fontWeight: 300 }}>
+              3-day free trial · card required, no charge today · cancel any time.
             </p>
           </div>
 
           {/* Google button */}
-          <button onClick={handleGoogleSignUp} disabled={googleLoading || loading} className="w-full flex items-center justify-center gap-3 rounded-lg py-3 mb-5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed cursor-pointer" style={{ background: "#FFFFFF", border: "1.5px solid #E2E8F0", fontSize: 14, fontWeight: 500, color: "#0F172A", opacity: googleLoading ? 0.7 : 1 }}>
+          <button onClick={handleGoogleSignUp} disabled={googleLoading || loading} className="w-full flex items-center justify-center gap-3 rounded-lg py-3 mb-5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed cursor-pointer bg-surface border-[1.5px] border-border text-text" style={{ fontSize: 14, fontWeight: 500, opacity: googleLoading ? 0.7 : 1 }}>
             {googleLoading ? <Spinner size={18} /> : GOOGLE_SVG}
             Continue with Google
           </button>
 
           {/* Divider */}
           <div className="flex items-center gap-3 mb-5">
-            <div style={{ flex: 1, height: 1, background: "#E2E8F0" }} />
-            <span style={{ fontSize: 12, color: "#667085" }}>or sign up with email</span>
-            <div style={{ flex: 1, height: 1, background: "#E2E8F0" }} />
+            <div className="bg-border" style={{ flex: 1, height: 1 }} />
+            <span className="text-text-3" style={{ fontSize: 12 }}>or sign up with email</span>
+            <div className="bg-border" style={{ flex: 1, height: 1 }} />
           </div>
 
           {/* Email + password form */}
@@ -249,8 +249,8 @@ export function SignupForm() {
                 !passwordMeetsAllRules(password) ||
                 password !== confirmPassword
               }
-              className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 mt-2 transition-opacity hover:opacity-90 disabled:cursor-not-allowed cursor-pointer"
-              style={{ background: "#3B82F6", color: "#FFFFFF", fontSize: 14, fontWeight: 500, opacity: loading ? 0.7 : 1 }}
+              className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 mt-2 transition-opacity hover:opacity-90 disabled:cursor-not-allowed cursor-pointer bg-[var(--brand)] text-[var(--brand-fg)]"
+              style={{ fontSize: 14, fontWeight: 500, opacity: loading ? 0.7 : 1 }}
             >
               {loading ? (
                 <>
@@ -268,9 +268,16 @@ export function SignupForm() {
             </button>
           </form>
 
-          <p className="text-center mt-6" style={{ fontSize: 12, color: "#667085" }}>
+          <p className="text-center mt-4 text-text-3" style={{ fontSize: 11.5, lineHeight: 1.5 }}>
+            By creating an account you agree to our{" "}
+            <Link href="/terms" className="text-[var(--brand)]" style={{ fontWeight: 500, textDecoration: "none" }}>Terms</Link>
+            {" "}and{" "}
+            <Link href="/privacy" className="text-[var(--brand)]" style={{ fontWeight: 500, textDecoration: "none" }}>Privacy Policy</Link>.
+          </p>
+
+          <p className="text-center mt-4 text-text-3" style={{ fontSize: 12 }}>
             Already have an account?{" "}
-            <Link href="/auth/login" style={{ color: "#3B82F6", fontWeight: 500, textDecoration: "none" }}>Sign in</Link>
+            <Link href="/auth/login" className="text-[var(--brand)]" style={{ fontWeight: 500, textDecoration: "none" }}>Sign in</Link>
           </p>
         </>
       )}

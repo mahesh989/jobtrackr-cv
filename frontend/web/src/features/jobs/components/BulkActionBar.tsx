@@ -32,7 +32,7 @@ export function BulkActionBar({
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
               Analysing {progress.done}/{progress.total}…
             </span>
-            <button onClick={onStop} className="inline-flex items-center gap-1.5 text-label font-medium text-red-600 hover:text-red-700 border border-red-200 hover:border-red-300 bg-red-50 hover:bg-red-100 rounded-md px-2.5 py-1 transition-colors" title="Stop queuing new analyses — already-sent requests will still complete">
+            <button onClick={onStop} className="inline-flex items-center gap-1.5 text-label font-medium text-danger hover:brightness-95 border border-danger-border bg-danger-subtle rounded-md px-2.5 py-1 transition-colors" title="Stop queuing new analyses — already-sent requests will still complete">
               <X className="w-3.5 h-3.5" />
               Stop
             </button>
@@ -43,7 +43,7 @@ export function BulkActionBar({
               Uses {selectedCount} credit{selectedCount !== 1 ? "s" : ""}
             </span>
             <Button
-              variant="primary"
+              variant="brand"
               size="sm"
               onClick={onConfirmAnalyse}
               className="inline-flex items-center gap-1.5"
@@ -59,7 +59,7 @@ export function BulkActionBar({
           <>
             {selectedCount > 0 && (
               <>
-                <button onClick={onStar} disabled={bulkPending !== null} className="inline-flex items-center gap-1.5 text-label font-medium text-amber-600 hover:text-amber-700 border border-amber-200 hover:border-amber-300 bg-amber-50 hover:bg-amber-100 rounded-md px-2.5 py-1 transition-colors disabled:opacity-50" title="Star selected jobs — adds to your favourites">
+                <button onClick={onStar} disabled={bulkPending !== null} className="inline-flex items-center gap-1.5 text-label font-medium text-warning hover:brightness-95 border border-warning-border bg-warning-subtle rounded-md px-2.5 py-1 transition-colors disabled:opacity-50" title="Star selected jobs — adds to your favourites">
                   {bulkPending === "star"
                     ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     : <Star className="w-3.5 h-3.5" />}
@@ -72,7 +72,7 @@ export function BulkActionBar({
                   Archive
                 </button>
                 <Button
-                  variant="primary"
+                  variant="brand"
                   size="sm"
                   onClick={() => onSetConfirmAnalyse(true)}
                   disabled={bulkPending !== null}

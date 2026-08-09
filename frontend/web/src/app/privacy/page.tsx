@@ -11,17 +11,17 @@ export const metadata = { title: "Privacy Policy — JobTrackr" };
 
 function PrivacyContent({ backHref, backLabel }: { backHref: string; backLabel: string }) {
   return (
-    <article className="max-w-2xl mx-auto px-6 py-12 space-y-8 text-base leading-relaxed">
+    <article className="max-w-2xl mx-auto px-6 py-12 space-y-8 text-lead leading-relaxed">
       <Link href={backHref} className="inline-flex">
         <Button size="sm" className="px-2.5 py-1">← {backLabel}</Button>
       </Link>
       <div>
-        <h1 className="text-3xl font-medium text-text mb-3 tracking-tight">Privacy Policy</h1>
+        <h1 className="text-display font-medium text-text mb-3 tracking-tight">Privacy Policy</h1>
         <p className="text-text-3">Effective: May 2026 · Applies to jobtrackr.app</p>
       </div>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-medium text-text">1. Who we are</h2>
+        <h2 className="text-h2 font-medium text-text">1. Who we are</h2>
         <p>
           JobTrackr is an Australian job-search aggregation tool. We aggregate publicly listed job postings
           from third-party career boards, score them using AI, and present them in your personal dashboard.
@@ -32,7 +32,7 @@ function PrivacyContent({ backHref, backLabel }: { backHref: string; backLabel: 
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-medium text-text">2. Information we collect</h2>
+        <h2 className="text-h2 font-medium text-text">2. Information we collect</h2>
         <ul className="list-disc list-inside space-y-1.5 text-text-2">
           <li><strong className="text-text">Email address</strong> — via Supabase Auth, used for login and weekly digest emails.</li>
           <li><strong className="text-text">Search preferences</strong> — keywords, location, visa filter mode, and schedule settings you configure.</li>
@@ -46,7 +46,7 @@ function PrivacyContent({ backHref, backLabel }: { backHref: string; backLabel: 
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-medium text-text">3. How we use your information</h2>
+        <h2 className="text-h2 font-medium text-text">3. How we use your information</h2>
         <ul className="list-disc list-inside space-y-1.5 text-text-2">
           <li>To aggregate and display job listings relevant to your search profile.</li>
           <li>To score job relevance and visa sponsorship likelihood using Claude AI (Anthropic).</li>
@@ -56,7 +56,7 @@ function PrivacyContent({ backHref, backLabel }: { backHref: string; backLabel: 
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-medium text-text">4. Third-party services</h2>
+        <h2 className="text-h2 font-medium text-text">4. Third-party services</h2>
         <ul className="list-disc list-inside space-y-1.5 text-text-2">
           <li><strong className="text-text">Supabase</strong> (database + auth) — stores your account and job data. Data hosted in Sydney (ap-southeast-2).</li>
           <li><strong className="text-text">Anthropic</strong> — job descriptions are sent to the Claude API for scoring. No personal information (name, email) is included in these requests.</li>
@@ -66,7 +66,7 @@ function PrivacyContent({ backHref, backLabel }: { backHref: string; backLabel: 
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-medium text-text">5. Data retention</h2>
+        <h2 className="text-h2 font-medium text-text">5. Data retention</h2>
         <p>
           Your data is retained for as long as your account is active. You may delete your account
           and all associated data at any time from your account settings. Deletion is permanent and
@@ -75,7 +75,7 @@ function PrivacyContent({ backHref, backLabel }: { backHref: string; backLabel: 
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-medium text-text">6. Your rights (APP 12 &amp; 13)</h2>
+        <h2 className="text-h2 font-medium text-text">6. Your rights (APP 12 &amp; 13)</h2>
         <ul className="list-disc list-inside space-y-1.5 text-text-2">
           <li><strong className="text-text">Access</strong> — export all your data as JSON from <Link href="/settings/account" className="text-brand hover:text-text transition-colors">Account Settings</Link>.</li>
           <li><strong className="text-text">Correction</strong> — edit your search preferences in the dashboard at any time.</li>
@@ -84,7 +84,7 @@ function PrivacyContent({ backHref, backLabel }: { backHref: string; backLabel: 
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-medium text-text">7. Security</h2>
+        <h2 className="text-h2 font-medium text-text">7. Security</h2>
         <p>
           All data is encrypted in transit (TLS) and at rest. Database access uses row-level security
           so users can only access their own data. We do not store passwords.
@@ -92,7 +92,7 @@ function PrivacyContent({ backHref, backLabel }: { backHref: string; backLabel: 
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-medium text-text">8. Complaints</h2>
+        <h2 className="text-h2 font-medium text-text">8. Complaints</h2>
         <p>
           If you believe we have mishandled your personal information, contact us at{" "}
           <a href="mailto:privacy@jobtrackr.com.au" className="text-brand hover:text-text transition-colors">privacy@jobtrackr.com.au</a>.
@@ -135,7 +135,7 @@ export default async function PrivacyPage() {
   return (
     <main className="min-h-screen bg-bg text-text-2">
       <header className="border-b border-border px-6 py-4">
-        <Link href="/" className="text-xl font-medium text-text hover:text-brand transition-colors tracking-tight">
+        <Link href="/" className="text-h2 font-medium text-text hover:text-brand transition-colors tracking-tight">
           JobTrackr
         </Link>
       </header>

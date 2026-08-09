@@ -1,9 +1,36 @@
 -- ============================================================
--- JobTrackr — 001_full_schema.sql (squashed 2026-07-23)
+-- JobTrackr — 001_full_schema.sql (squashed 2026-07-23, updated 2026-08-08)
 --
--- Consolidation of migrations 001–082 (84 files, now under ./archive/).
+-- Consolidation of migrations 001–082 (84 files). The originals are NOT in
+-- this tree — they live only in git history, at commit 9f7a729.
 -- Applying this file + 002_rls.sql + 003_seed.sql to a fresh database
 -- produces the exact same schema as applying the 84 originals in order.
+-- On a database that ISN'T a Supabase-dashboard-provisioned project (raw
+-- Postgres, or schema applied outside Supabase's per-project auto-grant
+-- step), also apply 004_grants.sql — see its header for why.
+--
+-- THIS FILE IS A DECLARATIVE SNAPSHOT, NOT AN APPEND-ONLY LEDGER.
+-- Nothing tracks or auto-applies it: there is no supabase_migrations table,
+-- no Supabase CLI in this repo, and CI only lints filename prefixes. So the
+-- workflow for a schema change is deliberately two steps, in this order:
+--   1. apply the DDL to the live database (dashboard SQL editor or psql), then
+--   2. edit this file so a fresh rebuild reproduces it.
+-- Editing this file alone changes NOTHING on an existing database. Skipping
+-- step 2 is what caused the 083 visa-column outage below — the live DB and
+-- this snapshot silently disagreed, and every job upsert failed for weeks.
+-- New columns go at the END of their table's CREATE TABLE, because
+-- ALTER TABLE ADD COLUMN appends physically and this file's column order is
+-- kept byte-comparable with pg_dump (see the note below).
+--
+-- NOTE ON GREPPING THIS FILE: it mixes cases. Most tables are declared
+-- `create table public.x`, but the ones consolidated from the older migrations
+-- are `CREATE TABLE x (` — uppercase AND without the `public.` schema prefix
+-- (applications and email_integrations, from 031/034/035, are the examples).
+-- A case-sensitive search, or one that assumes the `public.` prefix, will
+-- report them as missing. That is not hypothetical: on 2026-08-08 exactly that
+-- mistake produced a phantom "these tables are in no migration" finding and a
+-- duplicate set of definitions, which had to be reverted. Search with
+-- `grep -iE 'create table[[:space:]]+(if not exists[[:space:]]+)?(public\.)?x'`.
 --
 -- Column order inside each CREATE TABLE deliberately mirrors the order
 -- the columns reached the live table (base columns first, then each
@@ -242,6 +269,15 @@ create table public.jobs (
   closing_date            date,
   shift_patterns          text[],
   is_agency               boolean,
+  -- 083: visa classification (stage 10a). Produced by visaExtractor and
+  -- written by save.ts since the feature landed, but never actually added to
+  -- `jobs` by any migration — only `global_jobs` got the first two (067), and
+  -- visa_extracted_text existed nowhere. Every upsert therefore failed with
+  -- "column jobs.sponsorship_status does not exist" and no job was ever saved.
+  -- Unconstrained text, matching the global_jobs precedent.
+  sponsorship_status      text,
+  citizen_pr_only         boolean,
+  visa_extracted_text     text,
 
   unique (profile_id, url_hash)
 );
@@ -286,6 +322,12 @@ comment on column public.jobs.extracted_emails is
   'Emails found in the JD: [{email, kind: application|enquiry|other, person, context}]. contact_email autofills from the first application-kind entry only when null.';
 comment on column public.jobs.salary_period is
   'Unit for salary_min/salary_max when regex-extracted from JD text. NULL for source-structured (annual) salaries.';
+comment on column public.jobs.sponsorship_status is
+  'Whether the JD states visa sponsorship is available: yes | no | not_mentioned. Orthogonal to work_rights_requirement (what the applicant must hold TODAY).';
+comment on column public.jobs.citizen_pr_only is
+  'True when the JD restricts the role to citizens/PR. NULL = not mentioned. Legacy axis; work_rights_requirement is the modern replacement.';
+comment on column public.jobs.visa_extracted_text is
+  'The JD sentences the visa classification was drawn from, shown as chip tooltip evidence in the feed.';
 
 -- ── 038/050/062: jd_quality auto-classification ─────────────────────────────
 -- Single source of truth for jd_quality. Threshold history: 2000 (038) →

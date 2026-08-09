@@ -84,7 +84,7 @@ on conflict (id) do update set
 insert into public.platform_ai_settings (provider, model, is_active)
 values
   ('openai',    'gpt-5.1',          true),
-  ('anthropic', 'claude-sonnet-4-6', false),
+  ('anthropic', 'claude-sonnet-5',   false),
   ('deepseek',  'deepseek-chat',     false)
 on conflict (provider) do nothing;
 

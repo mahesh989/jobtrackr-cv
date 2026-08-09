@@ -105,7 +105,7 @@ export function SkillsSection({
           </button>
           <span className="text-caption text-text-3">AI reads your bullets and suggests skills — you can remove any that don&apos;t fit.</span>
           {extractErr && (
-            <p className="w-full text-caption text-red-600">{extractErr}</p>
+            <p className="w-full text-caption text-danger">{extractErr}</p>
           )}
         </div>
       )}
@@ -170,8 +170,8 @@ export function ExperienceSection({
               </Grid>
               <div className="mt-4">
                 <div className="text-caption uppercase tracking-wider font-medium mb-2">
-                  <span className={fieldErr(i, "bullets") ? "text-red-600" : "text-text-3"}>
-                    Bullets{isCreate && <span className="text-red-500 ml-0.5">*</span>}
+                  <span className={fieldErr(i, "bullets") ? "text-danger" : "text-text-3"}>
+                    Bullets{isCreate && <span className="text-danger ml-0.5">*</span>}
                     {fieldErr(i, "bullets") && <span className="normal-case tracking-normal ml-1.5">· add at least one</span>}
                   </span>
                 </div>

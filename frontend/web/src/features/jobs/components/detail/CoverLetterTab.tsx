@@ -82,7 +82,7 @@ function SectionShell({
   return (
     <section className="rounded-[10px] border border-border overflow-hidden bg-surface">
       <header
-        className={`flex items-center gap-2 flex-wrap px-[14px] py-[9px] bg-[#fafbfc] ${open ? "border-b border-[var(--border-muted)]" : ""} ${collapsible ? "cursor-pointer select-none" : ""}`}
+        className={`flex items-center gap-2 flex-wrap px-[14px] py-[9px] bg-[var(--surface-2)] ${open ? "border-b border-[var(--border-muted)]" : ""} ${collapsible ? "cursor-pointer select-none" : ""}`}
         onClick={collapsible ? () => setOpen((v) => !v) : undefined}
       >
         {collapsible && (
@@ -93,7 +93,7 @@ function SectionShell({
       </header>
       {open && <div className="px-[14px] py-3">{children}</div>}
       {open && footer && (
-        <footer className="flex items-center gap-2 flex-wrap px-[14px] py-[9px] border-t border-[var(--border-muted)] bg-[#fafbfc]">
+        <footer className="flex items-center gap-2 flex-wrap px-[14px] py-[9px] border-t border-[var(--border-muted)] bg-[var(--surface-2)]">
           {footer}
         </footer>
       )}
@@ -102,7 +102,7 @@ function SectionShell({
 }
 
 function DirtyDot() {
-  return <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" title="Unsaved changes" />;
+  return <span className="w-1.5 h-1.5 rounded-full bg-warning shrink-0" title="Unsaved changes" />;
 }
 
 export function CoverLetterTab({
@@ -228,7 +228,7 @@ export function CoverLetterTab({
       )}
 
       {sent && (
-        <p className="rounded-[8px] border border-border bg-[#fafbfc] px-3.5 py-2 text-[13px] text-text-2">
+        <p className="rounded-[8px] border border-border bg-[var(--surface-2)] px-3.5 py-2 text-[13px] text-text-2">
           This application was emailed on{" "}
           <b className="text-text font-semibold">
             {new Date(letter.email_sent_at as string).toLocaleDateString(undefined, {
@@ -376,7 +376,7 @@ export function CoverLetterTab({
           }
         >
           {draftError ? (
-            <p className="text-[13px] text-red-600">{draftError}</p>
+            <p className="text-[13px] text-danger">{draftError}</p>
           ) : !bodyLoaded ? (
             <div className="py-6">
               <p className="flex items-center gap-2 text-[13px] font-medium text-text">

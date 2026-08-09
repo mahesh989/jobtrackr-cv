@@ -30,15 +30,15 @@ export function ResumePausedBanner({ count }: { count: number }) {
   }
 
   return (
-    <div className="mb-4 rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/10 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
-      <p className="text-body text-amber-900 dark:text-amber-200">
+    <div className="mb-4 rounded-md border border-warning-border bg-warning-subtle px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+      <p className="text-body text-warning">
         Automatic job fetching was paused for {count} profile{count === 1 ? "" : "s"} while you were away.
       </p>
       <Button
         onClick={handleResume}
         disabled={pending}
         size="sm"
-        className="px-3 py-1.5 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/20 shrink-0"
+        className="px-3 py-1.5 shrink-0"
       >
         {pending ? "Resuming…" : "Resume"}
       </Button>

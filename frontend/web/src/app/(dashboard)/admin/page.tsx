@@ -42,16 +42,16 @@ function StatCard({ label, value, sub, href, color = "blue" }: {
   href?: string; color?: "blue"|"green"|"amber"|"red"|"purple"|"slate";
 }) {
   const colors = {
-    blue:   "border-blue-200 bg-blue-50",
-    green:  "border-emerald-200 bg-emerald-50",
-    amber:  "border-amber-200 bg-amber-50",
-    red:    "border-red-200 bg-red-50",
-    purple: "border-purple-200 bg-purple-50",
+    blue:   "border-info-border bg-info-subtle",
+    green:  "border-success-border bg-success-subtle",
+    amber:  "border-warning-border bg-warning-subtle",
+    red:    "border-danger-border bg-danger-subtle",
+    purple: "border-accent-border bg-accent-subtle",
     slate:  "border-border bg-surface",
   };
   const textColors = {
-    blue: "text-blue-700", green: "text-emerald-700", amber: "text-amber-700",
-    red: "text-red-700", purple: "text-purple-700", slate: "text-text",
+    blue: "text-info", green: "text-success", amber: "text-warning",
+    red: "text-danger", purple: "text-accent", slate: "text-text",
   };
   const inner = (
     <div className={`rounded-md border px-4 py-3 ${colors[color]}`}>
@@ -252,7 +252,7 @@ export default async function AdminOverviewPage() {
         <section>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-caption font-semibold text-text-3 uppercase tracking-widest">Users</h2>
-            <Link href="/admin/users" className="text-label text-blue-600 hover:underline">View all →</Link>
+            <Link href="/admin/users" className="text-label text-[var(--brand)] hover:underline">View all →</Link>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
             <StatCard label="Total"     value={String(users.length)}       sub={`+${users7d} this week`} color="slate" />
@@ -289,10 +289,10 @@ export default async function AdminOverviewPage() {
         {failures.length > 0 && (
           <section>
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-caption font-semibold text-red-600 uppercase tracking-widest">Recent failures (7d)</h2>
-              <Link href="/admin/pipeline" className="text-label text-blue-600 hover:underline">Pipeline →</Link>
+              <h2 className="text-caption font-semibold text-danger uppercase tracking-widest">Recent failures (7d)</h2>
+              <Link href="/admin/pipeline" className="text-label text-[var(--brand)] hover:underline">Pipeline →</Link>
             </div>
-            <div className="bg-surface border border-red-200 rounded-md overflow-x-auto">
+            <div className="bg-surface border border-danger-border rounded-md overflow-x-auto">
               <table className="data-table">
                 <thead><tr><th>Run</th><th>User</th><th>Error</th><th>When</th></tr></thead>
                 <tbody>
@@ -300,7 +300,7 @@ export default async function AdminOverviewPage() {
                     <tr key={r.id}>
                       <td className="font-mono text-caption text-text-3">{r.id.slice(0, 8)}…</td>
                       <td className="text-text-2">{userEmailById[r.user_id] ?? r.user_id.slice(0, 8)}</td>
-                      <td className="text-red-700 text-label max-w-xs truncate">{r.error_message ?? "—"}</td>
+                      <td className="text-danger text-label max-w-xs truncate">{r.error_message ?? "—"}</td>
                       <td className="text-text-3">{timeAgo(r.created_at)}</td>
                     </tr>
                   ))}
@@ -314,7 +314,7 @@ export default async function AdminOverviewPage() {
         <section>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-caption font-semibold text-text-3 uppercase tracking-widest">Recent activity</h2>
-            <Link href="/admin/activity" className="text-label text-blue-600 hover:underline">Full feed →</Link>
+            <Link href="/admin/activity" className="text-label text-[var(--brand)] hover:underline">Full feed →</Link>
           </div>
           {events.length === 0 ? (
             <p className="text-label text-text-3 bg-surface border border-border rounded-md px-4 py-6 text-center">
@@ -325,7 +325,7 @@ export default async function AdminOverviewPage() {
               {events.map((e, i) => (
                 <div key={i} className="flex items-start gap-3 px-4 py-2">
                   <span className="text-caption text-text-3 tabular-nums shrink-0 w-20 mt-0.5">{timeAgo(e.created_at)}</span>
-                  <span className="text-label font-medium text-blue-700 shrink-0 truncate max-w-[160px]">{userEmailById[e.user_id] ?? e.user_id.slice(0, 8)}</span>
+                  <span className="text-label font-medium text-info shrink-0 truncate max-w-[160px]">{userEmailById[e.user_id] ?? e.user_id.slice(0, 8)}</span>
                   <span className="text-label text-text">{e.event_type.replace(/_/g, " ")}</span>
                 </div>
               ))}
@@ -363,7 +363,7 @@ export default async function AdminOverviewPage() {
                     <td>
                       {inv.is_active && !inv.used_by && (
                         <form action={revokeInviteCode.bind(null, inv.code)}>
-                          <button type="submit" className="text-caption text-red-600 hover:underline font-medium">Revoke</button>
+                          <button type="submit" className="text-caption text-danger hover:underline font-medium">Revoke</button>
                         </form>
                       )}
                     </td>

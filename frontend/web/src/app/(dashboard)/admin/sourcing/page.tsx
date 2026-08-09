@@ -33,7 +33,7 @@ function Kpi({ label, value, sub, color = "text-text" }: {
   );
 }
 
-function PctBar({ pct, color = "bg-blue-500" }: { pct: number; color?: string }) {
+function PctBar({ pct, color = "bg-info" }: { pct: number; color?: string }) {
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-1.5 min-w-[60px]">
@@ -234,7 +234,7 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
         </div>
       </div>
 
-      <div className="mx-6 mt-4 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-md px-4 py-3 text-label text-amber-800">
+      <div className="mx-6 mt-4 flex items-start gap-2.5 bg-warning-subtle border border-warning-border rounded-md px-4 py-3 text-label text-warning">
         <span className="text-base leading-none mt-0.5">⚠</span>
         <span><span className="font-semibold">Partial data</span> — Source availability badges are not yet wired. Replace with real max(started_at) per source query.</span>
       </div>
@@ -243,9 +243,9 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
 
         {/* Top KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Kpi label="Total saved (30d)"  value={totalSaved.toLocaleString()}  sub={`across ${completedRuns.length} runs`} color="text-emerald-700" />
+          <Kpi label="Total saved (30d)"  value={totalSaved.toLocaleString()}  sub={`across ${completedRuns.length} runs`} color="text-success" />
           <Kpi label="Avg jobs / run"     value={avgJobsPerRun !== null ? avgJobsPerRun.toFixed(1) : "—"} sub="completed runs" />
-          <Kpi label="Save rate"          value={saveRate !== null ? `${saveRate.toFixed(1)}%` : "—"} sub="fetched → saved" color={saveRate !== null && saveRate < 10 ? "text-amber-700" : "text-text"} />
+          <Kpi label="Save rate"          value={saveRate !== null ? `${saveRate.toFixed(1)}%` : "—"} sub="fetched → saved" color={saveRate !== null && saveRate < 10 ? "text-warning" : "text-text"} />
           <Kpi label="Dedup rate"         value={dedupRate !== null ? `${dedupRate.toFixed(1)}%` : "—"} sub="cross-profile + same-URL" />
         </div>
 
@@ -253,9 +253,9 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
         <section>
           <h2 className="text-label font-semibold text-text mb-3">Global job bucket</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Kpi label="Bucket size" value={bucketTotal.toLocaleString()} sub="canonical postings" color="text-blue-700" />
+            <Kpi label="Bucket size" value={bucketTotal.toLocaleString()} sub="canonical postings" color="text-info" />
             <Kpi label="Coverage slices" value={coverageSlices.length.toLocaleString()} sub={`${freshSlices} fresh (<6h)`} />
-            <Kpi label="Scrapes avoided" value={bucketServedRuns.toLocaleString()} sub="runs served w/o fetching" color="text-emerald-700" />
+            <Kpi label="Scrapes avoided" value={bucketServedRuns.toLocaleString()} sub="runs served w/o fetching" color="text-success" />
             <Kpi label="Bucket hit rate" value={bucketHitRate !== null ? `${bucketHitRate.toFixed(0)}%` : "—"} sub="of completed runs" />
           </div>
           {Object.keys(bucketBySource).length > 0 && (
@@ -287,7 +287,7 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
                   <span className="text-label text-text-2 w-28 capitalize truncate">{src}</span>
                   <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-1.5">
                     <div
-                      className="bg-blue-500 h-1.5 rounded-full"
+                      className="bg-info h-1.5 rounded-full"
                       style={{ width: `${Math.max(d.saved > 0 ? 1 : 0, (d.saved / maxSourceSaved) * 100)}%` }}
                     />
                   </div>
@@ -304,8 +304,8 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
           <h2 className="text-label font-semibold text-text mb-3">JD quality (30d)</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
             <Kpi label="Total jobs (30d)"  value={totalJobs.toLocaleString()} />
-            <Kpi label="Full JD"           value={String(fullJd)}  sub={fullJdPct !== null ? `${fullJdPct.toFixed(1)}% of saved` : ""} color="text-emerald-700" />
-            <Kpi label="Thin JD"           value={String(thinJd)}  sub="too short to analyse" color={thinJd > fullJd ? "text-amber-700" : "text-text"} />
+            <Kpi label="Full JD"           value={String(fullJd)}  sub={fullJdPct !== null ? `${fullJdPct.toFixed(1)}% of saved` : ""} color="text-success" />
+            <Kpi label="Thin JD"           value={String(thinJd)}  sub="too short to analyse" color={thinJd > fullJd ? "text-warning" : "text-text"} />
             <Kpi label="Unknown quality"   value={String(unknownJd)} sub="not yet classified" />
           </div>
 
@@ -321,9 +321,9 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
                       <tr key={src}>
                         <td className="capitalize font-medium text-text">{src}</td>
                         <td className="tabular-nums">{d.total}</td>
-                        <td className="tabular-nums text-emerald-700">{d.full}</td>
-                        <td className="tabular-nums text-amber-700">{d.thin}</td>
-                        <td><PctBar pct={fp} color={fp >= 60 ? "bg-emerald-500" : fp >= 30 ? "bg-amber-400" : "bg-red-400"} /></td>
+                        <td className="tabular-nums text-success">{d.full}</td>
+                        <td className="tabular-nums text-warning">{d.thin}</td>
+                        <td><PctBar pct={fp} color={fp >= 60 ? "bg-success" : fp >= 30 ? "bg-warning" : "bg-danger"} /></td>
                       </tr>
                     );
                   })}
@@ -342,7 +342,7 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
                 <span className="text-caption text-text-3 tabular-nums w-24">{day}</span>
                 <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-2">
                   <div
-                    className="bg-blue-500 h-2 rounded-full"
+                    className="bg-info h-2 rounded-full"
                     style={{ width: d.saved > 0 ? `${Math.max(2, (d.saved / maxDaySaved) * 100)}%` : "0%" }}
                   />
                 </div>
@@ -379,12 +379,12 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
                       <tr key={src}>
                         <td className="font-medium capitalize text-text">{src}</td>
                         <td className="tabular-nums">{saved.toLocaleString()}</td>
-                        <td className={`tabular-nums font-semibold ${applied > 0 ? "text-emerald-700" : "text-text-3"}`}>{applied}</td>
+                        <td className={`tabular-nums font-semibold ${applied > 0 ? "text-success" : "text-text-3"}`}>{applied}</td>
                         <td>
                           <div className="flex items-center gap-2">
                             <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-1.5 min-w-[60px]">
                               <div
-                                className={`h-1.5 rounded-full ${rate >= 5 ? "bg-emerald-500" : rate >= 1 ? "bg-blue-400" : "bg-slate-300"}`}
+                                className={`h-1.5 rounded-full ${rate >= 5 ? "bg-success" : rate >= 1 ? "bg-info" : "bg-[var(--border)]"}`}
                                 style={{ width: `${Math.min(100, rate * 10)}%` }}
                               />
                             </div>
@@ -398,7 +398,7 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
                     <tr className="border-t-2 border-border font-semibold">
                       <td className="text-text">Total</td>
                       <td className="tabular-nums">{totalSaved.toLocaleString()}</td>
-                      <td className="tabular-nums text-emerald-700">{appliedTotal}</td>
+                      <td className="tabular-nums text-success">{appliedTotal}</td>
                       <td className="tabular-nums text-label text-text-3">
                         {totalSaved > 0 ? ((appliedTotal / totalSaved) * 100).toFixed(1) : 0}%
                       </td>
@@ -420,7 +420,7 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
                   <span className="text-label text-text-2 w-52 truncate">{loc}</span>
                   <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-1.5">
                     <div
-                      className="bg-blue-500 h-1.5 rounded-full"
+                      className="bg-info h-1.5 rounded-full"
                       style={{ width: `${Math.max(2, (count / maxLocationCount) * 100)}%` }}
                     />
                   </div>
@@ -437,9 +437,9 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
             <h2 className="text-label font-semibold text-text mb-3">Source method health ({RANGE_LABELS[range]})</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <Kpi label="Runs tracked"           value={String(runsWithMethods.length)} sub="with source_methods" />
-              <Kpi label="SEEK direct failures"   value={String(seekDirectFails)}   sub="listings skipped / actor failed" color={seekDirectFails > 0 ? "text-red-600" : "text-text"} />
-              <Kpi label="SEEK Apify fallbacks"   value={String(seekApifyFallback)} sub="unlimited only"                  color={seekApifyFallback > 0 ? "text-amber-700" : "text-text"} />
-              <Kpi label="Adzuna actor failures"  value={String(adzunaActorFails)}  sub={`${adzunaEnriched} enriched ok`} color={adzunaActorFails > 0 ? "text-amber-700" : "text-text"} />
+              <Kpi label="SEEK direct failures"   value={String(seekDirectFails)}   sub="listings skipped / actor failed" color={seekDirectFails > 0 ? "text-danger" : "text-text"} />
+              <Kpi label="SEEK Apify fallbacks"   value={String(seekApifyFallback)} sub="unlimited only"                  color={seekApifyFallback > 0 ? "text-warning" : "text-text"} />
+              <Kpi label="Adzuna actor failures"  value={String(adzunaActorFails)}  sub={`${adzunaEnriched} enriched ok`} color={adzunaActorFails > 0 ? "text-warning" : "text-text"} />
             </div>
           </section>
         )}
@@ -456,14 +456,14 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
                 )}
                 {recentRunsLog.map((r) => {
                   const sm = r.source_methods;
-                  const seekChip = sm?.seek?.listings === "direct"          ? { label: "SEEK direct",    cls: "text-emerald-700" }
-                                 : sm?.seek?.listings === "apify_fallback"  ? { label: "SEEK→Apify",     cls: "text-amber-700" }
-                                 : sm?.seek?.listings === "apify"           ? { label: "SEEK Apify",     cls: "text-blue-700" }
-                                 : sm?.seek?.listings === "skipped"         ? { label: "SEEK skipped",   cls: "text-red-600" }
-                                 : sm?.seek?.listings === "apify_failed"    ? { label: "SEEK apify fail",cls: "text-red-600" }
+                  const seekChip = sm?.seek?.listings === "direct"          ? { label: "SEEK direct",    cls: "text-success" }
+                                 : sm?.seek?.listings === "apify_fallback"  ? { label: "SEEK→Apify",     cls: "text-warning" }
+                                 : sm?.seek?.listings === "apify"           ? { label: "SEEK Apify",     cls: "text-info" }
+                                 : sm?.seek?.listings === "skipped"         ? { label: "SEEK skipped",   cls: "text-danger" }
+                                 : sm?.seek?.listings === "apify_failed"    ? { label: "SEEK apify fail",cls: "text-danger" }
                                  : null;
-                  const adzunaChip = sm?.adzuna?.enrichment === "actor"                    ? { label: "Adzuna full JD", cls: "text-emerald-700" }
-                                   : sm?.adzuna?.enrichment === "actor_failed_teaser"      ? { label: "Adzuna↓teaser",  cls: "text-amber-700" }
+                  const adzunaChip = sm?.adzuna?.enrichment === "actor"                    ? { label: "Adzuna full JD", cls: "text-success" }
+                                   : sm?.adzuna?.enrichment === "actor_failed_teaser"      ? { label: "Adzuna↓teaser",  cls: "text-warning" }
                                    : sm?.adzuna?.enrichment === "none" || sm?.adzuna?.method === "api" ? { label: "Adzuna teaser", cls: "text-text-3" }
                                    : null;
                   return (
@@ -481,7 +481,7 @@ export default async function AdminSourcingPage({ searchParams }: PageProps) {
                         {!sm && <span className="text-text-3">—</span>}
                       </td>
                       <td className="tabular-nums text-text-2">{r.jobs_fetched ?? 0}</td>
-                      <td className={`tabular-nums font-semibold ${(r.jobs_saved ?? 0) > 0 ? "text-emerald-700" : "text-text-3"}`}>{r.jobs_saved ?? 0}</td>
+                      <td className={`tabular-nums font-semibold ${(r.jobs_saved ?? 0) > 0 ? "text-success" : "text-text-3"}`}>{r.jobs_saved ?? 0}</td>
                       <td className="text-text-3">{timeAgo(r.started_at)}</td>
                     </tr>
                   );

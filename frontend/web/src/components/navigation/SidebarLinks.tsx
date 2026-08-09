@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams, type ReadonlyURLSearchParams } from "next/navigation";
 import { useState } from "react";
 import { ADMIN_ROLES } from "@/lib/constants";
 import { Button, HoverPrefetchLink } from "@/components/ui";
@@ -84,6 +84,7 @@ function NavItem({
   badge,
   exact,
   exclude,
+  activeWhen,
   onClick,
 }: {
   href: string;
@@ -94,10 +95,20 @@ function NavItem({
   /** Path prefixes to exclude from matching (prevents parent paths like
    *  `/cv` from matching sub-pages like `/cv/details`). */
   exclude?: string[];
+  /** Overrides the default pathname-only matching below — needed for items
+   *  whose `href` carries a query string (e.g. `/dashboard?stage=favourite`),
+   *  since `usePathname()` never includes the query string so a plain
+   *  `startsWith` comparison can never be true for those. */
+  activeWhen?: (pathname: string, searchParams: ReadonlyURLSearchParams) => boolean;
   onClick?: () => void;
 }) {
   const pathname = usePathname();
-  let active = exact ? pathname === href : pathname.startsWith(href);
+  const searchParams = useSearchParams();
+  let active = activeWhen
+    ? activeWhen(pathname, searchParams)
+    : exact
+      ? pathname === href
+      : pathname.startsWith(href);
   if (active && exclude) {
     active = !exclude.some((p) => pathname === p || pathname.startsWith(p + "/"));
   }
@@ -197,7 +208,8 @@ function Logo({ href }: { href: string }) {
 export function SidebarLinks({ email, profiles = [], favouriteCount = 0, role, userView = false }: Props) {
   const isAdmin = (ADMIN_ROLES as readonly string[]).includes(role ?? "");
   const pathname = usePathname();
-  const [savedOpen, setSavedOpen] = useState(false);
+  const isSavedActive = (pathname === "/profiles" || pathname.startsWith("/profiles/")) && !pathname.startsWith("/profiles/new");
+  const [savedOpen, setSavedOpen] = useState(isSavedActive);
   const [showAllProfiles, setShowAllProfiles] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
 
@@ -258,8 +270,6 @@ export function SidebarLinks({ email, profiles = [], favouriteCount = 0, role, u
   const displayedProfiles = showAllProfiles ? profiles : profiles.slice(0, MAX_VISIBLE);
   const hasMore = profiles.length > MAX_VISIBLE;
 
-  const isSavedActive = (pathname === "/profiles" || pathname.startsWith("/profiles/")) && !pathname.startsWith("/profiles/new");
-
   return (
     <aside className="flex flex-col h-full w-full overflow-y-auto select-none">
       <Logo href="/dashboard" />
@@ -278,8 +288,22 @@ export function SidebarLinks({ email, profiles = [], favouriteCount = 0, role, u
           </a>
         )}
 
-        {/* Same "take me home" reasoning as the logo — see its comment. */}
-        <NavItem href="/dashboard" icon={LayoutDashboard} exact onClick={() => resetScrollFor("/dashboard")}>Dashboard</NavItem>
+        {/* Same "take me home" reasoning as the logo — see its comment.
+            `exact` alone would stay active for `?stage=favourite`/`?stage=applied`
+            too (usePathname() ignores the query string), stealing the highlight
+            from the two items below — so this needs its own activeWhen that
+            excludes those two stage values. */}
+        <NavItem
+          href="/dashboard"
+          icon={LayoutDashboard}
+          exact
+          activeWhen={(pathname, sp) =>
+            pathname === "/dashboard" && sp.get("stage") !== "favourite" && sp.get("stage") !== "applied"
+          }
+          onClick={() => resetScrollFor("/dashboard")}
+        >
+          Dashboard
+        </NavItem>
 
         <SectionLabel>Jobs</SectionLabel>
 
@@ -317,7 +341,7 @@ export function SidebarLinks({ email, profiles = [], favouriteCount = 0, role, u
                   key={p.id}
                   href={href}
                   className={
-                    "sidebar-item flex items-center gap-2.5 px-3 rounded-[var(--sidebar-item-radius)] " +
+                    "sidebar-item flex items-center justify-between gap-2.5 px-3 rounded-[var(--sidebar-item-radius)] " +
                     "text-body font-semibold transition-colors " +
                     (active
                       ? "sidebar-item-active bg-[var(--sidebar-active-bg)] text-[var(--sidebar-active)]"
@@ -325,11 +349,19 @@ export function SidebarLinks({ email, profiles = [], favouriteCount = 0, role, u
                   }
                   style={{ paddingTop: "var(--sidebar-item-py)", paddingBottom: "var(--sidebar-item-py)" }}
                 >
-                  <Activity
-                    className="h-3.5 w-3.5 shrink-0"
-                    style={{ color: p.isRunning ? "#22C55E" : undefined }}
-                  />
-                  <span className="truncate text-[13px]">{p.name}</span>
+                  <span className="flex items-center gap-2.5 min-w-0">
+                    <Activity
+                      className="h-3.5 w-3.5 shrink-0"
+                      style={{ color: p.isRunning ? "var(--success)" : undefined }}
+                    />
+                    <span className="truncate text-[13px]">{p.name}</span>
+                  </span>
+                  {/* Same "hide once active" rule as NavItem's badge. */}
+                  {p.newCount > 0 && !active && (
+                    <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--brand)] text-[var(--brand-fg)] text-micro font-bold flex items-center justify-center">
+                      {p.newCount > 99 ? "99+" : p.newCount}
+                    </span>
+                  )}
                 </HoverPrefetchLink>
               );
             })}
@@ -375,8 +407,21 @@ export function SidebarLinks({ email, profiles = [], favouriteCount = 0, role, u
 
         <NavItem href="/profiles/new" icon={Search}>New Search</NavItem>
 
-        <NavItem href="/dashboard?stage=favourite" icon={Star} badge={favouriteCount || undefined}>Favourite</NavItem>
-        <NavItem href="/dashboard?stage=applied" icon={CheckCircle2}>Applied</NavItem>
+        <NavItem
+          href="/dashboard?stage=favourite"
+          icon={Star}
+          badge={favouriteCount || undefined}
+          activeWhen={(pathname, sp) => pathname === "/dashboard" && sp.get("stage") === "favourite"}
+        >
+          Favourite
+        </NavItem>
+        <NavItem
+          href="/dashboard?stage=applied"
+          icon={CheckCircle2}
+          activeWhen={(pathname, sp) => pathname === "/dashboard" && sp.get("stage") === "applied"}
+        >
+          Applied
+        </NavItem>
         <NavItem href="/analyses" icon={History}>Analyses</NavItem>
 
         <SectionLabel>Profile</SectionLabel>

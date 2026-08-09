@@ -15,6 +15,7 @@
 
 import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
 import { matchRole, stripHtml, sleep } from "./agedCareRoles.js";
+import { extractAuState, AU_STATE_RE } from "../lib/distance.js";
 
 interface Org { tenant: string; company: string }
 
@@ -142,11 +143,26 @@ export const avatureAdapter: SourceAdapter = {
           // Curated aged-care stream: keep only taxonomy-matched titles.
           if (!matchRole(j.title)) continue;
 
+          // These boards are NATIONAL and emit a BARE suburb ("Birkdale",
+          // "Oxley", "Greenbank") with no state, which the geocoder cannot
+          // place: biased toward the searched metro it picks a same-named or
+          // low-importance local match, and a Brisbane job lands 12.5km from a
+          // Sydney home. Recover the state where the page happens to expose it
+          // — the URL slug and the ad body are the only places it appears, as
+          // there is no JSON-LD or addressRegion here — and qualify the string
+          // so geocoding is unambiguous. Best-effort by design: when nothing is
+          // recoverable the location stays bare and distance.ts's ambiguity
+          // guard drops it rather than inventing a position.
+          const st = extractAuState(j.url, j.description);
+          const loc = j.location || "Australia";
+          const qualified =
+            st && loc !== "Australia" && !AU_STATE_RE.test(loc) ? `${loc}, ${st}` : loc;
+
           out.push({
             url:         j.url,
             title:       j.title,
             company:     o.company,
-            location:    j.location || "Australia",
+            location:    qualified,
             description: j.description,
             source:      "agedcare",
             source_tier: 3,

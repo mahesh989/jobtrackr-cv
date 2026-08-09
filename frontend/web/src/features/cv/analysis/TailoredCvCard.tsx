@@ -158,7 +158,7 @@ export function TailoredCvCard({ storagePath, pdfStoragePath, runId }: Props) {
             {showPreview ? "Hide" : "Preview"}
           </Button>
           <Button
-            variant="primary"
+            variant="brand"
             size="sm"
             className="px-2 py-1 shrink-0 whitespace-nowrap"
             onClick={handleDownloadPdf}

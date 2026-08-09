@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { CheckCircle2, AlertTriangle, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -57,9 +57,10 @@ export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {
   const [activeRun, setActiveRun] = useState<RunSnapshot | null>(null);
   const [elapsed, setElapsed]     = useState(0);
   const [stopping, setStopping]   = useState(false);
-  const prev   = useRef<Record<string, string>>({});
-  const seeded = useRef(false);
-  const router = useRouter();
+  const prev     = useRef<Record<string, string>>({});
+  const seeded   = useRef(false);
+  const router   = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     let cancelled = false;
@@ -259,9 +260,22 @@ export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {
 
   const isSuccess = active?.kind === "success";
 
+  // The comment on the run-started listener above claims this banner is "the
+  // only thing showing 'Pipeline running' outside that one profile page" —
+  // that was the intent, but nothing enforced it, so on the running profile's
+  // own page BOTH this and LiveRunStatus rendered and the user saw the banner
+  // twice. Suppress ours exactly where LiveRunStatus mounts (its two pages,
+  // per its import sites) and nowhere else: /profiles/[id]/edit has no
+  // LiveRunStatus, so the banner must still appear there. Only the banner is
+  // suppressed — the completion popup below is global and always renders.
+  const onOwnProfilePage =
+    activeRun !== null &&
+    (pathname === `/profiles/${activeRun.profile_id}/jobs` ||
+     pathname === `/profiles/${activeRun.profile_id}/runs`);
+
   return (
     <>
-      {activeRun && (
+      {activeRun && !onOwnProfilePage && (
         <div className="px-4 sm:px-6 pt-4 anim-in">
           <div className={`h-0.5 rounded-t-md ${stopping ? "bg-[var(--border)]" : "pipeline-bar"}`} />
           <div className="border border-t-0 border-[var(--brand)]/20 bg-[var(--blue-light)]/60 rounded-b-md px-4 py-3 flex items-center justify-between gap-4">
@@ -323,9 +337,9 @@ export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {
 
             <div className="flex gap-3 items-start pr-6">
               {isSuccess ? (
-                <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5 text-green-700" />
+                <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5 text-success" />
               ) : (
-                <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-red-700" />
+                <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-danger" />
               )}
               <div className="min-w-0">
                 <p id="run-notice-title" className="text-lead font-semibold text-text">
@@ -348,8 +362,8 @@ export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {
                 onClick={dismiss}
                 className={`rounded-full px-5 py-2 text-label font-semibold transition-colors ${
                   isSuccess
-                    ? "bg-green-light text-green-700 hover:brightness-95"
-                    : "bg-red-light text-red-700 hover:brightness-95"
+                    ? "bg-green-light text-success hover:brightness-95"
+                    : "bg-red-light text-danger hover:brightness-95"
                 }`}
               >
                 {active!.ctaText}

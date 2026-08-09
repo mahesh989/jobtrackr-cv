@@ -41,10 +41,10 @@ export function EmailIntegrationCard({ connected, googleConfigured, microsoftCon
 
       {connected ? (
         /* ── Connected state ── */
-        <div className="rounded-md border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/10 px-3 py-2.5">
+        <div className="rounded-md border border-success-border bg-success-subtle px-3 py-2.5">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 min-w-0">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
               <div className="min-w-0">
                 <p className="text-label font-medium text-text">
                   {connected.provider === "google" ? "Gmail" : "Outlook"} connected
@@ -54,7 +54,7 @@ export function EmailIntegrationCard({ connected, googleConfigured, microsoftCon
                 </p>
               </div>
             </div>
-            <button onClick={handleDisconnect} disabled={disconnecting} className="inline-flex items-center gap-1 text-caption text-text-2 hover:text-red-600 transition-colors shrink-0 disabled:opacity-40">
+            <button onClick={handleDisconnect} disabled={disconnecting} className="inline-flex items-center gap-1 text-caption text-text-2 hover:text-danger transition-colors shrink-0 disabled:opacity-40">
               {disconnecting
                 ? <Loader2 className="w-3 h-3 animate-spin" />
                 : <LogOut  className="w-3 h-3" />
@@ -95,7 +95,7 @@ export function EmailIntegrationCard({ connected, googleConfigured, microsoftCon
             </Button>
           )}
           {!googleConfigured && !microsoftConfigured && (
-            <p className="text-label text-amber-600 dark:text-amber-400">
+            <p className="text-label text-warning">
               Not configured — set <code className="font-mono text-caption">GOOGLE_CLIENT_ID</code>{" "}
               + <code className="font-mono text-caption">GOOGLE_CLIENT_SECRET</code> (or{" "}
               <code className="font-mono text-caption">MICROSOFT_CLIENT_ID</code>{" "}

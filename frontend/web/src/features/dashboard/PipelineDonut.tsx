@@ -1,20 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
-import { shallowSetParams } from "@/features/jobs/lib/shallowNav";
 import { APPLIED_HREF, LETTER_READY_HREF } from "@/features/jobs/lib/boardViews";
 import { FilterAnchor } from "./FilterAnchor";
-import { CalloutStrip } from "./CalloutStrip";
+import { useApplyFilter } from "./useApplyFilter";
 import { Button, Chip, IconButton } from "@/components/ui";
-
-// View-filter params the donut can set; cleared before applying a new one so
-// the chosen slice is shown cleanly (dataset filters like location are kept).
-// `job` belongs here too: it's leftover detail-pane selection state, not a
-// dataset filter, and a stale one survives this merge otherwise — landing on
-// the Applied flat list with the previously-open job pre-expanded even though
-// that view's whole design is "no auto-expand, detail only on explicit click".
-const DONUT_VIEW_KEYS = ["stage", "triage", "ats", "status", "chips", "job"];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -131,8 +121,11 @@ const LENS_META: Record<LensKey, LensMeta> = {
   },
   applied: {
     label: "Applied",
-    centerLabel: "applied",
-    visibleSlices: 2,
+    // The ring covers every tracked job, so the centre reads "N tracked" —
+    // NOT the applied count. The pill badge still shows applied-only, which
+    // is deliberate: the pill row is the funnel (fetched → saved → analysed →
+    // passed → applied) and must stay readable left-to-right. See pillCount().
+    centerLabel: "tracked",
     slices: [
       { label: "Applied",     color: "var(--chart-applied)", href: APPLIED_HREF },
       // "Letter ready", not "Ready to apply" — that phrase names the
@@ -213,13 +206,20 @@ function getTotals(data: PipelineLensData, lens: LensKey): [number, number, numb
 }
 
 function centerTarget(data: PipelineLensData, lens: LensKey): number {
+  // Sourcing is the one lens whose centre is not its ring total: it counts
+  // lifetime fetches, of which the ring's three slices are the outcome.
+  // Every other lens (applied included) must show the ring total, or the
+  // centre number and the percentages around it disagree.
   if (lens === "sourcing") return data.sourcing.fetched;
-  if (lens === "applied")  return data.applied.totals[0];
   const t = data[lens].totals;
   return t[0] + t[1] + t[2];
 }
 
 function pillCount(data: PipelineLensData, lens: LensKey): number {
+  // Pills form the funnel headline (fetched → saved → analysed → passed →
+  // applied), so these two take the single most meaningful number for their
+  // stage rather than the stage's total. Intentionally NOT the same rule as
+  // centerTarget above.
   if (lens === "sourcing") return data.sourcing.totals[0];
   if (lens === "applied")  return data.applied.totals[0];
   const t = data[lens].totals;
@@ -314,21 +314,7 @@ function hitCenter(mx: number, my: number) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function PipelineDonut({ data }: { data: PipelineLensData }) {
-  const pathname = usePathname();
-  const sp       = useSearchParams();
-
-  // Dashboard board: apply a donut filter instantly client-side (History API)
-  // + scroll to the results, instead of a full server navigation.
-  function applyFilter(href: string) {
-    try {
-      const u = new URL(href, window.location.origin);
-      const params = new URLSearchParams(sp.toString());
-      DONUT_VIEW_KEYS.forEach((k) => params.delete(k));
-      u.searchParams.forEach((val, key) => params.set(key, val));
-      shallowSetParams(pathname, params);
-      document.getElementById("jobs-board")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    } catch { /* noop */ }
-  }
+  const applyFilter = useApplyFilter();
 
   const [activeLens, setActiveLens] = useState<LensKey>("sourcing");
   const [popup,      setPopup]      = useState<"center" | number | null>(null);
@@ -459,6 +445,8 @@ export function PipelineDonut({ data }: { data: PipelineLensData }) {
           <canvas
             ref={canvasRef}
             className="block cursor-pointer"
+            role="img"
+            aria-label={`${meta.label} pipeline chart. The breakdown list to the side gives the same figures in text form.`}
             onMouseMove={onMouseMove}
             onMouseLeave={onMouseLeave}
             onClick={onClick}
@@ -498,7 +486,12 @@ export function PipelineDonut({ data }: { data: PipelineLensData }) {
                 role="button"
                 tabIndex={0}
                 onClick={() => setPopup(i)}
-                onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setPopup(i)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setPopup(i);
+                  }
+                }}
                 className={cls}
               >{inner}</div>
             );
@@ -521,16 +514,14 @@ export function PipelineDonut({ data }: { data: PipelineLensData }) {
               href="/dashboard?triage=thinJd"
              
               apply={applyFilter}
-              className="mt-2 inline-flex items-center gap-1.5 text-caption text-amber-600 hover:text-amber-700 transition-colors"
+              className="mt-2 inline-flex items-center gap-1.5 text-caption text-warning hover:brightness-95 transition-colors"
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+              <span className="w-1.5 h-1.5 rounded-full bg-warning shrink-0" />
               {counts[1]} thin JD{counts[1] > 1 ? "s" : ""} — paste full text to unlock analysis
             </FilterAnchor>
           )}
         </div>
       </div>
-
-      <CalloutStrip callouts={data.callouts} applyFilter={applyFilter} />
 
       {popup !== null && (
         <DonutPopup mode={popup} lens={activeLens} data={data} apply={applyFilter} onClose={() => setPopup(null)} />

@@ -50,11 +50,11 @@ export function UploadProgressModal({ phase, step, onDismiss, onProceed }: Uploa
             </>
           ) : (
             <>
-              <CheckCircle2 className="h-11 w-11 text-green-500" aria-hidden="true" />
+              <CheckCircle2 className="h-11 w-11 text-success" aria-hidden="true" />
               <p className="mt-4 text-lead font-semibold text-text">CV uploaded successfully</p>
               <p className="mt-1 text-body text-text-2">Taking you to review your CV…</p>
               <Button
-                variant="primary"
+                variant="brand"
                 size="sm"
                 type="button"
                 onClick={onProceed}
@@ -95,7 +95,7 @@ export function DeleteConfirmModal({ target, deleting, onCancel, onConfirm }: De
             <> It is currently your <strong>active</strong> CV — after deletion you will need to set another active before running an analysis.</>
           )}
         </p>
-        <p className="text-label text-[#CF222E] font-medium mb-5">This action cannot be undone.</p>
+        <p className="text-label text-danger font-medium mb-5">This action cannot be undone.</p>
         <div className="flex gap-2 justify-end">
           <Button
             onClick={onCancel}

@@ -22,7 +22,7 @@ export function VerticalsSection() {
         <select
           value={family ?? ""}
           onChange={(e) => setFamily(e.target.value ? e.target.value as RoleFamily : null)}
-          className={`field select-chevron ${invalid ? "border-[var(--red)]" : ""}`}
+          className={`field select-chevron ${invalid ? "field-error" : ""}`}
         >
           <option value="">— Select a role type —</option>
           {FAMILY_OPTIONS.map((o) => (

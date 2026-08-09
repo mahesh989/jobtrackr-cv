@@ -185,8 +185,8 @@ export default async function MetricsPage() {
         </div>
 
         {/* Manual guidance */}
-        <div className="bg-[#FFF8C5] border border-[#9A6700]/20 rounded-md p-4 anim-in anim-delay-2">
-          <p className="text-label font-semibold text-[#9A6700] mb-2">Manual metrics guidance</p>
+        <div className="bg-amber-light border border-amber/20 rounded-md p-4 anim-in anim-delay-2">
+          <p className="text-label font-semibold text-amber mb-2">Manual metrics guidance</p>
           <ul className="text-label text-text space-y-1.5 list-disc list-inside leading-relaxed">
             <li><span className="font-semibold">#4 Relevance accuracy</span> — Rate a sample of 20 jobs per run. Track in a spreadsheet until rating UI is built.</li>
             <li><span className="font-semibold">#5 Visa plausibility</span> — Does the visa_likelihood score match the actual job description?</li>

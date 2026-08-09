@@ -26,7 +26,7 @@ interface AtsScoringData {
 
 function scoreColor(s: number) {
   if (s >= 80) return "text-green bg-green-light border-green/30";
-  if (s >= 60) return "text-[#9A6700] bg-[#FFF8C5] border-[#D4A72C]/40";
+  if (s >= 60) return "text-amber bg-amber-light border-amber/40";
   return "text-red bg-red-light border-red/30";
 }
 
@@ -95,7 +95,7 @@ function SubScore({ label, value }: { label: string; value: number | undefined }
           <div
             className={`h-full rounded-full ${
               v! >= 80 ? "bg-green"
-              : v! >= 60 ? "bg-[#D4A72C]"
+              : v! >= 60 ? "bg-amber"
               : "bg-red"
             }`}
             style={{ width: `${Math.max(0, Math.min(100, v!))}%` }}

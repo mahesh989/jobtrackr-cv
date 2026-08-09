@@ -27,7 +27,7 @@ export default async function EditProfilePage({ params }: { params: Promise<{ id
   if (!data) redirect("/dashboard");
   const profile = data as {
     id: string; name: string; keywords: string[]; location: string;
-    visa_filter_mode: string; working_rights: string; schedule_cron: string; is_active: boolean;
+    visa_filter_mode: string; schedule_cron: string; is_active: boolean;
     target_verticals: string[];
     setting_filter?: string[];
     adzuna_title_keywords?: string;
@@ -77,7 +77,6 @@ export default async function EditProfilePage({ params }: { params: Promise<{ id
                 keywords: profile.keywords,
                 location: profile.location,
                 visa_filter_mode: profile.visa_filter_mode,
-                working_rights: profile.working_rights ?? "any",
                 setting_filter: profile.setting_filter ?? [],
                 schedule_cron: profile.schedule_cron,
                 is_active: profile.is_active,

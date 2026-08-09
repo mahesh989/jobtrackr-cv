@@ -16,10 +16,9 @@ import {
   type StructuredCv,
   type CategoriseCvResponse,
 } from "@/lib/cv/backend";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { decryptApiKey }     from "@/lib/integrations/crypto";
-import { PROVIDER_ORDER }    from "@/lib/ai/models";
-import type { AiProvider }   from "@/lib/ai/models";
+import { createAdminClient }      from "@/lib/supabase/admin";
+import { getActiveAiCredentials } from "@/lib/ai/activeProvider";
+import type { AiProvider }        from "@/lib/ai/models";
 
 export interface StructurizeAndCategoriseResult {
   structured_cv:      StructuredCv;
@@ -82,8 +81,11 @@ export async function runStructurizeAndCategorise(
 type StructurizeAndPersistError =
   | { kind: "not_found" }
   | { kind: "empty_cv_text" }
+  // Covers "no active platform provider" AND "its key failed to decrypt" —
+  // getActiveAiCredentials() returns null for both, and neither is something
+  // an end user can act on, so they are one case now. The old separate
+  // `decrypt_failed` told users to re-connect a key they never owned.
   | { kind: "no_ai_key" }
-  | { kind: "decrypt_failed" }
   | { kind: "ai_failed";    message: string }
   | { kind: "db_failed";    message: string };
 
@@ -92,15 +94,19 @@ export type StructurizeAndPersistResult =
   | { ok: false; error: StructurizeAndPersistError };
 
 /**
- * Look up the CV + user's preferred AI key, run structurize + categorise,
+ * Look up the CV, run structurize + categorise on the platform provider,
  * persist the merged result, and return what was written. Shared by the
  * /api/cv/[id]/structurize POST route and the review page's silent
  * stale-version refresh.
+ *
+ * There is no provider argument: BYOK is gone (D20), so the provider is
+ * whatever the admin has active in platform_ai_settings. The old
+ * `preferredAiProvider` parameter selected among a user's own keys and had
+ * nothing left to select from.
  */
 export async function structurizeAndPersist(
   userId: string,
   cvId:   string,
-  preferredAiProvider: AiProvider | null = null,
 ): Promise<StructurizeAndPersistResult> {
   const admin = createAdminClient();
 
@@ -115,27 +121,21 @@ export async function structurizeAndPersist(
     return { ok: false, error: { kind: "empty_cv_text" } };
   }
 
-  const { data: keyRows } = await admin
-    .from("user_integrations")
-    .select("provider, encrypted_api_key, config")
-    .eq("user_id", userId)
-    .eq("status", "valid")
-    .eq("is_enabled", true)
-    .in("provider", PROVIDER_ORDER as unknown as string[]);
+  // Platform-wide provider (platform_ai_settings), NOT a per-user BYOK key.
+  // This function used to read `user_integrations` for an AI provider, which
+  // was correct until BYOK was removed on 2026-06-16 (decision D20). Every
+  // other AI path moved to getActiveAiCredentials() then; this one was
+  // missed, so it looked for a row no account has had since — meaning CV
+  // structurization failed with "No AI key connected. Add one in Settings →
+  // Integrations." for EVERY user, pointing at a screen that no longer
+  // offers AI keys. It also silently blocked skill categorisation, which is
+  // what runs straight after a CV upload.
+  const creds = await getActiveAiCredentials();
+  if (!creds) return { ok: false, error: { kind: "no_ai_key" } };
 
-  type KeyRow = { provider: AiProvider; encrypted_api_key: string; config: { model?: string } | null };
-  const keyByAiProvider = new Map<AiProvider, KeyRow>();
-  for (const row of (keyRows ?? []) as KeyRow[]) keyByAiProvider.set(row.provider, row);
-
-  const chosen = (preferredAiProvider && keyByAiProvider.has(preferredAiProvider))
-    ? preferredAiProvider
-    : PROVIDER_ORDER.find((p) => keyByAiProvider.has(p));
-  if (!chosen) return { ok: false, error: { kind: "no_ai_key" } };
-
-  const k = keyByAiProvider.get(chosen)!;
-  let apiKey: string;
-  try { apiKey = decryptApiKey(k.encrypted_api_key); }
-  catch { return { ok: false, error: { kind: "decrypt_failed" } }; }
+  const chosen = creds.provider;
+  const apiKey = creds.apiKey;
+  const k = { config: { model: creds.model } };
 
   let result: StructurizeAndCategoriseResult;
   try {

@@ -379,7 +379,7 @@ export default async function JobsPage({
               {tabAppliedCount > 0 && (
                 <Badge variant="green">{tabAppliedCount} applied</Badge>
               )}
-              <span className={`text-caption ${p.is_active ? "text-[#1A7F37]" : "text-text-3"}`}>
+              <span className={`text-caption ${p.is_active ? "text-success" : "text-text-3"}`}>
                 {p.is_active ? "● Auto-scheduled" : "○ Manual"}
               </span>
             </div>

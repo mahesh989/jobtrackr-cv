@@ -20,6 +20,95 @@ const REQUEST_TIMEOUT_MS = 8000;
 
 export interface LatLng { lat: number; lng: number; }
 
+/**
+ * An Australian state/territory anywhere in a string. Used two ways: to decide
+ * whether a location is qualified enough to trust proximity bias (see the
+ * ambiguity guard in geocode), and to pull a state out of free text
+ * (extractAuState).
+ *
+ * Abbreviations are matched case-SENSITIVELY via the alternation below because
+ * lowercase "act", "nt", "sa", "wa" and "vic" are ordinary words or fragments
+ * ("act now", "Vic" as a name); requiring capitals costs nothing on real ads,
+ * which always write them uppercase. Full names are matched case-insensitively
+ * since "Queensland" is unambiguous however it is cased.
+ */
+export const AU_STATE_RE =
+  /\b(?:NSW|VIC|QLD|WA|SA|TAS|NT|ACT)\b|\b(?:new\s+south\s+wales|victoria|queensland|western\s+australia|south\s+australia|tasmania|northern\s+territory|australian\s+capital\s+territory)\b/i;
+
+// [canonical, full-name (case-insensitive), abbreviation (case-SENSITIVE)]
+const STATE_CANON: Array<[string, RegExp, RegExp]> = [
+  ["NSW", /\bnew\s+south\s+wales\b/i,               /\bNSW\b/ ],
+  ["QLD", /\bqueensland\b/i,                        /\bQLD\b/ ],
+  ["VIC", /\bvictoria\b/i,                          /\bVIC\b/ ],
+  ["WA",  /\bwestern\s+australia\b/i,               /\bWA\b/  ],
+  ["SA",  /\bsouth\s+australia\b/i,                 /\bSA\b/  ],
+  ["TAS", /\btasmania\b/i,                          /\bTAS\b/ ],
+  ["NT",  /\bnorthern\s+territory\b/i,              /\bNT\b/  ],
+  ["ACT", /\baustralian\s+capital\s+territory\b/i,  /\bACT\b/ ],
+];
+
+/**
+ * Pull an Australian state out of free text (a JD body, a URL slug), returning
+ * the canonical abbreviation or null.
+ *
+ * This exists because the national aged-care boards emit BARE suburbs, which
+ * the geocoder cannot place: "Birkdale" is both a Brisbane suburb and, to a
+ * Sydney-biased search, a plausible local match. Where a state is recoverable
+ * we append it at the source so geocoding is unambiguous; where it is not, the
+ * ambiguity guard drops the job rather than guess.
+ *
+ * Coverage is genuinely partial — measured on the three jobs that leaked into a
+ * Sydney search on 2026-08-08: Birkdale had "QLD" in the JD body only, Oxley
+ * had "Queensland" in the URL slug only, and Greenbank had NO state anywhere in
+ * either. That is why this is a best-effort ENRICHMENT and not the fix on its
+ * own. Regis/avature pages carry no JSON-LD and no addressRegion, so there is
+ * no structured field to read instead; a per-tenant facility→state table is the
+ * durable answer.
+ *
+ * Only ONE distinct state may appear. A national provider's ad that lists
+ * several ("roles across NSW, VIC and QLD") tells us nothing about THIS job, so
+ * we return null rather than pick the first.
+ */
+/**
+ * Is this Nominatim hit an actual populated place, as opposed to a street,
+ * building or land parcel that merely shares the name?
+ *
+ * `boundary/administrative` covers gazetted suburbs and LGAs ("Randwick",
+ * "Strathfield South"); the `place` class covers nodes not mapped as polygons.
+ * Everything else — highway, building, landuse, amenity, shop — is a
+ * same-named feature, which under proximity bias is exactly how a Queensland
+ * job ends up with Sydney coordinates.
+ */
+export function isLocalityResult(r: { class?: string; type?: string }): boolean {
+  const cls = (r.class ?? "").toLowerCase();
+  const typ = (r.type ?? "").toLowerCase();
+  if (cls === "boundary" && typ === "administrative") return true;
+  if (cls === "place") {
+    return [
+      "suburb", "town", "city", "village", "hamlet", "locality",
+      "neighbourhood", "quarter", "borough", "municipality", "county",
+      "state", "region", "island",
+    ].includes(typ);
+  }
+  // Missing class/type (older cached shapes, or a stubbed response) is treated
+  // as a locality so the guard can only ever act on POSITIVE evidence that the
+  // match is a street or building — it must not start dropping jobs wholesale
+  // if the API shape changes.
+  if (!cls && !typ) return true;
+  return false;
+}
+
+export function extractAuState(...texts: Array<string | null | undefined>): string | null {
+  // URL slugs separate words with - / _ ("Queensland-Australia-…"), so flatten
+  // those to spaces before matching on word boundaries.
+  const hay = texts.filter(Boolean).join(" ").replace(/[-_/]+/g, " ");
+  const found = new Set<string>();
+  for (const [canon, fullRe, abbrRe] of STATE_CANON) {
+    if (fullRe.test(hay) || abbrRe.test(hay)) found.add(canon);
+  }
+  return found.size === 1 ? [...found][0] : null;
+}
+
 /** Result of resolving a location string to a driving distance. */
 export interface DistanceResult {
   /** Distance in kilometres, rounded to two decimals. */
@@ -87,7 +176,7 @@ export async function geocode(
       geocodeCache.set(key, null);
       return null;
     }
-    const arr = (await res.json()) as Array<{ lat: string; lon: string; importance?: number | string }>;
+    const arr = (await res.json()) as Array<{ lat: string; lon: string; importance?: number | string; class?: string; type?: string }>;
     if (!arr.length) {
       geocodeCache.set(key, null);
       return null;
@@ -107,6 +196,40 @@ export async function geocode(
         const imp = typeof r.importance === "number" ? r.importance : parseFloat(String(r.importance ?? "0")) || 0;
         const score = imp + (inBox ? IN_BOX_BONUS : 0);
         if (score > best) { best = score; chosen = r; }
+      }
+
+      // Locality guard. A BARE suburb from the national aged-care boards
+      // cannot be trusted to a proximity-biased lookup, because the viewbox
+      // biases the RESULT SET and not merely the ranking: querying "Greenbank"
+      // near Sydney returns nine Sydney streets and never returns the real
+      // Greenbank in Queensland at all. So there is nothing to compare against
+      // and no "wrong winner" to detect — the only usable signal is WHAT the
+      // match is. Real suburbs come back as administrative boundaries or place
+      // nodes; the false local matches are streets, buildings and landuse:
+      //   Greenbank        -> highway/tertiary, building/apartments   (street)
+      //   Birkdale         -> landuse/residential                     (parcel)
+      //   Strathfield South-> boundary/administrative                 (real)
+      //   Randwick         -> boundary/administrative                 (real)
+      // Measured against live Nominatim on 2026-08-08, after a Sydney search
+      // showed Brisbane aged-care jobs at 12.5km, 43.6km and 53.4km.
+      //
+      // Returning null rather than the bad point is deliberate: coordinates are
+      // what the bucket serve radius filters on, so a null DROPS the job while
+      // a confident-but-wrong point displays a fabricated distance. Silent
+      // exclusion beats silent fabrication.
+      //
+      // Only applies to unqualified queries under a bias. State-qualified
+      // strings keep the old behaviour, which is why the location-scoped boards
+      // are untouched — SEEK/Adzuna/Careerjet emit "Westmead, NSW". Where a
+      // state IS recoverable we append it upstream (extractAuState) so the
+      // string takes this trusted path instead of being dropped.
+      if (!AU_STATE_RE.test(query) && !isLocalityResult(chosen)) {
+        console.warn(
+          `[distance] "${query}" resolved to ${chosen.class ?? "?"}/${chosen.type ?? "?"} ` +
+          `(not a locality) under proximity bias — refusing to guess (dropping coordinates)`,
+        );
+        geocodeCache.set(key, null);
+        return null;
       }
     }
     const hit = { lat: parseFloat(chosen.lat), lng: parseFloat(chosen.lon) };

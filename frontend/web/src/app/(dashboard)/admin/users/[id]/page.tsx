@@ -89,7 +89,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
       .select("plan_id, status, trial_end, current_period_end, created_at")
       .eq("user_id", id)
       .single(),
-    admin.from("plans").select("id, name, price_cents, billing_interval"),
+    admin.from("plans").select("id, display_name, price_cents, billing_interval"),
   ]);
 
   if (!userRaw) notFound();
@@ -98,7 +98,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
   type CvVersion   = { id: string; label: string; pdf_storage_path: string; is_active: boolean; created_at: string };
   type Profile     = { id: string; name: string; is_active: boolean; schedule_cron: string | null; created_at: string };
   type Sub         = { plan_id: string; status: string; trial_end: string | null; current_period_end: string | null; created_at: string };
-  type Plan        = { id: string; name: string | null; price_cents: number; billing_interval: string | null };
+  type Plan        = { id: string; display_name: string | null; price_cents: number; billing_interval: string | null };
   type InviteCode  = { code: string; created_by: string | null; used_at: string | null };
 
   const user        = userRaw as User;
@@ -236,7 +236,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
         <Section title="Subscription">
           {sub ? (
             <div className="bg-surface border border-border rounded-md px-4 py-2">
-              <Kv label="Plan"           value={plan?.name ?? sub.plan_id} />
+              <Kv label="Plan"           value={plan?.display_name ?? sub.plan_id} />
               <Kv label="Status"         value={sub.status} />
               <Kv label="Price"          value={plan ? `$${(plan.price_cents / 100).toFixed(2)} / ${plan.billing_interval ?? "month"}` : "—"} />
               <Kv label="Trial ends"     value={sub.trial_end     ? fmtDateTime(sub.trial_end)             : "—"} />
@@ -316,7 +316,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                       <td>
                         {signedUrls[cv.id] ? (
                           <a href={signedUrls[cv.id]} target="_blank" rel="noopener noreferrer"
-                            className="text-caption text-blue-600 hover:underline font-medium">
+                            className="text-caption text-[var(--brand)] hover:underline font-medium">
                             PDF ↗
                           </a>
                         ) : <span className="text-text-3 text-caption">—</span>}
@@ -436,7 +436,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                       </td>
                       <td className="tabular-nums text-label">{r.match_score ?? "—"}</td>
                       <td className="tabular-nums font-semibold text-label">{r.tailored_match_score ?? "—"}</td>
-                      <td className={`tabular-nums text-label ${(r.ats_lift ?? 0) > 0 ? "text-emerald-700" : ""}`}>
+                      <td className={`tabular-nums text-label ${(r.ats_lift ?? 0) > 0 ? "text-success" : ""}`}>
                         {r.ats_lift != null ? `+${r.ats_lift}` : "—"}
                       </td>
                       <td className="text-text-3 text-caption" title={r.error_message ?? ""}>{timeAgo(r.created_at)}</td>

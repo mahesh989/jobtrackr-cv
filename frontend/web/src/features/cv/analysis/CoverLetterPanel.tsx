@@ -57,18 +57,18 @@ const STEP_LABELS = [
 ] as const;
 
 function stepIcon(state: string) {
-  if (state === "completed") return <span className="text-green-600">✓</span>;
+  if (state === "completed") return <span className="text-success">✓</span>;
   if (state === "running")   return <span className="animate-pulse text-brand">●</span>;
-  if (state === "failed")    return <span className="text-red-500">✗</span>;
+  if (state === "failed")    return <span className="text-danger">✗</span>;
   return <span className="text-text-3">○</span>;
 }
 
 function Naturalnessbadge({ score }: { score: number | null }) {
   if (score === null) return null;
   const label = score >= 0.75 ? "Reads as natural" : score >= 0.5 ? "Reads as mostly natural" : "Reads as a bit AI-ish";
-  const colour = score >= 0.75 ? "text-green-700 bg-green-50 border-green-200"
-               : score >= 0.5  ? "text-yellow-700 bg-yellow-50 border-yellow-200"
-               : "text-red-700 bg-red-50 border-red-200";
+  const colour = score >= 0.75 ? "text-success bg-success-subtle border-success-border"
+               : score >= 0.5  ? "text-warning bg-warning-subtle border-warning-border"
+               : "text-danger bg-danger-subtle border-danger-border";
   return (
     <span className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-caption font-medium ${colour}`}>
       {label}
@@ -512,7 +512,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
           A persistent note also shows on the finished letter below via
           quality_flags.generated_below_final_gate. */}
       {belowFinalGate && !letter?.pass_3_final && (
-        <div className="mx-5 mt-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-label text-amber-900">
+        <div className="mx-5 mt-4 rounded border border-warning-border bg-warning-subtle px-3 py-2 text-label text-warning">
           Tailored CV scored{" "}
           <span className="font-bold tabular-nums">{belowFinalGate.score ?? "—"}</span>
           {" "}/ 100, below your configured threshold of{" "}
@@ -523,14 +523,14 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
 
       {/* Error */}
       {error && (
-        <div className="mx-5 mt-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-label text-red-700">
+        <div className="mx-5 mt-4 rounded border border-danger-border bg-danger-subtle px-3 py-2 text-label text-danger">
           {error}
         </div>
       )}
 
       {/* Billing cap — upgrade prompt */}
       {paywall && (
-        <div className="mx-5 mt-4 flex items-center justify-between gap-3 rounded border border-amber-300 bg-amber-50 px-3 py-2.5 text-label text-amber-800">
+        <div className="mx-5 mt-4 flex items-center justify-between gap-3 rounded border border-warning-border bg-warning-subtle px-3 py-2.5 text-label text-warning">
           <span className="font-medium">{paywall.message}</span>
           <Button asChild variant="brand" size="xs" className="shrink-0">
             <a href={`/billing?denied=${paywall.reason}`}>Upgrade</a>
@@ -541,7 +541,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
       {/* Auto-research indicator: shown while we transparently fetch company
           research before drafting (the user doesn't click anything). */}
       {researching && (
-        <div className="mx-5 mt-4 rounded border border-blue-200 bg-blue-50 px-4 py-3 text-label text-blue-900">
+        <div className="mx-5 mt-4 rounded border border-info-border bg-info-subtle px-4 py-3 text-label text-info">
           <span className="animate-pulse">●</span>{" "}
           Researching <span className="font-medium">{researching}</span> before drafting your letter…
         </div>
@@ -615,7 +615,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
       {/* Failed */}
       {letter?.status === "failed" && (
         <div className="px-5 py-4">
-          <p className="text-body text-red-600 font-medium">Generation failed</p>
+          <p className="text-body text-danger font-medium">Generation failed</p>
           {letter.error_message && (
             <p className="mt-1 text-caption text-text-3 font-mono">{letter.error_message}</p>
           )}
@@ -668,7 +668,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
             return (
               <>
                 {claims.length > 0 && (
-                  <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-label text-amber-900">
+                  <div className="rounded border border-warning-border bg-warning-subtle px-3 py-2 text-label text-warning">
                     <p className="font-medium">Review before sending — these claims could not be verified against your CV:</p>
                     <ul className="mt-1 list-disc list-inside space-y-0.5">
                       {claims.map((c, i) => <li key={i}>{c}</li>)}
@@ -676,14 +676,14 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
                   </div>
                 )}
                 {flags.low_quality_company_research && (
-                  <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-label text-amber-900">
+                  <div className="rounded border border-warning-border bg-warning-subtle px-3 py-2 text-label text-warning">
                     Company research returned limited information for this employer.
                     Paragraph 2 falls back to the job description — read it carefully
                     before sending.
                   </div>
                 )}
                 {flags.generated_below_final_gate && (
-                  <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-label text-amber-900">
+                  <div className="rounded border border-warning-border bg-warning-subtle px-3 py-2 text-label text-warning">
                     Generated with a tailored CV score of{" "}
                     <span className="font-bold tabular-nums">{flags.final_gate_score ?? "—"}</span>
                     {" "}/ 100, below your configured threshold of{" "}

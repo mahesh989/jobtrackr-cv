@@ -40,7 +40,6 @@ export async function getOrCreateManualProfile(): Promise<string> {
       schedule_cron:    "",
       target_verticals: ["general", "tech", "healthcare"],
       visa_filter_mode: "probability_sort",
-      working_rights:   "any",
     })
     .select("id")
     .single();
@@ -81,7 +80,6 @@ export async function createProfile(formData: FormData) {
     keywords,
     location: (formData.get("location") as string) ?? "",
     visa_filter_mode: (formData.get("visa_filter_mode") as string) ?? "probability_sort",
-    working_rights: (formData.get("working_rights") as string) ?? "any",
     schedule_cron: scheduleCron,
     is_active: isActive,
     // Role vertical is no longer set per search profile — it's the user's one
@@ -168,7 +166,6 @@ export async function updateProfile(profileId: string, formData: FormData) {
       keywords,
       location: (formData.get("location") as string) ?? "",
       visa_filter_mode: (formData.get("visa_filter_mode") as string) ?? "probability_sort",
-      working_rights: (formData.get("working_rights") as string) ?? "any",
       schedule_cron: scheduleCron,
       is_active: isActive,
       // Role vertical lives in My CV now (see createProfile) — intentionally not
@@ -252,7 +249,6 @@ export async function copyProfile(profileId: string) {
       keywords: orig.keywords,
       location: orig.location,
       visa_filter_mode: orig.visa_filter_mode,
-      working_rights: orig.working_rights,
       schedule_cron: orig.schedule_cron,
       is_active: false,   // copies start paused — user confirms before enabling
       target_verticals: orig.target_verticals,

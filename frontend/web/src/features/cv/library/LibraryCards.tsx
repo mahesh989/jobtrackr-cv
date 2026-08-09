@@ -94,7 +94,7 @@ export function CvRowCard({
               </span>
             )}
             {cv.structured_cv_status === "verified" && (
-              <span className="rounded-full border border-green-700/40 bg-green-700/10 px-2 py-0.5 text-caption font-semibold text-green-800 dark:text-green-300">
+              <span className="rounded-full border border-success-border bg-success-subtle px-2 py-0.5 text-caption font-semibold text-success">
                 Reviewed
               </span>
             )}
@@ -339,7 +339,7 @@ export function CvSkillsBlock({ skills, cvId, onSkillsUpdated }: {
     return (
       <div className="mt-2" onClick={e => e.stopPropagation()}>
         <p className="text-caption text-text-3 italic mb-1.5">
-          Skills not yet categorised. Make sure an AI key is connected, then click below.
+          Skills not yet categorised — this CV was uploaded before categorisation ran.
         </p>
         {reCatError && <p className="text-caption text-red mb-1">{reCatError}</p>}
         <button

@@ -1,11 +1,17 @@
 /**
  * Shared branding pieces for the auth screens (login / signup).
  *
- * These pages are deliberately hand-styled to match the Classic theme's
- * canonical palette (see :root.theme-classic in globals.css) but do NOT
- * consume the app theme tokens directly — they render the same way
- * regardless of a logged-in user's own theme choice, since there's no theme
- * preference yet at the pre-login stage.
+ * These pages are deliberately fixed to the Classic theme's canonical
+ * palette (see :root.theme-classic in globals.css) — pre-login there's no
+ * theme preference yet, so they render the same way regardless of a
+ * logged-in user's own theme choice. They DO consume the app's token
+ * vocabulary (bg-surface, text-text-2, var(--brand), …), same as every
+ * other themed surface — but every token they read is scoped and pinned by
+ * the `.auth-shell` class (see globals.css) rather than following whatever
+ * theme class happens to be on `<html>`. That's what makes the fixed
+ * palette real instead of aspirational: the shared Input/FieldLabel these
+ * pages compose can't accidentally pick up a signed-out visitor's last
+ * theme choice.
  */
 
 export const TURNSTILE_CONFIGURED = !!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
@@ -29,12 +35,14 @@ export const GOOGLE_SVG = (
   </svg>
 );
 
+// NOTE: unused by any current consumer (all four forms compose the shared
+// `Input`, which owns its own styling via the `.field` class). Kept as a
+// small exported constant rather than deleted since it's not this pass's
+// job to prune dead exports — background/border hardcoding removed; the
+// `.field` class already supplies both via the auth-shell-scoped tokens.
 export const inputStyle = {
-  background: "#F1F5F9",
-  border: "1px solid #E2E8F0",
   fontSize: 14,
   fontFamily: "var(--font-cv-sans), system-ui, sans-serif",
-  color: "#0F172A",
 } as React.CSSProperties;
 
 export function Spinner({ size = 16 }: { size?: number }) {
@@ -48,14 +56,11 @@ export function Spinner({ size = 16 }: { size?: number }) {
 
 export function ErrorNotice({ message }: { message: string }) {
   return (
-    <div
-      className="flex items-start gap-2.5 px-3 py-2.5 rounded-md"
-      style={{ background: "#fff0ee", border: "1px solid rgba(207, 34, 46, 0.2)" }}
-    >
-      <svg width="16" height="16" fill="#cf222e" viewBox="0 0 20 20" className="mt-0.5 shrink-0">
+    <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-md bg-danger-subtle border border-danger-border">
+      <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20" className="mt-0.5 shrink-0 text-danger">
         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
       </svg>
-      <p style={{ color: "#cf222e", fontSize: 12 }}>{message}</p>
+      <p className="text-danger" style={{ fontSize: 12 }}>{message}</p>
     </div>
   );
 }

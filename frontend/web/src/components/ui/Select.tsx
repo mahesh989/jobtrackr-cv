@@ -22,7 +22,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             ref={ref}
             id={selectId}
             required={required}
-            className={`field select-chevron ${error ? "border-[var(--red)]" : ""} ${className}`}
+            className={`field select-chevron ${error ? "field-error" : ""} ${className}`}
             aria-invalid={!!error || undefined}
             aria-describedby={error ? `${selectId}-error` : hint ? `${selectId}-hint` : undefined}
             {...rest}

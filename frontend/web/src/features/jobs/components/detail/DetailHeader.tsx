@@ -366,7 +366,7 @@ export function DetailHeader({
                 disabled={cancelling || !runId}
                 title="Stop this analysis — steps already finished are kept, the remaining ones won't run"
                 aria-label="Stop analysis"
-                className="inline-flex items-center gap-1 border-l border-[var(--brand)]/30 px-[10px] py-[7px] text-[13px] font-semibold text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-1 border-l border-[var(--brand)]/30 px-[10px] py-[7px] text-[13px] font-semibold text-danger hover:bg-danger-subtle transition-colors disabled:opacity-50"
               >
                 {cancelling
                   ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -377,7 +377,7 @@ export function DetailHeader({
           )}
           {analysisHref && (
             <a href={analysisHref}
-              className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap bg-[#eef3ff] text-[#2563eb] border border-[#cdddff] hover:bg-[#e2ecff] transition-colors"
+              className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap bg-[var(--brand)]/10 text-[var(--brand)] border border-[var(--brand)]/25 hover:bg-[var(--brand)]/15 transition-colors"
               title="Opens the full analysis page"
             >Full analysis ↗</a>
           )}
@@ -398,28 +398,28 @@ export function DetailHeader({
           )}
 
           {isApplied ? (
-            <span className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold bg-[var(--green-soft)] text-[var(--green)]">✓ Applied</span>
+            <span className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold bg-success-subtle text-success">✓ Applied</span>
           ) : needsJd ? (
             <button type="button" onClick={() => setShowEdit(true)}
-              className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap bg-[var(--brand)] text-white hover:opacity-90 transition-opacity"
+              className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90 transition-opacity"
             >Add job description</button>
           ) : failed && !analysing ? (
             <button type="button" onClick={() => runAnalyze()} disabled={analysing}
-              className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap bg-[var(--brand)] text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90 transition-opacity disabled:opacity-50"
             >
               {analysing ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
               {analysing ? "Analysing…" : "Retry analysis"}
             </button>
           ) : notAnalysed && !analysing ? (
             <button type="button" onClick={() => runAnalyze()} disabled={analysing}
-              className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap bg-[var(--brand)] text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90 transition-opacity disabled:opacity-50"
             >
               {analysing ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
               {analysing ? "Analysing…" : "Analyse this job"}
             </button>
           ) : (
             <button type="button" onClick={() => setShowApply(true)}
-              className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap bg-[var(--brand)] text-white hover:opacity-90 transition-opacity"
+              className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90 transition-opacity"
             >
               {belowGate ? "Apply anyway" : "Apply now"}
             </button>
@@ -472,7 +472,7 @@ export function DetailHeader({
         )}
       </div>
 
-      {error && <p className="text-label text-red-600 mt-2">{error}</p>}
+      {error && <p className="text-label text-danger mt-2">{error}</p>}
 
       {showEdit && (
         <JobEditModal

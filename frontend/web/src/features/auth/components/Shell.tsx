@@ -34,24 +34,24 @@ export function Shell({
   children,
 }: ShellProps) {
   const switchLink = (
-    <Link href={switchHref} className="group text-body cursor-pointer" style={{ color: "#475569" }}>
+    <Link href={switchHref} className="group text-body cursor-pointer text-text-2">
       {switchPrompt}{" "}
-      <span className="underline-offset-2 group-hover:underline" style={{ color: "#3B82F6", fontWeight: 500 }}>
+      <span className="underline-offset-2 group-hover:underline font-medium text-[var(--brand)]">
         {switchLabel}
       </span>
     </Link>
   );
 
   return (
+    // Scoped token override (see the comment above .auth-shell in
+    // globals.css) — this is what makes the fixed palette below real
+    // regardless of a signed-out visitor's last-chosen theme on <html>.
     <div
-      className="min-h-screen flex"
-      style={{ fontFamily: "var(--font-cv-sans), system-ui, sans-serif", color: "#0F172A" }}
+      className="auth-shell min-h-screen flex text-text"
+      style={{ fontFamily: "var(--font-cv-sans), system-ui, sans-serif" }}
     >
       {/* ── Brand panel (desktop only) ── */}
-      <aside
-        className="hidden lg:flex flex-col justify-between w-[440px] shrink-0 px-12 py-10"
-        style={{ background: "#EFF6FF", color: "#0F172A" }}
-      >
+      <aside className="hidden lg:flex flex-col justify-between w-[440px] shrink-0 px-12 py-10 bg-[var(--auth-panel)] text-text">
         <Link href="/" className="flex items-center">
           {/* Logo is the full "JobTrackr" wordmark — no separate badge/text. */}
           {LOGO_SVG}
@@ -59,49 +59,42 @@ export function Shell({
 
         <div>
           <h2
+            className="text-text"
             style={{
               fontFamily: "var(--font-cv-serif)",
               fontSize: "clamp(1.75rem, 2.5vw, 2.25rem)",
               lineHeight: 1.15,
               letterSpacing: "-0.6px",
-              color: "#0F172A",
               marginBottom: 12,
               fontWeight: 400,
             }}
           >
             {headline}
           </h2>
-          <p style={{ color: "rgba(15, 23, 42,0.5)", fontSize: 14, lineHeight: 1.7, fontWeight: 300, marginBottom: 28 }}>
+          <p className="text-text/50" style={{ fontSize: 14, lineHeight: 1.7, fontWeight: 300, marginBottom: 28 }}>
             {tagline}
           </p>
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
             {BRAND_PANEL_FEATURES.map((f) => (
               <li
                 key={f}
-                style={{
-                  display: "flex", alignItems: "flex-start", gap: 10,
-                  padding: "10px 0",
-                  borderBottom: "1px solid rgba(15, 23, 42, 0.08)",
-                  color: "rgba(15, 23, 42,0.7)",
-                  fontSize: 13, lineHeight: 1.5,
-                }}
+                className="flex items-start gap-2.5 py-2.5 border-b border-text/8 text-text/70"
+                style={{ fontSize: 13, lineHeight: 1.5 }}
               >
-                <span
-                  style={{ width: 5, height: 5, background: "#3B82F6", borderRadius: "50%", flexShrink: 0, marginTop: 5 }}
-                />
+                <span className="w-[5px] h-[5px] mt-[5px] rounded-full shrink-0 bg-[var(--brand)]" />
                 {f}
               </li>
             ))}
           </ul>
         </div>
 
-        <p style={{ fontSize: 11, color: "rgba(15, 23, 42,0.2)", letterSpacing: 0.3 }}>
+        <p className="text-text/20" style={{ fontSize: 11, letterSpacing: 0.3 }}>
           Built for Australian job seekers
         </p>
       </aside>
 
       {/* ── Form panel ── */}
-      <div className="flex-1 flex flex-col" style={{ background: "#F1F5F9" }}>
+      <div className="flex-1 flex flex-col bg-surface-2">
         {/* Mobile header */}
         <header className="flex lg:hidden items-center justify-between px-8 py-5">
           <Link href="/" className="flex items-center">
@@ -117,14 +110,7 @@ export function Shell({
 
         {/* Form card */}
         <main className="flex-1 flex items-center justify-center px-5 py-10">
-          <div
-            className="w-full max-w-md rounded-2xl px-10 py-12"
-            style={{
-              background: "#FFFFFF",
-              border: "1px solid #E2E8F0",
-              boxShadow: "0 12px 28px -12px rgba(16,24,40,.18), 0 2px 6px rgba(16,24,40,.06)",
-            }}
-          >
+          <div className="w-full max-w-md rounded-2xl px-10 py-12 bg-surface border border-border shadow-[0_12px_28px_-12px_rgba(16,24,40,.18),0_2px_6px_rgba(16,24,40,.06)]">
             {children}
           </div>
         </main>
@@ -133,8 +119,8 @@ export function Shell({
         <footer className="px-5 pb-10 pt-2">
           <ul className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mx-auto" style={{ maxWidth: 560 }}>
             {trustLabels.map((label) => (
-              <li key={label} className="flex items-center gap-1.5" style={{ fontSize: 12, color: "#64748B" }}>
-                <span className="inline-block rounded-full" style={{ width: 4, height: 4, background: "#3B82F6" }} />
+              <li key={label} className="flex items-center gap-1.5 text-text-3" style={{ fontSize: 12 }}>
+                <span className="inline-block rounded-full w-1 h-1 bg-[var(--brand)]" />
                 {label}
               </li>
             ))}

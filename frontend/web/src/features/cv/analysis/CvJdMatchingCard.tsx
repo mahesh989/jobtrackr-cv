@@ -47,7 +47,7 @@ const CAT_LABEL: Record<Cat, string> = SKILL_CATEGORY_LABELS;
 
 function rateBadgeCls(pct: number) {
   if (pct >= 70) return "bg-green-light text-green border-green/30";
-  if (pct >= 40) return "bg-[#FFF8C5] text-[#9A6700] border-[#D4A72C]/40";
+  if (pct >= 40) return "bg-amber-light text-amber border-amber/40";
   return "bg-red-light text-red border-red/30";
 }
 

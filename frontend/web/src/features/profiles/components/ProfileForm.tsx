@@ -37,7 +37,6 @@ interface Props {
     keywords: string[];
     location: string;
     visa_filter_mode: string;
-    working_rights?: string;
     setting_filter?: string[];
     schedule_cron: string;
     is_active: boolean;

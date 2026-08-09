@@ -10,19 +10,16 @@
  * /cv/{id}/review.
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { structurizeAndPersist }     from "@/lib/cv/structurizeAndCategorise";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
-import { PROVIDER_ORDER }           from "@/lib/ai/models";
 import { jsonError, withUser } from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
 export const maxDuration = 60;
 
-type Provider = (typeof PROVIDER_ORDER)[number];
-
 export const POST = withUser(async (
-  req: NextRequest,
+  _req: Request,
   { params }: { params: Promise<{ id: string }> },
   { user },
 ) => {
@@ -34,13 +31,9 @@ export const POST = withUser(async (
   const rl = await rateLimit(`cv-structurize:${user.id}`, 8, 60);
   if (!rl.allowed) return jsonError(RATE_LIMIT_MESSAGE, 429);
 
-  const { searchParams } = new URL(req.url);
-  const raw = searchParams.get("provider");
-  const preferred: Provider | null = (raw && (PROVIDER_ORDER as readonly string[]).includes(raw))
-    ? (raw as Provider)
-    : null;
-
-  const r = await structurizeAndPersist(user.id, id, preferred);
+  // No `?provider=` any more — BYOK is gone (D20) and the provider comes from
+  // platform_ai_settings, so there was nothing for the caller to choose.
+  const r = await structurizeAndPersist(user.id, id);
   if (r.ok) return NextResponse.json({ ok: true });
 
   switch (r.error.kind) {
@@ -49,9 +42,14 @@ export const POST = withUser(async (
     case "empty_cv_text":
       return jsonError("CV has no extractable text — re-upload the file.", 422);
     case "no_ai_key":
-      return jsonError("No AI key connected. Add one in Settings → Integrations.", 422);
-    case "decrypt_failed":
-      return jsonError("Could not decrypt your AI key — re-connect it in Integrations.", 500);
+      // Deliberately NOT "add a key in Settings → Integrations": users have
+      // not had their own AI key since BYOK was removed, and that screen no
+      // longer offers one, so the old copy sent people somewhere they could
+      // do nothing. This is an admin-side outage from the user's point of view.
+      return jsonError(
+        "AI is temporarily unavailable — the platform AI provider isn't configured. Please try again shortly.",
+        503,
+      );
     case "ai_failed":
       console.error("[/api/cv/:id/structurize] AI failed:", r.error.message);
       return jsonError("AI structurization failed", 502);

@@ -36,7 +36,7 @@ function CostBar({ value, max }: { value: number; max: number }) {
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-1.5 min-w-[80px]">
-        <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${pct}%` }} />
+        <div className="bg-[var(--brand)] h-1.5 rounded-full" style={{ width: `${pct}%` }} />
       </div>
       <span className="text-caption font-mono text-text-2 shrink-0">{formatCost(value)}</span>
     </div>
@@ -108,9 +108,9 @@ export default async function AdminAiCostsPage({ searchParams }: PageProps) {
   const maxProviderCost = providerRanked[0]?.[1].cost ?? 1;
 
   const PROVIDER_COLOR: Record<string, string> = {
-    openai:    "bg-emerald-500",
-    anthropic: "bg-orange-400",
-    deepseek:  "bg-blue-500",
+    openai:    "bg-[var(--chart-pos)]",
+    anthropic: "bg-[var(--chart-warn)]",
+    deepseek:  "bg-[var(--chart-info)]",
   };
 
   // Cost by operation
@@ -164,7 +164,7 @@ export default async function AdminAiCostsPage({ searchParams }: PageProps) {
             <h1 className="text-lead font-semibold text-text">AI cost & usage</h1>
             <p className="text-label text-text-3 mt-0.5">
               Data from <code className="font-mono text-caption">ai_calls</code> table.{" "}
-              {noData && <span className="text-amber-700 font-medium">No data yet — apply migration 055 and set TRACK_AI_USAGE=true on cv-backend.</span>}
+              {noData && <span className="text-warning font-medium">No data yet — apply migration 055 and set TRACK_AI_USAGE=true on cv-backend.</span>}
             </p>
           </div>
           <RangeFilter current={range} path="/admin/ai-costs" />
@@ -194,8 +194,8 @@ export default async function AdminAiCostsPage({ searchParams }: PageProps) {
           {[
             { label: "Input tokens (mo)",  value: formatTokens(monthTokensIn)  },
             { label: "Output tokens (mo)", value: formatTokens(monthTokensOut) },
-            { label: "Error calls (mo)",   value: String(errorCalls),  color: errorCalls > 0 ? "text-red-600" : undefined },
-            { label: "Retry calls (mo)",   value: String(retryCalls),  color: retryCalls > 0 ? "text-amber-600" : undefined },
+            { label: "Error calls (mo)",   value: String(errorCalls),  color: errorCalls > 0 ? "text-danger" : undefined },
+            { label: "Retry calls (mo)",   value: String(retryCalls),  color: retryCalls > 0 ? "text-warning" : undefined },
           ].map((s) => (
             <div key={s.label} className="border border-border bg-surface rounded-md px-4 py-3">
               <p className="text-caption font-medium text-text-3 mb-0.5">{s.label}</p>
@@ -216,7 +216,7 @@ export default async function AdminAiCostsPage({ searchParams }: PageProps) {
                 return (
                   <div key={prov} className="border border-border bg-surface rounded-md px-4 py-3">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`w-2 h-2 rounded-full ${PROVIDER_COLOR[prov] ?? "bg-slate-400"}`} />
+                      <span className={`w-2 h-2 rounded-full ${PROVIDER_COLOR[prov] ?? "bg-[var(--chart-neutral)]"}`} />
                       <p className="text-caption font-semibold text-text capitalize">{prov}</p>
                     </div>
                     <p className="text-h2 font-bold text-text">{d ? formatCost(d.cost) : "$0"}</p>
@@ -233,7 +233,7 @@ export default async function AdminAiCostsPage({ searchParams }: PageProps) {
                   <span className="text-label text-text-2 w-24 capitalize">{prov}</span>
                   <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-2">
                     <div
-                      className={`${PROVIDER_COLOR[prov] ?? "bg-slate-400"} h-2 rounded-full`}
+                      className={`${PROVIDER_COLOR[prov] ?? "bg-[var(--chart-neutral)]"} h-2 rounded-full`}
                       style={{ width: `${Math.max(2, (d.cost / maxProviderCost) * 100)}%` }}
                     />
                   </div>
@@ -254,7 +254,7 @@ export default async function AdminAiCostsPage({ searchParams }: PageProps) {
                 <span className="text-caption text-text-3 tabular-nums w-24">{day}</span>
                 <div className="flex-1 bg-[var(--sidebar-active-bg)] rounded-full h-2">
                   <div
-                    className="bg-blue-500 h-2 rounded-full transition-all"
+                    className="bg-[var(--brand)] h-2 rounded-full transition-all"
                     style={{ width: `${Math.max(2, (cost / maxDay) * 100)}%` }}
                   />
                 </div>

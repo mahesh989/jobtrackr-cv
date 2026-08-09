@@ -104,13 +104,13 @@ function StepRow({
     state === "completed" ? "bg-green" :
     state === "running"   ? "bg-blue animate-pulse" :
     state === "failed"    ? "bg-red" :
-    state === "skipped"   ? "bg-amber-400" :
+    state === "skipped"   ? "bg-warning" :
                             "bg-text-3/30";
   const color =
     state === "running"   ? "text-text" :
     state === "completed" ? "text-text-2" :
     state === "failed"    ? "text-red" :
-    state === "skipped"   ? "text-amber-700" :
+    state === "skipped"   ? "text-warning" :
                             "text-text-3";
   return (
     <div className="flex items-start gap-3 py-2">
@@ -351,7 +351,7 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
               <button
                 onClick={() => startCancel(async () => { await cancelAnalysisRun(runId); })}
                 disabled={cancelPending}
-                className="inline-flex items-center gap-1.5 text-label font-medium text-red-600 hover:text-red-700 border border-red-200 hover:border-red-300 bg-red-50 hover:bg-red-100 rounded-md px-2.5 py-1 transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 text-label font-medium text-danger hover:brightness-95 border border-danger-border bg-danger-subtle rounded-md px-2.5 py-1 transition-colors disabled:opacity-50"
                 title="Stop this analysis — prevents remaining AI steps from running"
               >
                 {cancelPending
@@ -424,14 +424,14 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
           backend reuses the cached JD analysis / matching / scoring and
           continues from recommendations onward, so no early step re-runs. */}
       {stoppedAtInitialGate && (
-        <div className="bg-amber-50 border border-amber-200 rounded-md px-5 py-4">
+        <div className="bg-warning-subtle border border-warning-border rounded-md px-5 py-4">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
             <div className="min-w-0 flex-1">
-              <h3 className="text-body font-semibold text-amber-900">
+              <h3 className="text-body font-semibold text-warning">
                 Tailoring skipped — initial ATS below the gate
               </h3>
-              <p className="text-label text-amber-800 mt-1 leading-relaxed">
+              <p className="text-label text-warning mt-1 leading-relaxed">
                 {typeof run.match_score === "number"
                   ? `The initial ATS score (${Math.round(run.match_score)}%) is below the ${MIN_INITIAL_ATS}% gate, `
                   : `The initial ATS score is below the ${MIN_INITIAL_ATS}% gate, `}
@@ -442,7 +442,7 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
                 <button
                   onClick={handleResume}
                   disabled={resuming}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-label font-semibold text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-md bg-warning px-3 py-1.5 text-label font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors"
                   title="Continue this run past the gate and generate the tailored CV (reuses the analysis already done)"
                 >
                   {resuming ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
