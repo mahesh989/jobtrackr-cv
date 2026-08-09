@@ -243,10 +243,7 @@ export function SidebarLinks({ email, profiles = [], favouriteCount = 0, role, u
           <SectionLabel>System</SectionLabel>
           <NavItem href="/admin/ai-settings"  icon={Sparkles}>AI provider</NavItem>
           <NavItem href="/integrations"      icon={Plug}>Integrations</NavItem>
-          <NavItem href="/cv"                icon={UserCircle2}>Profile</NavItem>
           <NavItem href="/settings/theme"    icon={Palette}>Theme</NavItem>
-          <NavItem href="/settings/account"  icon={Mail}>Account</NavItem>
-          <NavItem href="/privacy"                     icon={Lock}>Privacy policy</NavItem>
 
           <SectionLabel>Preview</SectionLabel>
           {/* Plain anchor — hits a route handler that sets the cookie + redirects. */}
