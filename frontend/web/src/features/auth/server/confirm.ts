@@ -9,6 +9,27 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { emitEvent, parseDevice } from "@/lib/admin/events";
 
+/**
+ * Does this exchange represent a password-recovery link?
+ *
+ * `otpType` is Supabase's query-param signal (`?type=recovery`) — present for
+ * the legacy hash-fragment flow and for verifyOtp's token_hash flow, but
+ * ABSENT for the PKCE/code-exchange flow this app uses for password resets
+ * (see the 2026-08-09 fix: exchangeCodeForSession never gets `type=recovery`
+ * in its query string). `redirectType` is that flow's own signal instead —
+ * returned by exchangeCodeForSession at runtime (sourced from the stored
+ * code_verifier cookie) but NOT part of the SDK's public TypeScript type, so
+ * callers must read it via a cast; see the call site.
+ *
+ * Without this, a recovery link falls through to the "no type = OAuth
+ * callback" branch, landing an authenticated recovery session on `/` — which
+ * an incomplete-entitlement account then gets bounced from straight to
+ * /onboarding/plan instead of ever reaching the password form.
+ */
+export function isRecoveryLink(otpType: string | null, redirectType: string | null | undefined): boolean {
+  return otpType === "recovery" || redirectType === "recovery";
+}
+
 export async function handleAuthConfirm(request: NextRequest): Promise<NextResponse> {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
@@ -50,7 +71,7 @@ export async function handleAuthConfirm(request: NextRequest): Promise<NextRespo
   // Establish the session from whichever link format Supabase produced:
   //  - PKCE / OTP magic links carry `code`     → exchangeCodeForSession
   //  - invite / email links carry `token_hash` → verifyOtp
-  const { error } = code
+  const { data, error } = code
     ? await supabase.auth.exchangeCodeForSession(code)
     : await supabase.auth.verifyOtp({
         token_hash: tokenHash!,
@@ -60,12 +81,19 @@ export async function handleAuthConfirm(request: NextRequest): Promise<NextRespo
     return NextResponse.redirect(`${origin}/auth/login?error=exchange_failed`);
   }
 
+  // exchangeCodeForSession's public type only declares { user, session } —
+  // `redirectType` is undocumented in @supabase/auth-js's TypeScript types but
+  // real at runtime (its own JSDoc example shows `redirectType: null`). This
+  // cast reads that undocumented-but-real field; see isRecoveryLink's comment
+  // for why it's the only signal available for this link type.
+  const redirectType = (data as { redirectType?: string | null } | null)?.redirectType;
+
   // Password recovery is the one link type that must NOT end in a sign-out —
   // the user doesn't know their old password (that's why they're here), so
   // they need the session this link just established to actually set a new
   // one. Send them straight to the update-password screen instead of the
   // signup/login stamping-and-signout path below.
-  if (otpType === "recovery") {
+  if (isRecoveryLink(otpType, redirectType)) {
     return NextResponse.redirect(`${origin}/auth/update-password`);
   }
 
