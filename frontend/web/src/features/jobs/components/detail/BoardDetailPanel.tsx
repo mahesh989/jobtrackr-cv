@@ -28,6 +28,7 @@ import { useIsDesktop } from "../../lib/useIsDesktop";
 import { deriveProgress } from "../../lib/progressFlags";
 import { derivePipelineState, recomputeGates } from "../../lib/pipelineState";
 import type { BoardJob } from "../../lib/jobFilters";
+import { MIN_INITIAL_ATS, MIN_FINAL_ATS } from "@/lib/atsThresholds";
 import { DetailHeader } from "./DetailHeader";
 import { JobDescriptionTab } from "./JobDescriptionTab";
 import { MatchScoreTab } from "./MatchScoreTab";
@@ -167,7 +168,7 @@ function BoardDetailPanelInner({
         }
       : undefined;
 
-    const th    = job.atsThresholds ?? { initial: 60, final: 70 };
+    const th    = job.atsThresholds ?? { initial: MIN_INITIAL_ATS, final: MIN_FINAL_ATS };
     const gates = recomputeGates(r.match_score, r.tailored_match_score, th.initial, th.final);
 
     onPatchJob(job.id, {

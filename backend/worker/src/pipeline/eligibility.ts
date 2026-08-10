@@ -67,7 +67,9 @@ export function computeEligibility(
   if (capability >= demand) {
     // Meets the stated demand. A student meeting only "not_stated" is still
     // just "eligible" — the hours-cap conflict with full-time-only jobs is a
-    // soft UI warning (see hoursCapConflict), never a silent drop.
+    // soft UI warning (see hoursCapConflict in the web mirror,
+    // frontend/web/src/lib/eligibility.ts — UI-only, not needed here), never
+    // a silent drop.
     return "eligible";
   }
   return "not_eligible";

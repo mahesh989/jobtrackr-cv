@@ -244,9 +244,10 @@ export interface AnalyzePayload {
   ai_api_key:    string;
   ai_model?:     string | null;
   contact_details?: Record<string, unknown> | null;
-  // Gate thresholds. cv-backend AnalyzeRequest defaults to 60/70; the
+  // Gate thresholds. cv-backend AnalyzeRequest schema defaults to 50/70; the
   // analyze route sends per-vertical values from lib/atsThresholds
-  // (healthcare/nursing = 40/60, everything else 60/70).
+  // (healthcare/nursing = 40/60, everything else 60/70) — every live caller
+  // sends both explicitly, so the schema defaults are a fallback only.
   min_initial_ats?: number;
   min_final_ats?:   number;
   // Phase C-3 — true ONLY when the user clicked "Force tailoring

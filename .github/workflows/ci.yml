@@ -97,6 +97,48 @@ jobs:
       - run: pip install -r requirements.txt pytest pytest-asyncio
       - run: pytest -q
 
+  # web's 5 vitest suites (theme-contrast WCAG, dashboard data derivation, the
+  # BUG-18 auth-recovery regression, CV review characterization) previously ran
+  # in no workflow at all — only deploy.yml's post-merge gate covered the
+  # worker/api suites. Mirrors web-lint below.
+  web-tests:
+    name: web · vitest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/web/package-lock.json
+      - run: npm ci
+      - run: npm test
+
+  # Worker previously had no PR gate at all — its typecheck+test only ran in
+  # deploy.yml, which triggers on push to main (= production, per CLAUDE.md).
+  # That caught regressions only after they were already merged. This job is
+  # unconditional (unlike deploy.yml's path-filtered gate-worker) to match how
+  # web-typecheck/api-tests already run on every PR regardless of what changed.
+  worker-gate:
+    name: worker · typecheck + test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/worker/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test
+
   web-lint:
     name: web · eslint
     runs-on: ubuntu-latest

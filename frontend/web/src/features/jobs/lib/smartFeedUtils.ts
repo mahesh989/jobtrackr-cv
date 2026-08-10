@@ -1,5 +1,6 @@
 import { type BoardJob, type AtsBand } from "@/features/jobs/lib/jobFilters";
 import { EMPLOYMENT_TYPE_LABELS } from "@/lib/constants";
+import { MIN_INITIAL_ATS, MIN_FINAL_ATS } from "@/lib/atsThresholds";
 export { relativeDate } from "@/lib/dates";
 
 export function clampInt(raw: string | null, lo: number, hi: number, fallback: number): number {
@@ -32,7 +33,7 @@ export const ATS_BAND_META: Record<AtsBand, { label: string; dot: string; chipBg
 
 export function getAtsMeta(job: { atsBand: AtsBand; atsThresholds?: { initial: number; final: number } }) {
   const band = job.atsBand;
-  const th = job.atsThresholds ?? { initial: 60, final: 70 };
+  const th = job.atsThresholds ?? { initial: MIN_INITIAL_ATS, final: MIN_FINAL_ATS };
   const staticMeta = ATS_BAND_META[band];
   if (band === "above_final") {
     return { ...staticMeta, label: `≥ ${th.final}`, tip: `Passed final gate (${th.final}) — auto cover letter eligible` };

@@ -20,7 +20,6 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
-import { revalidateTag }             from "next/cache";
 import { jsonError, withUser } from "@/lib/api-utils";
 import type {
   Project,
@@ -210,6 +209,5 @@ export const PATCH = withUser(async (req: NextRequest, _ctx, { user }) => {
     console.error("[/api/user/preferences] upsert error:", error.message);
     return jsonError("Request failed", 500);
   }
-  revalidateTag(`preferences-${user.id}`, "default");
   return NextResponse.json({ contact_details: result.value });
 });

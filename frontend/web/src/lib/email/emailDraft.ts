@@ -1,5 +1,3 @@
-"use client";
-
 /**
  * Shared client for GET /api/applications/[letter_id]/email-draft.
  *

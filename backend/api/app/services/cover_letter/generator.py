@@ -41,13 +41,14 @@ from typing import Any, Callable, Coroutine, Dict, List, Optional
 
 from app.database import get_supabase
 from app.database import COVER_LETTERS, supabase_update, utcnow_iso
-from app.enums import CoverLetterStatus, Provider
+from app.enums import CoverLetterStatus
 from app.schemas.cover_letter import GenerateCoverLetterRequest
 from app.services.cover_letter.company_name import normalise_company_in_body
 from app.services.ai.client import (
     AIClient,
     AIBillingError,
     AIClientError,
+    DEFAULT_MODELS,
     make_ai_client,
 )
 from app.services.ai.prompts.cover_letter.gate_1_honesty import (
@@ -140,15 +141,6 @@ def _generation_temperature(model: str) -> float:
     if model.lower().startswith("gpt-5"):
         return 1.0
     return 0.7
-
-# Fallback model per provider when the user's integration has no model set.
-# Chosen as the best generally-available model for each provider — the user's
-# integration choice always wins; this is the "they did not pick" branch.
-_PROVIDER_DEFAULT_MODEL: Dict[Provider, str] = {
-    Provider.ANTHROPIC: "claude-opus-4-7",
-    Provider.OPENAI:    "gpt-4o",
-    Provider.DEEPSEEK:  "deepseek-chat",
-}
 
 
 # ── Supabase persistence ──────────────────────────────────────────────────────
@@ -329,7 +321,7 @@ async def _generate_with_retry(
 async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None:
     """Execute the single-call cover letter pipeline. Never raises."""
     letter_id = payload.letter_id
-    model = payload.ai_model or _PROVIDER_DEFAULT_MODEL.get(payload.ai_provider, "")
+    model = payload.ai_model or DEFAULT_MODELS.get(payload.ai_provider, "")
 
     if not model:
         await supabase_update(COVER_LETTERS, letter_id, {

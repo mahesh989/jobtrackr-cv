@@ -40,7 +40,7 @@ _MAX_CV_CHARS = 24_000
 
 # Bump whenever parser logic changes — the review page's server component
 # silently re-runs structurization on any CV whose stored `_version` is
-# below this. Mirror in frontend/web/src/lib/cvBackend.ts.
+# below this. Mirror in frontend/web/src/lib/cv/backend.ts.
 STRUCTURED_CV_VERSION = 5
 
 

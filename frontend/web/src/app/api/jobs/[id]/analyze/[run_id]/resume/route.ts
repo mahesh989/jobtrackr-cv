@@ -21,6 +21,7 @@ import { startAnalysis, CvBackendError } from "@/lib/cv/backend";
 import { consumeTailoredCv, linkUsageEvent, releaseUsageEvent } from "@/lib/billing/entitlements";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 import { jsonError, withUser } from "@/lib/api-utils";
+import { resolveThresholds } from "@/lib/atsThresholds";
 
 export const runtime     = "nodejs";
 export const maxDuration = 30;
@@ -176,6 +177,12 @@ export const POST = withUser(async (
       resume:            true,
       skip_initial_gate: true,
       target_vertical:   resumeTargetVertical,
+      // Without this the payload falls back to cv-backend's schema default
+      // (70), so a healthcare/nursing resume used the wrong final gate and
+      // silently skipped the auto cover letter that the normal analyze path
+      // would have generated for the same score. Must match the vertical
+      // this same request already resolved above.
+      min_final_ats:     resolveThresholds([resumeTargetVertical]).final,
     });
   } catch (err) {
     console.error("[/api/jobs/:id/analyze/:run_id/resume] cv-backend rejected:", err);

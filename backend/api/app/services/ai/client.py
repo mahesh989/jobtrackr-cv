@@ -647,7 +647,12 @@ class AIClient:
 
 # Sensible default model per provider when JobTrackr does not specify one.
 # Mirrors frontend/web/src/lib/ai/models.ts DEFAULT_MODELS — keep in sync.
-_DEFAULT_MODELS: Dict[Provider, str] = {
+# Public (no leading underscore): this is the ONE default-model map for
+# backend/api — services/cover_letter/generator.py imports it rather than
+# keeping its own copy, after the two drifted (client.py had claude-sonnet-4-6,
+# generator.py had claude-opus-4-7 — same failure class as config.py's unrelated,
+# unused DEFAULT_AI_MODEL, which still points at a retired 2024 snapshot).
+DEFAULT_MODELS: Dict[Provider, str] = {
     Provider.ANTHROPIC: "claude-sonnet-4-6",
     Provider.OPENAI:    "gpt-5.1",
     Provider.DEEPSEEK:  "deepseek-chat",
@@ -671,7 +676,7 @@ def make_ai_client(
     if provider not in (Provider.ANTHROPIC, Provider.OPENAI, Provider.DEEPSEEK):
         raise AIClientError(f"Unsupported AI provider: {provider}")
 
-    chosen_model = model or _DEFAULT_MODELS[provider]
+    chosen_model = model or DEFAULT_MODELS[provider]
     return AIClient(provider=provider, model=chosen_model, api_key=api_key)
 
 

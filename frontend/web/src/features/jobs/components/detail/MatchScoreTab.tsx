@@ -11,6 +11,7 @@ import type { BoardJob } from "../../lib/jobFilters";
 import type { BoardDetailPayload, MatchingData, CategorisedKeywords } from "../../lib/boardDetailTypes";
 import { CAT_ORDER } from "../../lib/boardDetailTypes";
 import { SKILL_CATEGORY_LABELS, type SkillCategory } from "@/lib/types";
+import { MIN_INITIAL_ATS, MIN_FINAL_ATS } from "@/lib/atsThresholds";
 
 function scoreTone(score: number, thresholds: { initial: number; final: number }): "green" | "amber" | "red" {
   if (score >= thresholds.final) return "green";
@@ -21,7 +22,7 @@ function scoreTone(score: number, thresholds: { initial: number; final: number }
 export function MatchScoreTab({ job, detail }: { job: BoardJob; detail: BoardDetailPayload | null }) {
   const run = detail?.run;
   const score = run?.match_score ?? job.initial_ats_score ?? null;
-  const thresholds = job.atsThresholds ?? { initial: 60, final: 70 };
+  const thresholds = job.atsThresholds ?? { initial: MIN_INITIAL_ATS, final: MIN_FINAL_ATS };
 
   if (score == null) {
     return <p className="text-label text-text-3 italic">No score yet for this job.</p>;

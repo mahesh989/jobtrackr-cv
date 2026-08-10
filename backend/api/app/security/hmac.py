@@ -63,11 +63,11 @@ async def verify_hmac(request: Request) -> None:
     # Parse + window check
     try:
         ts = int(ts_header)
-    except ValueError:
+    except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="X-Timestamp is not a unix-seconds integer",
-        )
+        ) from exc
 
     now = int(time.time())
     if abs(now - ts) > MAX_AGE_SECONDS:
