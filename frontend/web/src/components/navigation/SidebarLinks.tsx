@@ -158,7 +158,7 @@ function UserFooter({ email }: { email: string }) {
         <Lock className="w-3.5 h-3.5 text-[var(--sidebar-text-dim)] shrink-0" />
         <HoverPrefetchLink
           href="/privacy"
-          className="text-caption font-medium text-[var(--sidebar-text-dim)] hover:text-[var(--sidebar-text-hover)] transition-colors"
+          className="text-caption font-medium text-[var(--sidebar-text)] hover:text-[var(--sidebar-text-hover)] transition-colors"
         >
           Privacy policy
         </HoverPrefetchLink>
@@ -173,7 +173,7 @@ function UserFooter({ email }: { email: string }) {
         <form action="/auth/signout" method="post">
           <Button
             icon={<LogOut className="w-3.5 h-3.5" />}
-            className="flex items-center gap-1 text-caption font-medium text-[var(--sidebar-text-dim)] hover:text-[var(--sidebar-text-hover)] transition-colors shrink-0 px-1.5 py-1 rounded hover:bg-[var(--sidebar-active-bg)]"
+            className="flex items-center gap-1 text-caption font-medium text-[var(--sidebar-text)] hover:text-[var(--sidebar-text-hover)] transition-colors shrink-0 px-1.5 py-1 rounded hover:bg-[var(--sidebar-active-bg)]"
             title="Sign out"
             aria-label="Sign out"
           >

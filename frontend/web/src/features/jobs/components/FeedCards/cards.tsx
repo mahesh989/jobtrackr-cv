@@ -88,7 +88,7 @@ export function AppliedRow({ job, showAppliedDate }: { job: BoardJob; showApplie
           selection?.onOpenDetail?.(job.id);
         }
       }}
-      className="flex items-center gap-3 px-4 py-3.5 bg-surface border border-border rounded-lg cursor-pointer hover:shadow-[0_2px_10px_rgba(16,24,40,0.07)] transition-shadow"
+      className="flex items-center gap-3 px-4 py-3.5 bg-surface border border-border rounded-lg cursor-pointer hover:shadow-[var(--shadow-card-hover)] transition-shadow"
     >
       <ChevronRight className="w-4 h-4 text-text-3 shrink-0" />
       <div className="min-w-0 flex-1">
