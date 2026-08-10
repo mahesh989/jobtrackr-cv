@@ -15,6 +15,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { Loader2, MoreHorizontal, StopCircle } from "lucide-react";
 import { IconButton, MenuItem } from "@/components/ui";
 import { RunStatus } from "@/lib/constants";
+import { MIN_INITIAL_ATS, MIN_FINAL_ATS } from "@/lib/atsThresholds";
 import { markJobDismissed } from "@/lib/actions/jobs";
 import { cancelAnalysisRun } from "@/lib/actions/runs";
 import { triggerReanalyze } from "@/lib/analyzeJob";
@@ -303,7 +304,7 @@ export function DetailHeader({
   const failed      = run ? run.status === "failed" : job.progress.latest_run_status === "failed";
   const notAnalysed = !hasAnalysis && !needsJd && !failed;
 
-  const thresholds = job.atsThresholds ?? { initial: 60, final: 70 };
+  const thresholds = job.atsThresholds ?? { initial: MIN_INITIAL_ATS, final: MIN_FINAL_ATS };
   // A score that hasn't cleared the final gate is what "Apply anyway" names.
   // pipelineState carries this for jobs the server already knew about; for one
   // analysed a moment ago the run's own score is the only source.
