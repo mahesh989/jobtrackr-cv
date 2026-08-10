@@ -1,6 +1,12 @@
 .PHONY: dev stop fly-up fly-down fly-status help
 
-REPO       := /Users/mahesh/Documents/Github/jobtrackr-cv
+# Derived from this Makefile's own location, not hardcoded. It was
+# /Users/mahesh/Documents/Github/jobtrackr-cv, which only worked on one
+# machine and one checkout — a second clone, another contributor, or a git
+# worktree would all have silently driven the targets at the wrong tree.
+# `lastword MAKEFILE_LIST` is this file; dir gives its directory; patsubst
+# strips the trailing slash so $(REPO)/x doesn't become //x.
+REPO       := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 API_APP    := jobtrackr-cv-api
 WORKER_APP := jobtrackr-worker
 
