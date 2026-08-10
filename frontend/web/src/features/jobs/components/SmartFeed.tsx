@@ -483,12 +483,23 @@ export function SmartFeed({
             ancestor's overflow-hidden swallowed the rest rather than letting the
             page scroll to it. `min-w-0` is load-bearing — without it the flex
             item's automatic minimum size re-floors at its content width. */}
-        <div className="w-full min-w-0 lg:w-[440px] lg:min-w-[400px] lg:shrink-0 bg-[var(--bg)] border-r border-border self-start" style={{ height: "calc(100dvh - 2rem)" }}>
-          <div className="h-full flex flex-col">
-            {/* The feed's own scroller — the outer main column doesn't move
-                with it, so ScrollRestoration has to know about this one to put
-                the user back on the card they were reading. */}
-            <div ref={listRef} data-scroll-container="board-list" className="flex-1 overflow-y-auto p-5 pb-7">
+        {/* The viewport-height column and its own scroller are `lg:` ONLY.
+            They exist so the list and the detail pane beside it scroll
+            independently — which requires a pane to sit beside. Below `lg`
+            there is none (the detail is a full-screen overlay), so pinning
+            this to 100dvh put a second scroller INSIDE the already-scrolling
+            main column: measured at 768px, `main` scrolled 1024->1505 while
+            `board-list` scrolled 992->3066. Two nested scrollbars, and
+            BulkActionBar — sticky to the inner container's bottom — sat below
+            the fold, so bulk actions were unreachable without scrolling the
+            outer column first. Below `lg` the list now flows and the page is
+            the only thing that scrolls. */}
+        <div className="w-full min-w-0 lg:w-[440px] lg:min-w-[400px] lg:shrink-0 lg:h-[calc(100dvh-2rem)] bg-[var(--bg)] border-r border-border self-start">
+          <div className="lg:h-full flex flex-col">
+            {/* The feed's own scroller (lg and up) — the outer main column
+                doesn't move with it, so ScrollRestoration has to know about
+                this one to put the user back on the card they were reading. */}
+            <div ref={listRef} data-scroll-container="board-list" className="flex-1 lg:overflow-y-auto p-5 pb-7">
               {visibleJobs.length === 0 ? (
                 <EmptyState />
               ) : (
@@ -523,8 +534,7 @@ export function SmartFeed({
         </div>
 
         <div
-          className="hidden lg:block flex-1 min-w-[540px] bg-surface self-start overflow-hidden"
-          style={{ height: "calc(100dvh - 2rem)" }}
+          className="hidden lg:block flex-1 min-w-[540px] lg:h-[calc(100dvh-2rem)] bg-surface self-start overflow-hidden"
         >
           {selectedJob
             ? <BoardDetailPanel job={selectedJob} onClose={closeDetail} onPatchJob={patchJob} />

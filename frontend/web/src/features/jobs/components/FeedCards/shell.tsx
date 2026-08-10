@@ -322,7 +322,7 @@ export function CardShell({
               onCardClick();
             }
           }}
-          className={`transition-all cursor-pointer bg-surface rounded-xl px-[18px] py-4 hover:shadow-[0_2px_10px_rgba(16,24,40,0.07)] ${
+          className={`transition-all cursor-pointer bg-surface rounded-xl px-[18px] py-4 hover:shadow-[var(--shadow-card-hover)] ${
             hero ? "border-2 border-[var(--brand)]/30 p-4" : ""
           } ${selectable ? "pl-10" : ""} ${
             isFlash ? "bg-success-subtle" : ""
