@@ -157,8 +157,8 @@ class TestFormattingScoreRealWorldCV:
 
     def test_pdf_extracted_heading_glued_to_content(self):
         cv = (
-            "Rashmi Poudel\n"
-            "NSW | 0403760681 | rashmipoudel756@gmail.com | LinkedIn\n"
+            "Jane Citizen\n"
+            "NSW | 0400000000 | jane.citizen@example.com | LinkedIn\n"
             "\n"
             "Experience Uniting Leichhardt NSW Australia\n"
             "Assistant in Nursing (Casual) Mar 2026 - Present\n"
