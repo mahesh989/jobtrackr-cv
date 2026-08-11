@@ -9,17 +9,17 @@ from app.services.cv.contact_line import stamp_contact_line, _build_contact_part
 
 
 _CONTACT = {
-    "name": "Rashmi Poudel",
+    "name": "Jane Citizen",
     "address": "NSW",
-    "phone": "0403760681",
-    "email": "rashmi@example.com",
-    "linkedin": "linkedin.com/in/rashmi",
-    "github": "github.com/rashmi",
-    "website": "rashmi.dev",
+    "phone": "0400000000",
+    "email": "jane.citizen@example.com",
+    "linkedin": "linkedin.com/in/janecitizen",
+    "github": "github.com/janecitizen",
+    "website": "janecitizen.dev",
 }
 
 _MD = (
-    "# Rashmi Poudel\n\n"
+    "# Jane Citizen\n\n"
     "old contact line\n\n"
     "## Professional Summary\n\n"
     "Care worker.\n"
@@ -38,7 +38,7 @@ def test_nursing_suppresses_github_and_website():
     assert "Portfolio" not in joined
     # LinkedIn + the basics still present
     assert "LinkedIn" in joined
-    assert "0403760681" in joined
+    assert "0400000000" in joined
     assert "NSW" in joined
 
 
@@ -70,7 +70,7 @@ def test_none_family_shows_everything_backward_compat():
 
 
 def test_portfolio_preferred_over_website_for_tech():
-    cd = dict(_CONTACT, portfolio="rashmi.folio.com")
+    cd = dict(_CONTACT, portfolio="janecitizen.folio.com")
     joined = " | ".join(_build_contact_parts(cd, "tech"))
     assert "Portfolio" in joined
     assert "Website" not in joined  # portfolio wins when both present
