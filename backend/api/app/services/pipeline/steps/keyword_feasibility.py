@@ -321,15 +321,17 @@ def user_has_credential(kw: str, contact_details: Dict[str, Any] | None) -> bool
     #    "care"/"childcare"/"aftercare") and "auto" (matches inside
     #    "automation"/"autonomy") — same bare-substring bug class as #5, on
     #    the same rule the audit's fix pass had already touched but not
-    #    finished. The negative lookahead on "auto" additionally excludes
-    #    "auto-renewal" (a real insurance-billing term, nothing to do with
-    #    vehicles) — a plain \bauto\b still matches it, since a hyphen is
-    #    itself a word boundary.
+    #    finished. The negative lookahead targets "auto-renewal"/"auto
+    #    renewal" specifically (a real insurance-billing term, nothing to
+    #    do with vehicles) rather than a bare `(?!-)`, which independent
+    #    review found was simultaneously too broad (wrongly excluded the
+    #    standard spelling "auto-insurance") and too narrow (still matched
+    #    the unhyphenated "auto renewal insurance admin").
     if "insurance" in kw and (
         bool(re.search(r"\bcar\b", kw))
         or "vehicle" in kw
         or "motor" in kw
-        or bool(re.search(r"\bauto\b(?!-)", kw))
+        or bool(re.search(r"\bauto\b(?!-?\s*renew)", kw))
     ):
         return has("car_insurance")
 

@@ -864,6 +864,13 @@ def test_user_has_credential_car_insurance_ignores_bare_car_and_auto_substrings(
     first fix pass word-boundary-guarded "car" but left "auto" bare on the
     same line — "automation insurance claims" / "autonomy insurance" both
     fabricated car_insurance evidence.
+
+    Round 2 of the same review then caught that the FIRST auto fix
+    (`\\bauto\\b(?!-)`) was simultaneously too broad — it wrongly excluded
+    "auto-insurance policy", a completely standard spelling — and too
+    narrow — it still matched the unhyphenated "auto renewal insurance
+    admin". Targeted the actual excluded term ("auto-renewal"/"auto
+    renewal") instead of blocking every hyphenated "auto-" form.
     """
     from app.services.pipeline.steps.keyword_feasibility import user_has_credential
 
@@ -874,10 +881,12 @@ def test_user_has_credential_car_insurance_ignores_bare_car_and_auto_substrings(
     assert not user_has_credential("automation insurance claims", contact)
     assert not user_has_credential("autonomy insurance", contact)
     assert not user_has_credential("insurance auto-renewal processing", contact)
+    assert not user_has_credential("auto renewal insurance admin", contact)
     # Genuine car-insurance phrasing must still correctly match.
     assert user_has_credential("comprehensive car insurance", contact)
     assert user_has_credential("vehicle insurance", contact)
     assert user_has_credential("auto insurance", contact)
+    assert user_has_credential("auto-insurance policy", contact)
 
 
 def test_user_has_credential_flu_word_boundary():
