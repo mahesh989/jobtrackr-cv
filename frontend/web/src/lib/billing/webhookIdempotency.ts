@@ -34,8 +34,18 @@ export async function runIdempotent<T>(
     return { status: "handled", result };
   } catch (error) {
     // Release BEFORE returning — a Stripe retry must see this event as
-    // claimable again, not permanently swallowed as a duplicate.
-    await store.release(eventId);
+    // claimable again, not permanently swallowed as a duplicate. Guarded
+    // in its own try/catch: this is a generic exported wrapper, and the
+    // real store used by the route swallows its own errors so it cannot
+    // throw today — but a store implementation that DOES throw in
+    // release() must not be allowed to discard the original handler
+    // error and propagate out of runIdempotent as an unrelated rejection
+    // (independent review of this chunk).
+    try {
+      await store.release(eventId);
+    } catch (releaseError) {
+      console.error("[webhookIdempotency] release() itself threw — original error takes precedence:", releaseError);
+    }
     return { status: "failed", error };
   }
 }

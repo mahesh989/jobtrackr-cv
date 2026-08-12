@@ -63,11 +63,26 @@ export async function POST(req: NextRequest) {
       return { duplicate: false };
     },
     async release(eventId) {
-      const { error } = await admin.from("stripe_events").delete().eq("event_id", eventId);
-      if (error) {
-        // Best-effort: the row will sit as a false "processed" record until
-        // manually cleared, but this must not crash the retry response.
-        console.error("[billing/webhook] dedupe release error:", error.message);
+      // One retry: release() commonly fails in the SAME outage that just
+      // failed the handler (e.g. a PostgREST 503 lasting a few seconds) —
+      // independent review of this chunk named this as the residual case
+      // where BUG #36 survives unfixed (claim never released -> the next
+      // Stripe retry is wrongly treated as a duplicate again). A brief
+      // retry closes most of that window without adding real complexity;
+      // it does not close it entirely (a durable fix needs a
+      // claimed_at/status column — schema change, out of scope here).
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        const { error } = await admin.from("stripe_events").delete().eq("event_id", eventId);
+        if (!error) return;
+        if (attempt === 1) {
+          // Brief delay before the one retry — a zero-delay retry against
+          // an outage still in progress has little chance of succeeding.
+          await new Promise((resolve) => setTimeout(resolve, 300));
+        } else {
+          // RELEASE_FAILED prefix is deliberately greppable/alertable —
+          // this exact case silently reintroduces #36 for this one event.
+          console.error("[billing/webhook] RELEASE_FAILED — dedupe row not cleared, next retry will be wrongly treated as a duplicate:", eventId, error.message);
+        }
       }
     },
   };
@@ -87,7 +102,22 @@ export async function POST(req: NextRequest) {
       case "customer.subscription.created":
       case "customer.subscription.updated":
       case "customer.subscription.deleted": {
-        await upsertFromSubscription(stripe, event.data.object as Stripe.Subscription);
+        // Re-fetch rather than trust event.data.object — that snapshot is
+        // frozen at event-creation time, and this fix (BUG #36) makes a
+        // FAILED event replayable on Stripe's own retry schedule (up to
+        // ~3 days later). Passing the stale snapshot straight through would
+        // let a late retry overwrite a newer, correct status with an old
+        // one — e.g. a stale "active" clobbering a since-recorded
+        // "canceled", with no further event ever arriving to correct it
+        // (independent review of this chunk, live-traced against
+        // entitlements.ts's active/trialing/past_due -> access:"full"
+        // branch). Subscriptions are never hard-deleted at Stripe, so
+        // retrieving after .deleted still returns it, with status
+        // "canceled" — safe. Matches the re-fetch pattern the other two
+        // branches below already use.
+        const snapshot = event.data.object as Stripe.Subscription;
+        const sub = await stripe.subscriptions.retrieve(snapshot.id);
+        await upsertFromSubscription(stripe, sub);
         break;
       }
       case "invoice.paid":

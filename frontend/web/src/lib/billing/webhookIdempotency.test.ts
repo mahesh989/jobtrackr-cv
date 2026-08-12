@@ -63,4 +63,43 @@ describe("runIdempotent", () => {
     expect(b.status).toBe("handled");
     expect(handler).toHaveBeenCalledTimes(2);
   });
+
+  it("KNOWN RESIDUAL (independent review, F2): if release() itself fails, the claim is NOT cleared and the next retry is wrongly treated as a duplicate — pinning the accepted behaviour, not asserting it's fine", async () => {
+    const claimed = new Set<string>();
+    const store: IdempotencyStore = {
+      async claim(eventId) {
+        if (claimed.has(eventId)) return { duplicate: true };
+        claimed.add(eventId);
+        return { duplicate: false };
+      },
+      async release() {
+        // Simulates the same outage that failed the handler also failing
+        // the release — the row is never actually cleared.
+      },
+    };
+    const handler = vi.fn().mockRejectedValue(new Error("still down"));
+
+    const first = await runIdempotent(store, "evt_3", "invoice.paid", handler);
+    expect(first.status).toBe("failed");
+
+    // The claim was never released, so this "retry" is misread as a
+    // genuine duplicate and the handler does not run again. This is the
+    // named residual case — production mitigates it with a delete retry
+    // in the real store (route.ts), which this fake does not model.
+    const retry = await runIdempotent(store, "evt_3", "invoice.paid", handler);
+    expect(retry.status).toBe("duplicate");
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it("a release() that THROWS does not mask the original handler error (independent review, F6)", async () => {
+    const store: IdempotencyStore = {
+      async claim() { return { duplicate: false }; },
+      async release() { throw new Error("release blew up"); },
+    };
+    const originalError = new Error("original handler failure");
+    const handler = vi.fn().mockRejectedValue(originalError);
+
+    const result = await runIdempotent(store, "evt_4", "invoice.paid", handler);
+    expect(result).toEqual({ status: "failed", error: originalError });
+  });
 });
