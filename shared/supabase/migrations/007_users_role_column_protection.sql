@@ -64,8 +64,21 @@
 -- grant) — it does not touch JobTrackr's schema or any other
 -- JobTrackr-owned table or grant.
 --
+-- Durability. An independent review caught that this fix does not survive
+-- 004_grants.sql being re-run in isolation afterward (its blanket `grant
+-- all on all tables` would silently restore UPDATE on `users`, reopening
+-- this exact finding) — verified empirically. 004_grants.sql has been
+-- corrected in the same change to append this same revoke as its own
+-- last statement, so it stays correct and self-consistently re-runnable
+-- on its own, matching the "safe to re-run" promise already in its
+-- header. This file is left as the standalone, explicit fix; 004's copy
+-- is the regression guard.
+--
 -- Rollback (one line):
 --   grant update on public.users to anon, authenticated;
+--   (and remove the matching revoke appended to the end of
+--   004_grants.sql, or the next application of this file will re-close
+--   it)
 -- ============================================================
 
 revoke update on public.users from anon, authenticated;
