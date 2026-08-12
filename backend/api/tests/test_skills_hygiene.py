@@ -784,40 +784,86 @@ def test_user_has_credential_mapping():
     assert not user_has_credential("wwcc", contact)
 
 
-def test_user_has_credential_does_not_fabricate_patient_transport_from_own_car():
+def test_user_has_credential_does_not_fabricate_transport_duty_from_own_car():
     """Finding #1 (chunk C17) — "patient transport" is a clinical/support-work
     DUTY (moving patients/residents between wards, appointments, etc.), not a
     personal-vehicle need. Ticking "own car" must NOT be treated as evidence
     for it — that was being force-injected into delivered CVs as a fabricated
-    skill with synthetic evidence. A plain \\btransport\\b word-boundary guard
-    would NOT have fixed this: "transport" appears as a complete word in
-    "patient transport" either way. The fix excludes that specific phrasing.
+    skill with synthetic evidence.
+
+    First draft tried to EXCLUDE known duty phrasings (patient/resident/
+    client transport, noun-phrase and verb-first order). An independent
+    review adversarially found a long list of realistic escapes — this test
+    pins that exact list so they can never silently regress. The real fix
+    inverted the design: REQUIRE an affirmative personal-vehicle cue
+    (own/reliable/personal/private, or "access to"/"means of"/"use of")
+    before "transport" counts as own_car evidence, instead of chasing an
+    open-ended blocklist of duty phrasings.
     """
     from app.services.pipeline.steps.keyword_feasibility import user_has_credential
 
     contact = {"credentials": {"own_car": True, "drivers_licence": "Open C Class"}}
 
-    # The exact failure scenario from the audit's reproduction.
-    assert not user_has_credential("patient transport", contact)
-    # Same clinical-duty phrasing, different vertical nouns.
-    assert not user_has_credential("resident transport", contact)
-    assert not user_has_credential("client transport", contact)
-    assert not user_has_credential("transporting patients between wards", contact)
+    # The exact failure scenario from the audit's reproduction, plus every
+    # escape the independent review found against the first (blocklist)
+    # draft of this fix.
+    escapes = [
+        "patient transport",
+        "resident transport",
+        "client transport",
+        "transporting patients between wards",
+        "provide transport for clients",
+        "providing transport to residents",
+        "transportation of patients",
+        "transporting a patient",
+        "transport a resident",
+        "transport elderly clients",
+        "transporting consumers to appointments",
+        "consumer transport",
+        "transport of consumers",
+        "transporting service users",
+        "wheelchair transport",
+        "stretcher transport",
+        "transport trolley",
+        "patient transfer and transport",
+        "hospital transport",
+        "ambulance transport",
+        "specimen transport",
+        "transport of specimens",
+        "medication transport",
+    ]
+    for kw in escapes:
+        assert not user_has_credential(kw, contact), f"fabricated own_car from duty phrasing: {kw!r}"
 
-    # Genuine commute-capability phrasing must still correctly match —
-    # the fix is a targeted exclusion, not a blanket removal of "transport"
-    # as own_car evidence.
+    # Genuine commute-capability phrasing must still correctly match — the
+    # fix requires an affirmative cue, it doesn't remove "transport" as
+    # own_car evidence entirely.
     assert user_has_credential("own transport", contact)
     assert user_has_credential("reliable transport to work", contact)
     assert user_has_credential("must have access to transport", contact)
+    assert user_has_credential("means of transport", contact)
+    assert user_has_credential("use of own transport", contact)
+
+    # An explicit own-car/vehicle cue must still win even when the SAME
+    # phrase also mentions a transport duty — the independent review's
+    # point 3, and the repo's own existing fixture phrasing in
+    # test_jd_sector_strip.py:230 ("a reliable vehicle to transport
+    # residents"). "car"/"vehicle" match unconditionally, so these are
+    # covered without needing to inspect what follows them.
+    assert user_has_credential("own car required for client transport", contact)
+    assert user_has_credential("must have own car and transport patients", contact)
+    assert user_has_credential("own vehicle to transport residents", contact)
+    assert user_has_credential("a reliable vehicle to transport residents", contact)
 
 
-def test_user_has_credential_car_insurance_ignores_bare_car_substring():
+def test_user_has_credential_car_insurance_ignores_bare_car_and_auto_substrings():
     """Rule 1 had the SAME bare-substring bug already fixed in rule 5 for
     "own car": a plain `"car" in kw` check matches "car" hiding inside
     "care"/"childcare"/"aftercare" — words that appear constantly in this
-    product's own aged-care JDs. "aged care insurance" must not be read as
-    evidence of car insurance.
+    product's own aged-care JDs. Independent review also caught that the
+    first fix pass word-boundary-guarded "car" but left "auto" bare on the
+    same line — "automation insurance claims" / "autonomy insurance" both
+    fabricated car_insurance evidence.
     """
     from app.services.pipeline.steps.keyword_feasibility import user_has_credential
 
@@ -825,9 +871,33 @@ def test_user_has_credential_car_insurance_ignores_bare_car_substring():
 
     assert not user_has_credential("aged care insurance", contact)
     assert not user_has_credential("childcare insurance excess", contact)
+    assert not user_has_credential("automation insurance claims", contact)
+    assert not user_has_credential("autonomy insurance", contact)
+    assert not user_has_credential("insurance auto-renewal processing", contact)
     # Genuine car-insurance phrasing must still correctly match.
     assert user_has_credential("comprehensive car insurance", contact)
     assert user_has_credential("vehicle insurance", contact)
+    assert user_has_credential("auto insurance", contact)
+
+
+def test_user_has_credential_flu_word_boundary():
+    """Independent review of finding #1 found a bare "flu" substring
+    (rule 13) fabricating a flu-vaccination record from "fluid balance
+    charting" — a core nursing keyword, arguably a worse fabrication than
+    the originally reported one since it stamps a medical record the user
+    never confirmed.
+    """
+    from app.services.pipeline.steps.keyword_feasibility import user_has_credential
+
+    contact = {"credentials": {"flu_vaccination": True}}
+
+    assert not user_has_credential("fluid balance charting", contact)
+    assert not user_has_credential("fluency in english", contact)
+    assert not user_has_credential("affluent clients", contact)
+    # Genuine phrasing must still correctly match.
+    assert user_has_credential("flu vaccination", contact)
+    assert user_has_credential("annual flu shot", contact)
+    assert user_has_credential("influenza immunisation", contact)
 
 
 def test_split_compound_skills_single_line():

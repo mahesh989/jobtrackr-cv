@@ -290,41 +290,46 @@ def user_has_credential(kw: str, contact_details: Dict[str, Any] | None) -> bool
         return bool(status) and status != "needs_sponsorship"
 
     def indicates_own_car(text: str) -> bool:
-        # Finding #1 — "transport" alone is NOT enough: "patient transport"
-        # (one of this product's most common aged-care/nursing JD keywords)
-        # is a clinical/support-work DUTY — moving patients/residents between
-        # wards, appointments, etc. — that has nothing to do with owning a
-        # car. Ticking "own car" provided zero real evidence for it, yet it
-        # was being force-injected into the CV as a fabricated skill with
-        # synthetic evidence ("Stamps from user profile credentials
-        # settings."). A plain \btransport\b word-boundary guard does NOT
-        # fix this — "transport" appears as a complete word in "patient
-        # transport" either way. Exclude that specific phrasing before
-        # falling through to the generic transport/vehicle/car check, which
-        # correctly still covers "own transport", "reliable transport",
-        # "access to transport" (genuinely about commute capability).
-        # Covers both noun-phrase ("patient transport") and verb-first
-        # ("transporting patients", "transport of residents") orderings.
-        if re.search(
-            r"\b(?:patient|resident|client)s?\s+transport"
-            r"|\btransport(?:ing)?\s+(?:of\s+)?(?:patient|resident|client)s?\b",
-            text,
-        ):
-            return False
-        # 'car' is word-boundary guarded — a bare substring check matches
-        # 'car' inside 'care'/'childcare'/'aftercare', which appear
-        # constantly in this vertical's own JDs (e.g. "aged care").
-        return (
-            bool(re.search(r"\bcar\b", text))
-            or "vehicle" in text
-            or "transport" in text
-            or "automobile" in text
-        )
+        # Finding #1 — "transport" alone is NOT reliable evidence of car
+        # ownership. It is one of this product's most ambiguous JD terms:
+        # "patient/resident/client/consumer transport" (and endless other
+        # phrasings — "transportation of", "transporting", "wheelchair
+        # transport", "specimen transport", "provide transport for
+        # clients"...) is a clinical/support-work DUTY, unrelated to owning
+        # a car. An early draft of this fix tried to EXCLUDE known duty
+        # phrasings — an independent review then adversarially found a long
+        # list of realistic escapes (different prepositions, verb forms,
+        # nouns like "consumer"/"service user", equipment-anchored duties)
+        # that still slipped through, because a duty-phrasing blocklist is
+        # inherently open-ended. Inverted the design instead: REQUIRE an
+        # affirmative personal-vehicle cue (own/reliable/personal/private,
+        # or "access to"/"means of"/"use of") before treating "transport" as
+        # evidence — fails closed by construction, not by chasing phrasings.
+        # "car"/"vehicle"/"automobile" stay low-ambiguity enough to match on
+        # their own (word-boundary guarded so "car" doesn't match inside
+        # "care"/"childcare"/"aftercare", which appear constantly in this
+        # vertical's own JDs, e.g. "aged care").
+        if bool(re.search(r"\bcar\b", text)) or "vehicle" in text or "automobile" in text:
+            return True
+        if "transport" in text or "transportation" in text:
+            return bool(re.search(r"\b(?:own|reliable|personal|private)\b.{0,15}\btransport", text)) or bool(
+                re.search(r"\baccess to\b.{0,10}\btransport|\bmeans of transport|\buse of (?:own\s+)?transport", text)
+            )
+        return False
 
-    # 1. Car insurance — word-boundary guarded for the same reason as #5
-    #    below: a bare "car" substring matches "care"/"childcare"/"aftercare".
+    # 1. Car insurance — word-boundary guarded on both "car" (matches inside
+    #    "care"/"childcare"/"aftercare") and "auto" (matches inside
+    #    "automation"/"autonomy") — same bare-substring bug class as #5, on
+    #    the same rule the audit's fix pass had already touched but not
+    #    finished. The negative lookahead on "auto" additionally excludes
+    #    "auto-renewal" (a real insurance-billing term, nothing to do with
+    #    vehicles) — a plain \bauto\b still matches it, since a hyphen is
+    #    itself a word boundary.
     if "insurance" in kw and (
-        bool(re.search(r"\bcar\b", kw)) or "vehicle" in kw or "motor" in kw or "auto" in kw
+        bool(re.search(r"\bcar\b", kw))
+        or "vehicle" in kw
+        or "motor" in kw
+        or bool(re.search(r"\bauto\b(?!-)", kw))
     ):
         return has("car_insurance")
 
@@ -373,8 +378,13 @@ def user_has_credential(kw: str, contact_details: Dict[str, Any] | None) -> bool
     if "white card" in kw:
         return has("white_card")
 
-    # 13. Flu
-    if "flu" in kw or "influenza" in kw:
+    # 13. Flu — word-boundary guarded. Independent review of finding #1
+    #     flagged that a bare "flu" substring matches "fluid balance
+    #     charting", "fluency in English", "affluent clients" — the first
+    #     is a core nursing keyword, arguably a worse fabrication than the
+    #     originally reported one since it stamps a medical vaccination
+    #     record the user never confirmed.
+    if bool(re.search(r"\bflu\b", kw)) or "influenza" in kw:
         return has("flu_vaccination")
 
     # 14. Covid
