@@ -11,11 +11,12 @@ dict locally and passes it to mark_step.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from typing import Any, Dict, Optional
 
-from app.database import ANALYSIS_RUNS, supabase_update, utcnow_iso
+from app.database import ANALYSIS_RUNS, get_supabase, supabase_update, utcnow_iso
 from app.enums import RunStatus, StepName, StepState
 
 logger = logging.getLogger(__name__)
@@ -78,3 +79,44 @@ async def save_step_result(
 ) -> None:
     """Persist a step's output to its dedicated column on analysis_runs."""
     await supabase_update(ANALYSIS_RUNS, run_id, {column: value})
+
+
+async def save_artifact_if_active(run_id: uuid.UUID, column: str, value: Any) -> bool:
+    """Persist a billable artifact's storage path — but ONLY if the run
+    hasn't already been marked failed.
+
+    Closes finding C3b: a user's Stop click (cancelAnalysisRun) can land
+    while the tailored-CV writer or PDF renderer is still in flight — an
+    in-flight AI/render call can't be aborted mid-request. Without this
+    guard, the already-uploaded artifact gets recorded on a row whose paid
+    reservation the Stop click's DB trigger already voided, leaving it
+    downloadable via the user's own SELECT + storage policies despite the
+    refund. The conditional UPDATE (`status <> 'failed'`) makes the check
+    and the write atomic at the database level — no separate read-then-write
+    race window.
+
+    Returns True if the write took effect (run was still active), False
+    otherwise. A network/DB error is treated as False — fail closed, same
+    principle as this codebase's billing meter (see
+    test_auto_cover_letter_billing.py): on uncertainty, don't leave a
+    possibly-unbilled artifact reachable.
+    """
+    def _do() -> bool:
+        resp = (
+            get_supabase()
+            .table(ANALYSIS_RUNS)
+            .update({column: value})
+            .eq("id", str(run_id))
+            .neq("status", RunStatus.FAILED)
+            .execute()
+        )
+        return bool(resp.data)
+
+    try:
+        return await asyncio.to_thread(_do)
+    except Exception as exc:  # noqa: BLE001 — fail closed, see docstring
+        logger.warning(
+            "save_artifact_if_active(%s, %s): update failed (%s) — treating as cancelled",
+            run_id, column, exc,
+        )
+        return False

@@ -21,7 +21,7 @@ import uuid
 from typing import Optional
 
 from app.config import get_settings
-from app.database import ANALYSIS_RUNS
+from app.database import ANALYSIS_RUNS, delete_storage_object
 from app.enums import StepName, StepState
 from app.services.automation.auto_cover_letter import auto_generate_cover_letter
 from app.database import get_supabase
@@ -40,6 +40,7 @@ from app.services.pipeline.progress import (
     mark_run_failed,
     mark_run_running,
     mark_step,
+    save_artifact_if_active,
     save_step_result,
 )
 from app.services.pipeline.steps.ai_recommendations import run_ai_recommendations
@@ -372,11 +373,28 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
                 jd_analysis, recs_md, feasibility,
                 contact_details=payload.contact_details,
             )
-        await save_step_result(run_id, "tailored_cv_storage_path", tailored_storage_path)
+        # Persist the markdown artifact ONLY if the run hasn't already been
+        # cancelled. A user's Stop click can land while the writer — often
+        # the single longest step in the pipeline — is still in flight.
+        # Without this guard, the already-generated CV gets recorded on a
+        # row whose paid reservation the Stop click's DB trigger already
+        # voided, and stays downloadable via the user's own SELECT +
+        # storage policies despite the refund. The conditional UPDATE makes
+        # the check-and-write atomic — no separate read-then-write race
+        # window. See finding — C3b.
+        if not await save_artifact_if_active(run_id, "tailored_cv_storage_path", tailored_storage_path):
+            logger.info("run %s: cancelled before tailored CV could be persisted — discarding artifact", run_id)
+            await asyncio.to_thread(
+                delete_storage_object, get_settings().SUPABASE_TAILORED_CV_BUCKET, tailored_storage_path,
+            )
+            raise _CancelledByUser()
 
         # ── Step 6 (PDF) — render markdown → PDF, upload alongside the .md ─────
         # Non-fatal — if PDF render fails we keep the markdown only; user can
-        # still copy the markdown out of the UI.
+        # still copy the markdown out of the UI. A cancellation must still
+        # propagate though (see the `except _CancelledByUser: raise` below) —
+        # it is not a render failure, it is the same C3b guard as the
+        # markdown save above, just for the PDF artifact.
         #
         # Stop is only observed at these checkpoints, and the tailored-CV step is
         # by far the longest stretch between them: writer → PDF → re-score →
@@ -388,8 +406,15 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
             pdf_path = await render_and_upload_tailored_pdf(
                 str(payload.user_id), str(run_id), tailored_md,
             )
-            await save_step_result(run_id, "tailored_pdf_storage_path", pdf_path)
+            if not await save_artifact_if_active(run_id, "tailored_pdf_storage_path", pdf_path):
+                logger.info("run %s: cancelled before tailored PDF could be persisted — discarding artifact", run_id)
+                await asyncio.to_thread(
+                    delete_storage_object, get_settings().SUPABASE_TAILORED_CV_BUCKET, pdf_path,
+                )
+                raise _CancelledByUser()
             logger.info("run %s: tailored PDF rendered → %s", run_id, pdf_path)
+        except _CancelledByUser:
+            raise
         except Exception as exc:
             logger.exception("run %s: tailored PDF render failed (non-fatal): %s", run_id, exc)
 
