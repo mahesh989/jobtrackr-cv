@@ -53,15 +53,19 @@
 -- ============================================================
 
 drop policy if exists "users_own_analysis_runs" on public.analysis_runs;
+drop policy if exists "users_read_own_analysis_runs" on public.analysis_runs;
 
 create policy "users_read_own_analysis_runs"
   on public.analysis_runs
   for select
+  to authenticated
   using (auth.uid() = user_id);
 
 drop policy if exists "users_own_cover_letters" on public.cover_letters;
+drop policy if exists "users_read_own_cover_letters" on public.cover_letters;
 
 create policy "users_read_own_cover_letters"
   on public.cover_letters
   for select
+  to authenticated
   using (auth.uid() = user_id);
