@@ -27,6 +27,21 @@ describe("decideCheckout", () => {
     expect(decision.kind).toBe("query_failed");
   });
 
+  it("REGRESSION (#37), the REAL Supabase failure shape: data is null AND there's an error — must still be query_failed, not read as a brand-new user", () => {
+    // Supabase's actual .maybeSingle() error shape is { data: null, error: {...} },
+    // not a populated row alongside an error (the two tests above deliberately use
+    // a stricter, unrealistic combination to prove the check is unconditional — but
+    // an implementation checking `queryError && existing` instead of just
+    // `queryError` would pass both of those AND still reintroduce the bug for this
+    // exact real-world shape, since existing is null here. Independent review of
+    // this chunk proved that gap by mutation: 7/7 tests stayed green under
+    // `if (queryError && existing)`. This test exists specifically to catch that.
+    const queryError = { message: "PostgREST 503" };
+
+    const decision = decideCheckout(null, queryError, true);
+    expect(decision).toEqual({ kind: "query_failed" });
+  });
+
   it("an active/trialing/past_due subscriber is blocked by the double-billing guard (no query error)", () => {
     for (const status of ["active", "trialing", "past_due"] as const) {
       const decision = decideCheckout({ stripe_customer_id: "cus_1", status }, null, false);
