@@ -55,6 +55,10 @@ MatchKindT = Literal["exact", "normalised", "fuzzy"]
 _VERTICALS: Tuple[VerticalT, ...] = ("nursing", "cleaning", "tech")
 from app.enums import CATEGORY_KEYS as _CATEGORY_KEYS  # noqa: E402 — canonical source
 _CATEGORIES: Tuple[CategoryT, ...] = _CATEGORY_KEYS  # type: ignore[assignment]
+# The set of valid noise types. NOT the load order used to resolve
+# cross-list duplicates in _universal_noise.json — that's the separate
+# `load_order` local inside _load_noise(), which deliberately differs
+# from this tuple's order (see that function's docstring, chunk C20).
 _NOISE_TYPES: Tuple[NoiseT, ...] = ("credential", "eligibility", "noise")
 
 
