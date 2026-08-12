@@ -59,6 +59,13 @@ export default async function CredentialsPage() {
   const cvList = (cvsExt.data ?? []) as Array<{ id: string; is_active: boolean; structured_cv?: { certifications?: { name?: string }[] } | null }>;
   const activeCv = cvList.find((c) => c.is_active) ?? cvList[0] ?? null;
 
+  // Finding #40 — see cv/details/page.tsx's identical guard: a transient
+  // read failure here used to fall through to an empty {} form, and the
+  // replace-write autosave would then permanently overwrite the user's
+  // real credentials with blanks on the next keystroke.
+  if (prefsRes.error) {
+    throw new Error(`Failed to load contact details: ${prefsRes.error.message}`);
+  }
   const contactDetails = (prefsRes.data?.contact_details ?? {}) as ContactDetails;
   const suggestedCredentialKeys = suggestCredentialKeys(activeCv?.structured_cv?.certifications ?? []);
 

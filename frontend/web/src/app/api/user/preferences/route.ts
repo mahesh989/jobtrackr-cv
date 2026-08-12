@@ -188,6 +188,27 @@ export const GET = withUser(async (_req, _ctx, { user }) => {
   });
 });
 
+// Finding #40 — this route replaces contact_details wholesale (see the
+// header docstring above), which is correct for the fields it owns: the
+// client always resends its full form state, and an omitted key here is
+// how a user clears an array field (e.g. removing all projects). But
+// visa_status lives in the SAME contact_details JSON while being owned by
+// a completely different route (/api/user/visa-status, its own
+// read-merge-write) and UI component (VisaStatusSelect) — sanitise()
+// never knows about it, so every autosave from this route silently wiped
+// it. Preserve it explicitly across the replace rather than switching to
+// a general merge, which would break the "empty array clears the field"
+// contract every other field already relies on.
+export function preserveVisaStatus(
+  sanitised: ContactDetails,
+  existing: Record<string, unknown> | null,
+): ContactDetails {
+  if ((sanitised as { visa_status?: unknown }).visa_status !== undefined) return sanitised;
+  const existingVisaStatus = existing?.visa_status;
+  if (typeof existingVisaStatus !== "string") return sanitised;
+  return { ...sanitised, visa_status: existingVisaStatus } as ContactDetails;
+}
+
 export const PATCH = withUser(async (req: NextRequest, _ctx, { user }) => {
 
   let body: { contact_details?: unknown };
@@ -198,10 +219,21 @@ export const PATCH = withUser(async (req: NextRequest, _ctx, { user }) => {
   if (!result.ok) return jsonError(result.error, 422);
 
   const admin = createAdminClient();
+
+  const { data: existingRow } = await admin
+    .from("user_preferences")
+    .select("contact_details")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const valueToSave = preserveVisaStatus(
+    result.value,
+    existingRow?.contact_details as Record<string, unknown> | null,
+  );
+
   const { error } = await admin
     .from("user_preferences")
     .upsert(
-      { user_id: user.id, contact_details: result.value, updated_at: new Date().toISOString() },
+      { user_id: user.id, contact_details: valueToSave, updated_at: new Date().toISOString() },
       { onConflict: "user_id" },
     );
 
@@ -209,5 +241,5 @@ export const PATCH = withUser(async (req: NextRequest, _ctx, { user }) => {
     console.error("[/api/user/preferences] upsert error:", error.message);
     return jsonError("Request failed", 500);
   }
-  return NextResponse.json({ contact_details: result.value });
+  return NextResponse.json({ contact_details: valueToSave });
 });
