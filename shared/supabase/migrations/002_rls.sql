@@ -188,6 +188,10 @@ create policy "users_own_cv_versions"
 
 -- ============================================================
 -- ANALYSIS RUNS (011)
+-- SUPERSEDED by 005_rls_analysis_runs_cover_letters_readonly.sql, which
+-- drops this FOR ALL policy and replaces it with SELECT-only (finding #49,
+-- P0 — FOR ALL let clients write status, voiding paid usage reservations).
+-- Left here unmodified for apply-order history; 005 is authoritative.
 -- ============================================================
 create policy "users_own_analysis_runs"
   on public.analysis_runs
@@ -233,6 +237,8 @@ CREATE POLICY "authenticated_read_company_research"
 
 -- ============================================================
 -- COVER LETTERS (025)
+-- SUPERSEDED by 005_rls_analysis_runs_cover_letters_readonly.sql — see the
+-- ANALYSIS RUNS section above, same finding, same fix.
 -- ============================================================
 CREATE POLICY "users_own_cover_letters"
   ON public.cover_letters
