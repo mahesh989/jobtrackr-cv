@@ -177,11 +177,30 @@ def _load_noise() -> Dict[str, NoiseT]:
     """Build {normalised_phrase: noise_type} from _universal_noise.json.
 
     _universal_noise.json is cross-vertical and stays in skills/lexicons/.
+
+    Finding #27: 14 phrases (e.g. "vaccination requirements", "immunisation
+    compliance") are duplicated across two of the three lists in the JSON
+    data, a curation artifact from separate editing sessions rather than a
+    deliberate ambiguity. Loading in `_NOISE_TYPES` order (credential,
+    eligibility, noise) meant the generic "noise" bucket — which routes to
+    a silent drop, not a surfaced classification — always won for any
+    duplicate, since it loads last and each `out[key] = typ` assignment
+    overwrites the previous one. That silently dropped real credentials
+    (e.g. "vaccination requirements") and eligibility/work-rights items
+    (e.g. "own reliable vehicle") that should have been surfaced instead.
+    Load "noise" FIRST so a duplicate's more specific credential/
+    eligibility classification correctly overwrites it, not the reverse.
+    This only changes outcomes for the noise-vs-(credential|eligibility)
+    duplicates (12 of the 14) — the 2 remaining duplicates are
+    credential-vs-eligibility only (no noise involved) and keep their
+    existing resolution unchanged, since "eligibility" still loads after
+    "credential" in this order.
     """
     path = _LEXICON_DIR / "_universal_noise.json"
     data = json.loads(path.read_text())
     out: Dict[str, NoiseT] = {}
-    for typ in _NOISE_TYPES:
+    load_order: Tuple[NoiseT, ...] = ("noise", "credential", "eligibility")
+    for typ in load_order:
         for term in data.get(typ, []):
             key = normalise(term)
             if key:
