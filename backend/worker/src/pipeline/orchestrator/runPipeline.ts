@@ -380,10 +380,26 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
 
     // Stage 12: save with visa info included
     await setStage(runLogId, `Saving ${toSave.length} jobs`);
-    const { saved, newSaved, bySource, savedIds } = await saveJobs(toSave, profileId);
+    const { saved, newSaved, errors: saveErrors, bySource, savedIds } = await saveJobs(toSave, profileId);
     jobsSaved = saved;
     sourcesSaved = bySource;
     console.log(`[pipeline] stage 12 — saved: ${saved} (${newSaved} new)`);
+
+    // Finding #54 — saveJobs can silently drop every write batch (Supabase
+    // outage, schema drift, etc.) and the caller used to throw the error
+    // count away entirely: the run finished status "completed" with no
+    // alert, indistinguishable from "no new jobs this run". Surface it: an
+    // alert always fires so a partial loss doesn't go unnoticed, and if
+    // literally nothing saved despite jobs being found, the run is marked
+    // "failed" (same as any other fatal error) rather than reporting a
+    // false success.
+    let saveErrorMessage: string | undefined;
+    if (saveErrors > 0) {
+      saveErrorMessage = `${saveErrors} of ${toSave.length} job(s) failed to save`;
+      console.error(`[pipeline] stage 12 — ${saveErrorMessage}`);
+      await sendPipelineFailureAlert(profileId, saveErrorMessage);
+    }
+    const totalSaveFailure = toSave.length > 0 && saveErrors === toSave.length;
 
     // Auto-run new-jobs notification queue — never for manual runs. A failure
     // here must NEVER fail the pipeline; it's purely a notification side effect.
@@ -457,7 +473,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     }
 
     await finishRunLog(runLogId, {
-      status: "completed",
+      status: totalSaveFailure ? "failed" : "completed",
       jobs_fetched: jobsFetched,
       jobs_after_dedup: jobsAfterDedup,
       jobs_saved: jobsSaved,
@@ -465,6 +481,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       sources_run: sourcesRun,
       sources_saved: sourcesSaved,
       source_methods: sourceMethods,
+      ...(saveErrorMessage ? { error_message: saveErrorMessage } : {}),
     });
 
     // Phase A — record search-coverage (write-only). Warms the freshness ledger
