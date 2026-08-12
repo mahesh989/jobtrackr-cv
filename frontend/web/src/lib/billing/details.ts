@@ -35,6 +35,14 @@ export interface BillingSnapshot {
   subscribedPlan: PlanId | null;
   card: CardOnFile | null;
   invoices: InvoiceRow[];
+  /**
+   * True iff the row has a stripe_customer_id — independent of `status`.
+   * A status='comp' row CAN still carry a real (possibly non-live) Stripe
+   * customer id (see admin/actions.ts's adminGrantUnlimitedAccess), and the
+   * portal/Manage-subscription link should stay reachable for it rather
+   * than being gated on status==='comp' (#50 review finding).
+   */
+  hasStripeCustomer: boolean;
 }
 
 const EMPTY: BillingSnapshot = {
@@ -42,6 +50,7 @@ const EMPTY: BillingSnapshot = {
   subscribedPlan: null,
   card: null,
   invoices: [],
+  hasStripeCustomer: false,
 };
 
 function cardFromPm(pm: Stripe.PaymentMethod | null | undefined): CardOnFile | null {
@@ -75,6 +84,7 @@ export async function getBillingSnapshot(userId: string): Promise<BillingSnapsho
     ...EMPTY,
     cancelAtPeriodEnd: !!row.cancel_at_period_end,
     subscribedPlan: row.plan_id ?? null,
+    hasStripeCustomer: true, // reached past the `!row?.stripe_customer_id` guard above
   };
 
   let stripe: Stripe;
