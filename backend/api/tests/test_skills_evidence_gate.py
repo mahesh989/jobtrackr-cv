@@ -103,6 +103,58 @@ class TestHallucinationsAreDropped:
         assert out["required_skills"]["domain_knowledge"] == []
         assert out["lexicon_meta"]["ungrounded"][0]["reason"] == "skill_not_derivable"
 
+    def test_care_not_derivable_from_career_bare_substring(self):
+        """Chunk C19c (finding #24's sibling, opposite direction of harm —
+        found by C19's independent review). _skill_derivable_from_evidence's
+        direct-token-overlap path did a bare substring check
+        (`tok in evidence_norm`), same class as the original #24 bug. "care"
+        is a 4-char token (passes the `len>3` filter) and a literal
+        substring of "career" — so a fabricated "personal care" skill whose
+        AI-supplied evidence quote is a genuine JD sentence about career
+        development (nothing to do with care) was wrongly ACCEPTED as
+        grounded, letting the fabrication survive the honesty gate. Opposite
+        direction from #24's original bug (which wrongly REJECTED/demoted a
+        real requirement) — here the gate wrongly ACCEPTS a skill that
+        isn't actually supported by its evidence."""
+        jd_text = (
+            "Aged Care Support Worker.\n"
+            "We offer excellent career development opportunities available "
+            "for all staff. Join a supportive team environment with ongoing "
+            "training."
+        )
+        ja = _ja(
+            required={
+                "technical": [], "soft_skills": [],
+                "domain_knowledge": ["personal care"],
+            },
+            evidence={
+                "personal care": (
+                    "excellent career development opportunities available "
+                    "for all staff"
+                ),
+            },
+        )
+        out = verify_skill_evidence(ja, jd_text, role_family_id="nursing")
+        assert out["required_skills"]["domain_knowledge"] == []
+        assert out["lexicon_meta"]["ungrounded"][0]["reason"] == "skill_not_derivable"
+
+    def test_teamwork_still_derivable_via_the_compound_prefix_fallback(self):
+        """Word-boundary matching the direct-overlap path must not regress
+        the compound-word case _skill_derivable_from_evidence's own comment
+        documents: "teamwork" grounded by evidence containing only "team".
+        That case is (and remains) handled by the separate 4-char-prefix
+        fallback path a few lines below the direct-overlap check, which is
+        untouched by this fix — this test pins that it still works, since
+        it's this repo's own documented reason the prefix path exists."""
+        ja = _ja(
+            required={
+                "technical": [], "soft_skills": ["teamwork"], "domain_knowledge": [],
+            },
+            evidence={"teamwork": "works well as part of a team"},
+        )
+        out = verify_skill_evidence(ja, _NURSING_JD, role_family_id="nursing")
+        assert "teamwork" in out["required_skills"]["soft_skills"]
+
 
 class TestBackCompat:
     def test_missing_evidence_map_is_noop(self):

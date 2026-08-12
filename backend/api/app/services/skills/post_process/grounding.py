@@ -157,6 +157,16 @@ def _skill_derivable_from_evidence(
     # NOTE: Finding M8 (E3 in fix-plan) identified over-broad single-token
     # matches for multi-word skills. A tighter fix requires multi-token
     # coverage logic and is deferred pending concrete false-positive cases.
+    #
+    # Direct overlap is WORD-BOUNDARY, not bare substring (chunk C19c, same
+    # bug class as finding #24, opposite direction of harm): a bare
+    # `tok in evidence_norm` check let a 4-char token like "care" match
+    # inside an unrelated word ("career"), so a fabricated "personal care"
+    # skill was wrongly ACCEPTED as grounded by evidence that only mentioned
+    # career development — letting a fabrication survive the honesty gate.
+    # Tokens >4 chars still fall through to the prefix path below
+    # (deliberately looser, left-boundary-only) if the exact word isn't
+    # present, so this doesn't narrow the documented "teamwork"/"team" case.
     skill_tokens = [t for t in re.findall(r"[a-z][a-z\-]*", skill_norm) if len(t) > 3]
     if not skill_tokens:
         # very short skill (e.g. "sql") — fall back to ANY token
@@ -164,7 +174,7 @@ def _skill_derivable_from_evidence(
     for tok in skill_tokens:
         if not tok:
             continue
-        if tok in evidence_norm:
+        if re.search(r"\b" + re.escape(tok) + r"\b", evidence_norm):
             return True
         if len(tok) > 4 and re.search(r"\b" + re.escape(tok[:4]), evidence_norm):
             return True
