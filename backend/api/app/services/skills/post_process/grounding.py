@@ -167,6 +167,20 @@ def _skill_derivable_from_evidence(
     # Tokens >4 chars still fall through to the prefix path below
     # (deliberately looser, left-boundary-only) if the exact word isn't
     # present, so this doesn't narrow the documented "teamwork"/"team" case.
+    #
+    # `(?:s|es)?(?![a-z])` (not a trailing `\b`) — independent review found a
+    # plain `\b` requires an EXACT word, so an exactly-4-char token (the only
+    # length with no prefix-fallback backstop below) lost all plural
+    # tolerance: "risk"/"meal"/"goal" no longer matched evidence saying
+    # "risks"/"meals"/"goals", a verified recall regression that reached
+    # final pipeline output on 29.7% of this repo's own lexicon entries
+    # (950/3204 skill strings contain a 4-char token; "care" is the single
+    # most common one, 276x, in the flagship nursing/aged-care vertical).
+    # `(?![a-z])` also lets a version digit follow ("html" → "html5") while
+    # still refusing a following letter. Must NOT be a bare length check
+    # (`len(tok) >= 4`) or a prefix match here — "care" is a literal PREFIX
+    # of "career", so anything prefix-shaped reopens the original bug this
+    # chunk exists to fix; a suffix-shaped allowance (plural only) does not.
     skill_tokens = [t for t in re.findall(r"[a-z][a-z\-]*", skill_norm) if len(t) > 3]
     if not skill_tokens:
         # very short skill (e.g. "sql") — fall back to ANY token
@@ -174,7 +188,7 @@ def _skill_derivable_from_evidence(
     for tok in skill_tokens:
         if not tok:
             continue
-        if re.search(r"\b" + re.escape(tok) + r"\b", evidence_norm):
+        if re.search(r"\b" + re.escape(tok) + r"(?:s|es)?(?![a-z])", evidence_norm):
             return True
         if len(tok) > 4 and re.search(r"\b" + re.escape(tok[:4]), evidence_norm):
             return True

@@ -155,6 +155,33 @@ class TestHallucinationsAreDropped:
         out = verify_skill_evidence(ja, _NURSING_JD, role_family_id="nursing")
         assert "teamwork" in out["required_skills"]["soft_skills"]
 
+    def test_exactly_4_char_token_still_tolerates_a_plural_in_evidence(self):
+        """Independent review of the word-boundary fix above found a real
+        recall regression: a plain `\\btoken\\b` requires an EXACT word, and
+        an exactly-4-char token is the only length with no prefix-fallback
+        backstop (that path requires `len(tok) > 4`, strictly). So a
+        genuinely-grounded skill like "meal preparation" — evidence says
+        "meals", not "meal" — was wrongly DROPPED, verified to reach final
+        pipeline output. 29.7% of this repo's own lexicon entries contain a
+        4-char token (950/3204), so this wasn't a narrow edge case.
+        `(?:s|es)?(?![a-z])` restores plural tolerance without reopening the
+        "care"/"career" bug this chunk exists to fix (a prefix-shaped
+        allowance would; a suffix-shaped one does not, since "career" is
+        "care" + "er", not "care" + "s"/"es")."""
+        jd_text = "Aged Care Support Worker. Assist with meals and light housekeeping."
+        ja = _ja(
+            required={
+                "technical": [], "soft_skills": [],
+                "domain_knowledge": ["meal preparation"],
+            },
+            evidence={
+                "meal preparation": "assist with meals and light housekeeping",
+            },
+        )
+        out = verify_skill_evidence(ja, jd_text, role_family_id="nursing")
+        assert "meal preparation" in out["required_skills"]["domain_knowledge"]
+        assert not (out.get("lexicon_meta") or {}).get("ungrounded")
+
 
 class TestBackCompat:
     def test_missing_evidence_map_is_noop(self):
