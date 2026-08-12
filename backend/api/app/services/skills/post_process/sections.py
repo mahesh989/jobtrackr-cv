@@ -102,17 +102,22 @@ def _collect_section_bodies(jd_text: str) -> Tuple[str, str]:
 
 def _phrase_in_blob(phrase: str, blob: str) -> bool:
     """True when any content token of ``phrase`` (>3 chars) appears in
-    ``blob`` AND the matched span is within a window suggesting the phrase
-    really belongs to that section. Approximation — but combined with the
+    ``blob`` as a whole word. Approximation — but combined with the
     head/body extraction in ``_collect_section_bodies`` it catches the
     common cases without over-firing on incidental keyword mentions
-    elsewhere in the JD."""
+    elsewhere in the JD.
+
+    Word-boundary match, not bare substring — a bare-substring check let a
+    4-char token like "care" match inside unrelated words ("career",
+    "carefully"), so a JD's "Career development" under Desirable falsely
+    matched (and demoted) every required *care* skill: personal/aged/
+    dementia care, this product's primary vertical (finding #24)."""
     if not phrase or not blob:
         return False
     tokens = [t for t in re.findall(r"[a-z][a-z\-]+", phrase.lower()) if len(t) > 3]
     if not tokens:
         return False
-    return any(t in blob for t in tokens)
+    return any(re.search(r"\b" + re.escape(t) + r"\b", blob) for t in tokens)
 
 
 def clamp_by_jd_sections(

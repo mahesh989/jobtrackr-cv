@@ -347,6 +347,38 @@ class TestSectionClamp:
         assert out["required_skills"]["technical"] == ["python"]
         assert "section_clamp" not in (out.get("lexicon_meta") or {})
 
+    def test_career_in_desirable_does_not_demote_care_skills(self):
+        """Finding #24 (chunk C19). _phrase_in_blob tokenizes a skill phrase
+        and does a bare substring check (`t in blob`) with no word boundary.
+        "care" is a 4-char token (passes the >3 filter), and is a literal
+        substring of "career" — so a JD's "Career development opportunities"
+        under Desirable falsely matches every required *care* skill
+        (personal care, aged care, dementia care — this product's primary
+        vertical), demoting every one of them to preferred even though
+        nothing about them is actually desirable-only."""
+        jd_text = (
+            "Essential:\n"
+            "Provide daily support to elderly residents with dignity and respect\n"
+            "\n"
+            "Desirable:\n"
+            "Career development opportunities and ongoing training available\n"
+        )
+        ja = {
+            "required_skills": {
+                "technical": [], "soft_skills": [],
+                "domain_knowledge": ["personal care", "aged care", "dementia care"],
+            },
+            "preferred_skills": {
+                "technical": [], "soft_skills": [], "domain_knowledge": [],
+            },
+        }
+        out = clamp_by_jd_sections(ja, jd_text)
+        assert out["required_skills"]["domain_knowledge"] == [
+            "personal care", "aged care", "dementia care",
+        ]
+        assert out["preferred_skills"]["domain_knowledge"] == []
+        assert "section_clamp" not in (out.get("lexicon_meta") or {})
+
 
 # ---------------------------------------------------------------------------
 # Fix 3 — universal noise additions
