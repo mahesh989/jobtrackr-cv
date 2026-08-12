@@ -54,6 +54,27 @@ _INLINE_ESSENTIAL = re.compile(
 _INLINE_DESIRABLE = re.compile(
     r"(?im)^\s*(?:[-*•]\s*)?(?:desirable|preferred|nice\s+to\s+have|highly\s+desirable)\s*[:\-]\s*(.+)$",
 )
+# A heading that marks the start of a DIFFERENT section entirely — "About
+# Us", "Why join us", benefits/culture blurbs, application instructions.
+# Ends the current Essential/Desirable body so this boilerplate doesn't get
+# absorbed into it (finding #24 residual, chunk C19b — see _collect_section_
+# bodies). Deliberately NOT a blank line: real JDs routinely split one
+# logical Essential/Desirable list into multiple bullet clusters separated
+# by a blank line with no new header in between, and resetting on every
+# blank line was tried and reverted — it dropped the second cluster's
+# content from the blob entirely, which silently disabled correctly-firing
+# clamps (a real regression on this repo's own primary test fixture under a
+# double-spaced variant) and, worse, could flip a legitimately-preferred
+# skill to required by removing the desirable-blob evidence that was
+# protecting it from the preferred→required promotion branch.
+_SECTION_END = re.compile(
+    r"(?im)^\s*(?:[-*•]\s*)?\**\s*"
+    r"(?:why\s+join|about\s+(?:us|the\s+(?:role|company|organisation))|"
+    r"what\s+we\s+offer|benefits?|our\s+(?:culture|values|team)|"
+    r"how\s+to\s+apply|to\s+apply|the\s+offer|what'?s\s+in\s+it\s+for\s+you|"
+    r"we\s+offer|join\s+us|apply\s+now|next\s+steps?)"
+    r"\b.*$",
+)
 
 
 def _collect_section_bodies(jd_text: str) -> Tuple[str, str]:
@@ -70,17 +91,8 @@ def _collect_section_bodies(jd_text: str) -> Tuple[str, str]:
     for line in lines:
         bare = line.strip()
         if not bare:
-            # A section body ends at a blank line (see the cap comment
-            # below) — reset so unrelated text after it (an "About Us" /
-            # "Why join us?" paragraph, benefits prose, etc.) doesn't keep
-            # being absorbed into the last section's blob until the next
-            # recognised header. Finding #24 residual (chunk C19b): this
-            # used to only `continue`, so trailing boilerplate containing
-            # an incidental word-boundary match (e.g. "we genuinely care
-            # about our people" after a Desirable heading) could still
-            # falsely demote a required skill even after C19's word-
-            # boundary fix, because the text was never supposed to be in
-            # the blob at all.
+            continue
+        if _SECTION_END.match(bare):
             current = None
             continue
         # Inline prefix lines contribute regardless of current section.
@@ -100,10 +112,10 @@ def _collect_section_bodies(jd_text: str) -> Tuple[str, str]:
         if _SECTION_HEAD_DESIRABLE.match(bare):
             current = "desirable"
             continue
-        # Section bodies end at a blank line (reset above) OR a long
-        # header-like line — cap by length to avoid running into prose
-        # paragraphs. 200 chars is generous for a bullet, restrictive for
-        # the "About Us" paragraph that often follows.
+        # Section bodies end at a boilerplate/other-section heading (above)
+        # OR a long header-like line — cap by length to avoid running into
+        # prose paragraphs. 200 chars is generous for a bullet, restrictive
+        # for an unheaded "About Us" paragraph that slips past _SECTION_END.
         if current and len(bare) <= 200:
             if current == "essential":
                 essential_parts.append(bare.lower())

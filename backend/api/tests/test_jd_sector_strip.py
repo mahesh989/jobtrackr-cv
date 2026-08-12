@@ -384,16 +384,19 @@ class TestSectionClamp:
         review — reproduced live on the C19-fixed branch, so C19's
         word-boundary fix alone does not close this).
 
-        _collect_section_bodies's own comment claims "Section bodies end at
-        a blank line", but the loop only `continue`s on a blank line — it
-        never resets `current` back to None. So a Desirable section's body
-        keeps absorbing every short non-header line all the way to the next
-        recognised header, including unrelated "Why join us?" / benefits
-        prose after a blank line. That prose can then legitimately
-        word-boundary-match a required care skill's own token ("we
-        genuinely care about our people" contains "care" as a whole word),
-        wrongly demoting it — same user-facing harm as #24, different root
-        cause, not fixed by word-boundary matching alone."""
+        A Desirable section's body used to keep absorbing every short
+        non-header line all the way to the next recognised
+        Essential/Desirable header, including unrelated "Why join us?" /
+        benefits prose after a blank line. That prose could then
+        legitimately word-boundary-match a required care skill's own token
+        ("we genuinely care about our people" contains "care" as a whole
+        word), wrongly demoting it — same user-facing harm as #24, different
+        root cause, not fixed by word-boundary matching alone.
+
+        Fixed by recognising boilerplate/other-section headings
+        (_SECTION_END: "Why join us", "About us", "Benefits", etc.) as a
+        body terminator — NOT a blank line by itself (see the next two
+        tests for why a blanket blank-line reset was tried and reverted)."""
         jd_text = (
             "Desirable:\n"
             "Certificate III in Individual Support\n"
@@ -416,6 +419,66 @@ class TestSectionClamp:
             "personal care", "aged care",
         ]
         assert out["preferred_skills"]["domain_knowledge"] == []
+
+    def test_blank_line_within_a_section_does_not_drop_the_second_cluster(self):
+        """C19b's independent review: a blanket "reset on any blank line"
+        fix (tried first, reverted) silently dropped a section's second
+        bullet cluster when a JD splits one logical Desirable list into two
+        blank-line-separated clusters with no new header in between — a
+        common real JD format. Losing "flexible availability" from the
+        desirable blob doesn't just miss a clamp opportunity: it removes
+        the counter-evidence that was correctly keeping this preferred-only
+        skill OUT of required (the promote branch fires on
+        `in_essential and not in_desirable`), flipping it to required."""
+        jd_text = (
+            "Essential:\n"
+            "Flexible shifts across the roster\n"
+            "\n"
+            "Desirable:\n"
+            "Certificate III in Individual Support\n"
+            "\n"
+            "Flexible availability\n"
+        )
+        ja = {
+            "required_skills": {
+                "technical": [], "soft_skills": [], "domain_knowledge": [],
+            },
+            "preferred_skills": {
+                "technical": ["flexible availability"],
+                "soft_skills": [], "domain_knowledge": [],
+            },
+        }
+        out = clamp_by_jd_sections(ja, jd_text)
+        assert out["required_skills"]["technical"] == []
+        assert out["preferred_skills"]["technical"] == ["flexible availability"]
+
+    def test_blank_line_right_after_inline_header_does_not_truncate_body(self):
+        """C19b's independent review: the reverted blanket fix also broke
+        this repo's own primary fixture under a double-spaced variant — a
+        blank line immediately after an inline 'Desirable: ...' header line
+        reset `current` before the continuation lines that make up the rest
+        of that section's body (a real usage: this repo's own
+        `_ANGLICARE_JD_TAIL` fixture depends on an inline header's
+        continuation lines to carry 'computer skills' into the desirable
+        blob). Confirms the boilerplate-heading-only terminator doesn't
+        regress this."""
+        jd_text = (
+            "Desirable: A Certificate III in Individual Support (Ageing, Home, and Community)\n"
+            "\n"
+            "Current accredited First Aid and CPR certificate (or willing to obtain)\n"
+            "Basic computer and smartphone working knowledge\n"
+        )
+        ja = {
+            "required_skills": {
+                "technical": ["computer skills"], "soft_skills": [], "domain_knowledge": [],
+            },
+            "preferred_skills": {
+                "technical": [], "soft_skills": [], "domain_knowledge": [],
+            },
+        }
+        out = clamp_by_jd_sections(ja, jd_text)
+        assert out["required_skills"]["technical"] == []
+        assert out["preferred_skills"]["technical"] == ["computer skills"]
 
 
 # ---------------------------------------------------------------------------
