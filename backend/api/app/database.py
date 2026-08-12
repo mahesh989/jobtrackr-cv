@@ -128,3 +128,18 @@ def upload_or_update(
             file=file,
             file_options={"content-type": content_type},
         )
+
+
+def delete_storage_object(bucket: str, path: str, *, supabase: Any = None) -> None:
+    """Best-effort delete for an artifact orphaned by a cancelled pipeline run
+    (see C3b — an artifact must never survive on a row whose reservation was
+    already voided). Never raises: a failed delete just leaves an
+    unreferenced object in storage, which is a cleanup nuisance, not a
+    security or billing issue — the row's tailored_cv_storage_path was
+    already left unset by the caller, so nothing points at it."""
+    if supabase is None:
+        supabase = get_supabase()
+    try:
+        supabase.storage.from_(bucket).remove([path])
+    except Exception as exc:
+        logger.warning("Storage delete failed for %s/%s (%s) — leaving orphaned object", bucket, path, exc)
