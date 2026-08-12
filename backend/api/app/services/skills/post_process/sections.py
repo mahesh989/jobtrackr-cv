@@ -70,6 +70,18 @@ def _collect_section_bodies(jd_text: str) -> Tuple[str, str]:
     for line in lines:
         bare = line.strip()
         if not bare:
+            # A section body ends at a blank line (see the cap comment
+            # below) — reset so unrelated text after it (an "About Us" /
+            # "Why join us?" paragraph, benefits prose, etc.) doesn't keep
+            # being absorbed into the last section's blob until the next
+            # recognised header. Finding #24 residual (chunk C19b): this
+            # used to only `continue`, so trailing boilerplate containing
+            # an incidental word-boundary match (e.g. "we genuinely care
+            # about our people" after a Desirable heading) could still
+            # falsely demote a required skill even after C19's word-
+            # boundary fix, because the text was never supposed to be in
+            # the blob at all.
+            current = None
             continue
         # Inline prefix lines contribute regardless of current section.
         m = _INLINE_ESSENTIAL.match(bare)
@@ -88,8 +100,8 @@ def _collect_section_bodies(jd_text: str) -> Tuple[str, str]:
         if _SECTION_HEAD_DESIRABLE.match(bare):
             current = "desirable"
             continue
-        # Section bodies end at a blank line OR a long header-like line. We
-        # already skipped blanks; cap by length to avoid running into prose
+        # Section bodies end at a blank line (reset above) OR a long
+        # header-like line — cap by length to avoid running into prose
         # paragraphs. 200 chars is generous for a bullet, restrictive for
         # the "About Us" paragraph that often follows.
         if current and len(bare) <= 200:

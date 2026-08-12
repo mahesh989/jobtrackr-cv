@@ -348,14 +348,14 @@ class TestSectionClamp:
         assert "section_clamp" not in (out.get("lexicon_meta") or {})
 
     def test_career_in_desirable_does_not_demote_care_skills(self):
-        """Finding #24 (chunk C19). _phrase_in_blob tokenizes a skill phrase
-        and does a bare substring check (`t in blob`) with no word boundary.
-        "care" is a 4-char token (passes the >3 filter), and is a literal
-        substring of "career" — so a JD's "Career development opportunities"
-        under Desirable falsely matches every required *care* skill
-        (personal care, aged care, dementia care — this product's primary
-        vertical), demoting every one of them to preferred even though
-        nothing about them is actually desirable-only."""
+        """Finding #24 (chunk C19). _phrase_in_blob used to tokenize a skill
+        phrase and do a bare substring check (`t in blob`) with no word
+        boundary. "care" is a 4-char token (passes the >3 filter), and is a
+        literal substring of "career" — so a JD's "Career development
+        opportunities" under Desirable falsely matched every required *care*
+        skill (personal care, aged care, dementia care — this product's
+        primary vertical), demoting every one of them to preferred even
+        though nothing about them is actually desirable-only."""
         jd_text = (
             "Essential:\n"
             "Provide daily support to elderly residents with dignity and respect\n"
@@ -378,6 +378,44 @@ class TestSectionClamp:
         ]
         assert out["preferred_skills"]["domain_knowledge"] == []
         assert "section_clamp" not in (out.get("lexicon_meta") or {})
+
+    def test_boilerplate_after_blank_line_does_not_join_the_section_body(self):
+        """Finding #24 residual (chunk C19b, found by C19's independent
+        review — reproduced live on the C19-fixed branch, so C19's
+        word-boundary fix alone does not close this).
+
+        _collect_section_bodies's own comment claims "Section bodies end at
+        a blank line", but the loop only `continue`s on a blank line — it
+        never resets `current` back to None. So a Desirable section's body
+        keeps absorbing every short non-header line all the way to the next
+        recognised header, including unrelated "Why join us?" / benefits
+        prose after a blank line. That prose can then legitimately
+        word-boundary-match a required care skill's own token ("we
+        genuinely care about our people" contains "care" as a whole word),
+        wrongly demoting it — same user-facing harm as #24, different root
+        cause, not fixed by word-boundary matching alone."""
+        jd_text = (
+            "Desirable:\n"
+            "Certificate III in Individual Support\n"
+            "\n"
+            "Why join us?\n"
+            "We genuinely care about our people\n"
+            "Discounted health care for your family\n"
+        )
+        ja = {
+            "required_skills": {
+                "technical": [], "soft_skills": [],
+                "domain_knowledge": ["personal care", "aged care"],
+            },
+            "preferred_skills": {
+                "technical": [], "soft_skills": [], "domain_knowledge": [],
+            },
+        }
+        out = clamp_by_jd_sections(ja, jd_text)
+        assert out["required_skills"]["domain_knowledge"] == [
+            "personal care", "aged care",
+        ]
+        assert out["preferred_skills"]["domain_knowledge"] == []
 
 
 # ---------------------------------------------------------------------------
