@@ -289,15 +289,48 @@ def user_has_credential(kw: str, contact_details: Dict[str, Any] | None) -> bool
         status = str(contact_details.get("visa_status") or "").strip()
         return bool(status) and status != "needs_sponsorship"
 
-    # 1. Car insurance
-    if "insurance" in kw and ("car" in kw or "vehicle" in kw or "motor" in kw or "auto" in kw):
+    def indicates_own_car(text: str) -> bool:
+        # Finding #1 — "transport" alone is NOT enough: "patient transport"
+        # (one of this product's most common aged-care/nursing JD keywords)
+        # is a clinical/support-work DUTY — moving patients/residents between
+        # wards, appointments, etc. — that has nothing to do with owning a
+        # car. Ticking "own car" provided zero real evidence for it, yet it
+        # was being force-injected into the CV as a fabricated skill with
+        # synthetic evidence ("Stamps from user profile credentials
+        # settings."). A plain \btransport\b word-boundary guard does NOT
+        # fix this — "transport" appears as a complete word in "patient
+        # transport" either way. Exclude that specific phrasing before
+        # falling through to the generic transport/vehicle/car check, which
+        # correctly still covers "own transport", "reliable transport",
+        # "access to transport" (genuinely about commute capability).
+        # Covers both noun-phrase ("patient transport") and verb-first
+        # ("transporting patients", "transport of residents") orderings.
+        if re.search(
+            r"\b(?:patient|resident|client)s?\s+transport"
+            r"|\btransport(?:ing)?\s+(?:of\s+)?(?:patient|resident|client)s?\b",
+            text,
+        ):
+            return False
+        # 'car' is word-boundary guarded — a bare substring check matches
+        # 'car' inside 'care'/'childcare'/'aftercare', which appear
+        # constantly in this vertical's own JDs (e.g. "aged care").
+        return (
+            bool(re.search(r"\bcar\b", text))
+            or "vehicle" in text
+            or "transport" in text
+            or "automobile" in text
+        )
+
+    # 1. Car insurance — word-boundary guarded for the same reason as #5
+    #    below: a bare "car" substring matches "care"/"childcare"/"aftercare".
+    if "insurance" in kw and (
+        bool(re.search(r"\bcar\b", kw)) or "vehicle" in kw or "motor" in kw or "auto" in kw
+    ):
         return has("car_insurance")
 
     # 2. Compound Licence + Car (e.g. "driving and access to reliable car")
-    # Use word-boundary match for 'car' to avoid matching 'care', 'cardiac', etc.
     is_licence_kw = "driver" in kw or "driving" in kw or "licence" in kw or "license" in kw
-    is_car_kw = bool(re.search(r"\bcar\b", kw)) or "vehicle" in kw or "transport" in kw or "automobile" in kw
-    if is_licence_kw and is_car_kw:
+    if is_licence_kw and indicates_own_car(kw):
         return has("drivers_licence") and has("own_car")
 
     # 3. Forklift
@@ -308,9 +341,8 @@ def user_has_credential(kw: str, contact_details: Dict[str, Any] | None) -> bool
     if "driver" in kw or "driving" in kw or "licence" in kw or "license" in kw:
         return has("drivers_licence")
 
-    # 5. Own car — word-boundary match prevents 'wound care' / 'continence care'
-    #    from triggering via the 'car' substring inside 'care'.
-    if bool(re.search(r"\bcar\b", kw)) or "vehicle" in kw or "transport" in kw or "automobile" in kw:
+    # 5. Own car
+    if indicates_own_car(kw):
         return has("own_car")
 
     # 6. Police check

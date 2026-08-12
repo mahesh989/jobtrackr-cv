@@ -784,6 +784,52 @@ def test_user_has_credential_mapping():
     assert not user_has_credential("wwcc", contact)
 
 
+def test_user_has_credential_does_not_fabricate_patient_transport_from_own_car():
+    """Finding #1 (chunk C17) — "patient transport" is a clinical/support-work
+    DUTY (moving patients/residents between wards, appointments, etc.), not a
+    personal-vehicle need. Ticking "own car" must NOT be treated as evidence
+    for it — that was being force-injected into delivered CVs as a fabricated
+    skill with synthetic evidence. A plain \\btransport\\b word-boundary guard
+    would NOT have fixed this: "transport" appears as a complete word in
+    "patient transport" either way. The fix excludes that specific phrasing.
+    """
+    from app.services.pipeline.steps.keyword_feasibility import user_has_credential
+
+    contact = {"credentials": {"own_car": True, "drivers_licence": "Open C Class"}}
+
+    # The exact failure scenario from the audit's reproduction.
+    assert not user_has_credential("patient transport", contact)
+    # Same clinical-duty phrasing, different vertical nouns.
+    assert not user_has_credential("resident transport", contact)
+    assert not user_has_credential("client transport", contact)
+    assert not user_has_credential("transporting patients between wards", contact)
+
+    # Genuine commute-capability phrasing must still correctly match —
+    # the fix is a targeted exclusion, not a blanket removal of "transport"
+    # as own_car evidence.
+    assert user_has_credential("own transport", contact)
+    assert user_has_credential("reliable transport to work", contact)
+    assert user_has_credential("must have access to transport", contact)
+
+
+def test_user_has_credential_car_insurance_ignores_bare_car_substring():
+    """Rule 1 had the SAME bare-substring bug already fixed in rule 5 for
+    "own car": a plain `"car" in kw` check matches "car" hiding inside
+    "care"/"childcare"/"aftercare" — words that appear constantly in this
+    product's own aged-care JDs. "aged care insurance" must not be read as
+    evidence of car insurance.
+    """
+    from app.services.pipeline.steps.keyword_feasibility import user_has_credential
+
+    contact = {"credentials": {"car_insurance": True}}
+
+    assert not user_has_credential("aged care insurance", contact)
+    assert not user_has_credential("childcare insurance excess", contact)
+    # Genuine car-insurance phrasing must still correctly match.
+    assert user_has_credential("comprehensive car insurance", contact)
+    assert user_has_credential("vehicle insurance", contact)
+
+
 def test_split_compound_skills_single_line():
     from app.services.eval.enforce import _split_compound_skills, enforce_skills_section
 
