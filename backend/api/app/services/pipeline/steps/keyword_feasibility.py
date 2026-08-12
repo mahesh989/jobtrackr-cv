@@ -289,15 +289,55 @@ def user_has_credential(kw: str, contact_details: Dict[str, Any] | None) -> bool
         status = str(contact_details.get("visa_status") or "").strip()
         return bool(status) and status != "needs_sponsorship"
 
-    # 1. Car insurance
-    if "insurance" in kw and ("car" in kw or "vehicle" in kw or "motor" in kw or "auto" in kw):
+    def indicates_own_car(text: str) -> bool:
+        # Finding #1 — "transport" alone is NOT reliable evidence of car
+        # ownership. It is one of this product's most ambiguous JD terms:
+        # "patient/resident/client/consumer transport" (and endless other
+        # phrasings — "transportation of", "transporting", "wheelchair
+        # transport", "specimen transport", "provide transport for
+        # clients"...) is a clinical/support-work DUTY, unrelated to owning
+        # a car. An early draft of this fix tried to EXCLUDE known duty
+        # phrasings — an independent review then adversarially found a long
+        # list of realistic escapes (different prepositions, verb forms,
+        # nouns like "consumer"/"service user", equipment-anchored duties)
+        # that still slipped through, because a duty-phrasing blocklist is
+        # inherently open-ended. Inverted the design instead: REQUIRE an
+        # affirmative personal-vehicle cue (own/reliable/personal/private,
+        # or "access to"/"means of"/"use of") before treating "transport" as
+        # evidence — fails closed by construction, not by chasing phrasings.
+        # "car"/"vehicle"/"automobile" stay low-ambiguity enough to match on
+        # their own (word-boundary guarded so "car" doesn't match inside
+        # "care"/"childcare"/"aftercare", which appear constantly in this
+        # vertical's own JDs, e.g. "aged care").
+        if bool(re.search(r"\bcar\b", text)) or "vehicle" in text or "automobile" in text:
+            return True
+        if "transport" in text or "transportation" in text:
+            return bool(re.search(r"\b(?:own|reliable|personal|private)\b.{0,15}\btransport", text)) or bool(
+                re.search(r"\baccess to\b.{0,10}\btransport|\bmeans of transport|\buse of (?:own\s+)?transport", text)
+            )
+        return False
+
+    # 1. Car insurance — word-boundary guarded on both "car" (matches inside
+    #    "care"/"childcare"/"aftercare") and "auto" (matches inside
+    #    "automation"/"autonomy") — same bare-substring bug class as #5, on
+    #    the same rule the audit's fix pass had already touched but not
+    #    finished. The negative lookahead targets "auto-renewal"/"auto
+    #    renewal" specifically (a real insurance-billing term, nothing to
+    #    do with vehicles) rather than a bare `(?!-)`, which independent
+    #    review found was simultaneously too broad (wrongly excluded the
+    #    standard spelling "auto-insurance") and too narrow (still matched
+    #    the unhyphenated "auto renewal insurance admin").
+    if "insurance" in kw and (
+        bool(re.search(r"\bcar\b", kw))
+        or "vehicle" in kw
+        or "motor" in kw
+        or bool(re.search(r"\bauto\b(?!-?\s*renew)", kw))
+    ):
         return has("car_insurance")
 
     # 2. Compound Licence + Car (e.g. "driving and access to reliable car")
-    # Use word-boundary match for 'car' to avoid matching 'care', 'cardiac', etc.
     is_licence_kw = "driver" in kw or "driving" in kw or "licence" in kw or "license" in kw
-    is_car_kw = bool(re.search(r"\bcar\b", kw)) or "vehicle" in kw or "transport" in kw or "automobile" in kw
-    if is_licence_kw and is_car_kw:
+    if is_licence_kw and indicates_own_car(kw):
         return has("drivers_licence") and has("own_car")
 
     # 3. Forklift
@@ -308,9 +348,8 @@ def user_has_credential(kw: str, contact_details: Dict[str, Any] | None) -> bool
     if "driver" in kw or "driving" in kw or "licence" in kw or "license" in kw:
         return has("drivers_licence")
 
-    # 5. Own car — word-boundary match prevents 'wound care' / 'continence care'
-    #    from triggering via the 'car' substring inside 'care'.
-    if bool(re.search(r"\bcar\b", kw)) or "vehicle" in kw or "transport" in kw or "automobile" in kw:
+    # 5. Own car
+    if indicates_own_car(kw):
         return has("own_car")
 
     # 6. Police check
@@ -341,8 +380,13 @@ def user_has_credential(kw: str, contact_details: Dict[str, Any] | None) -> bool
     if "white card" in kw:
         return has("white_card")
 
-    # 13. Flu
-    if "flu" in kw or "influenza" in kw:
+    # 13. Flu — word-boundary guarded. Independent review of finding #1
+    #     flagged that a bare "flu" substring matches "fluid balance
+    #     charting", "fluency in English", "affluent clients" — the first
+    #     is a core nursing keyword, arguably a worse fabrication than the
+    #     originally reported one since it stamps a medical vaccination
+    #     record the user never confirmed.
+    if bool(re.search(r"\bflu\b", kw)) or "influenza" in kw:
         return has("flu_vaccination")
 
     # 14. Covid
