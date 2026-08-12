@@ -43,6 +43,24 @@
 -- flow dismisses a download-options modal and touches nothing in the
 -- database. There is no equivalent race to fix there today.
 --
+-- Deliberate scope decision, flagged by independent review and recorded
+-- explicitly here rather than left implicit: this branch keys ONLY on
+-- whether NEW.tailored_cv_storage_path is non-null, not on WHY the run
+-- ended up 'failed'. That means it now also commits (bills) a run that
+-- crashes AFTER the tailored CV was produced but before the pipeline
+-- finishes — e.g. a rescoring/structural-validation exception, or an
+-- admin's force-cancel action on a stuck run that happens to already have
+-- a CV. Chosen intentionally: `AnalysisRunClient.tsx` gates the
+-- "Download CV" UI on `tailored_cv_storage_path` being set, full stop, no
+-- status check — so in every one of those cases the user genuinely has a
+-- real, deliverable CV regardless of what failed afterward. Billing for a
+-- delivered artifact is correct there; the PRE-existing behaviour (void
+-- unconditionally) was actually the bug in those cases too, just a less
+-- exploitable one. If a narrower "only void-skip on an actual user
+-- cancel" policy is ever wanted instead, add
+-- "and NEW.error_message ilike 'cancelled%'" to this condition, mirroring
+-- backend/api's own _check_cancelled() cancellation predicate.
+--
 -- Non-Negotiable Decision #6 (additive-only). This is a `create or replace
 -- function` on a function this project itself added (069, per the comment
 -- already in 001_full_schema.sql) — not a table ALTER, not a change to any
