@@ -1,0 +1,71 @@
+-- ============================================================
+-- JobTrackr-CV — 007_users_role_column_protection.sql
+-- Apply AFTER 002_rls.sql / 004_grants.sql.
+--
+-- Fixes finding #42 (P0, execution-plan chunk C4) — "the single
+-- highest-severity finding in this entire audit": any authenticated user
+-- can escalate themselves to admin.
+--
+-- Root cause. "users_update_own" (002_rls.sql:63-67) is
+-- `for update using (id = auth.uid()) with check (id = auth.uid())`.
+-- Postgres RLS restricts which ROW you may update, never which COLUMN —
+-- so the policy is satisfied by an update that changes `role` and leaves
+-- `id` alone. `004_grants.sql:22` (`grant all on all tables in schema
+-- public to anon, authenticated, service_role`) makes UPDATE reachable
+-- for `authenticated` in the first place. `001_full_schema.sql:68`'s
+-- CHECK constraint (`role in ('founder','beta','admin')`) permits
+-- 'admin' as a value, so it doesn't block the escalation either.
+--
+-- Failure scenario. Any logged-in user, from devtools:
+--   supabase.from("users").update({role:"admin"}).eq("id", <their own id>)
+-- RLS passes (their own row); the grant permits it; the CHECK constraint
+-- permits the value. They now pass every `requireAdmin`/`withAdmin` check
+-- in the app (`lib/api-utils.ts`, checks `users.role` against
+-- ADMIN_ROLES = ["founder","admin"]) — 10 admin routes including
+-- /admin/users, /admin/ai-costs, /admin/revenue, /admin/ai-settings.
+--
+-- Fix — REVISED after migration-checker caught a real bug in the first
+-- draft. A bare `revoke update (role) on ... from authenticated` (this
+-- migration's original approach) is a NO-OP in Postgres: table-level and
+-- column-level grants are independent ACL entries, not layered
+-- restrictions — a column-level REVOKE cannot narrow a table-level
+-- `GRANT ALL` that already covers that column. Confirmed empirically
+-- (migration-checker reproduced against a live Postgres 14 instance:
+-- `role` stayed fully updatable after the naive revoke). The correct
+-- mechanism is to REVOKE the table-level UPDATE grant outright, so there
+-- is no longer any blanket grant for a column-level privilege to be
+-- redundant against.
+--
+-- Traced exhaustively (see EXECUTION-LOG.md chunk C4): every single
+-- reference to `public.users` anywhere in this codebase — frontend/web,
+-- backend/worker, backend/api — is a SELECT. Zero writes, from any
+-- client, user-scoped or service-role. (`applications_seen_at` exists on
+-- the table with a descriptive comment but is not referenced by any
+-- application code at all — a column reserved for a not-yet-wired-up
+-- feature, not a live write path.) The only place any column is ever
+-- set is `handle_new_user()`'s INSERT at signup, a SECURITY DEFINER
+-- trigger that runs as its owner and is entirely unaffected by a
+-- grantee-level REVOKE. Given nothing needs write access to ANY column
+-- today, this revokes UPDATE on the whole table rather than guessing at
+-- a partial column allowlist — same pattern C3 used for
+-- analysis_runs/cover_letters (FOR ALL → SELECT-only) when the same
+-- "nothing legitimately writes this" trace applied there. If a future
+-- feature needs users to write a specific column (e.g. finally wiring up
+-- `applications_seen_at`), grant UPDATE on exactly that column at that
+-- point, with full context of what it actually needs — not as a guess
+-- made now.
+--
+-- Non-Negotiable Decision #6 (additive-only). This is a REVOKE on table
+-- privileges, not a table/column ALTER, not a policy rewrite, not a data
+-- change. `users` is a pre-existing JobTrackr table, but this only
+-- narrows a grant this project's own 004_grants.sql already made
+-- (`grant all` is a blanket compensating grant for a non-dashboard-
+-- provisioned Supabase project, not a JobTrackr-original per-table
+-- grant) — it does not touch JobTrackr's schema or any other
+-- JobTrackr-owned table or grant.
+--
+-- Rollback (one line):
+--   grant update on public.users to anon, authenticated;
+-- ============================================================
+
+revoke update on public.users from anon, authenticated;
