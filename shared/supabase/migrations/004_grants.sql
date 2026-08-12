@@ -46,4 +46,12 @@ alter default privileges in schema public grant all on routines  to anon, authen
 
 -- Keep finding #42 closed even if this file is re-run alone — see the
 -- correction note above. Must stay the LAST statement in this file.
-revoke update on public.users from anon, authenticated;
+-- Guarded (rather than a bare REVOKE) so this file doesn't hard-fail if
+-- ever run before 001_full_schema.sql creates public.users — independent
+-- review flagged the unguarded form as a real, if minor, ordering
+-- footgun.
+do $$ begin
+  if to_regclass('public.users') is not null then
+    revoke update on public.users from anon, authenticated;
+  end if;
+end $$;
