@@ -167,8 +167,13 @@ export default async function BillingPage({
               )}
             </div>
             {/* No portal button for incomplete/expired — no Stripe subscription
-                exists yet, so the portal would open onto nothing actionable. */}
-            {!isComp && !["none", "incomplete", "incomplete_expired"].includes(ent.status) && <ManageButton />}
+                exists yet, so the portal would open onto nothing actionable.
+                A comp'd row CAN still carry a real stripe_customer_id (e.g.
+                admin-granted on top of a past, non-live subscription) — gate
+                on that instead of bare isComp, so the portal link stays
+                reachable whenever there's an actual customer to manage (#50
+                review finding). */}
+            {(!isComp || snapshot.hasStripeCustomer) && !["none", "incomplete", "incomplete_expired"].includes(ent.status) && <ManageButton />}
           </div>
 
           {STATUS_DESCRIPTION[ent.status] && (
