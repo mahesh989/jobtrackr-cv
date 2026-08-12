@@ -157,9 +157,12 @@ def run_tailored_rescoring(
     # Build a tailored matching by promoting the credited keywords.
     tailored_matching = _promote_injections(matching, credited)
 
-    # Recompute counts + rates against the JD as ground truth.
+    # Recompute counts + rates. _promote_injections only moves keywords
+    # missed → matched (never changes the matched⊎missed union), so deriving
+    # the denominator from matched+missed here — same as the original
+    # cv_jd_matching call site — stays consistent with it. See _compute_counts.
     tailored_matching["counts"] = _compute_counts(
-        tailored_matching["matched"], jd_analysis
+        tailored_matching["matched"], tailored_matching["missed"]
     )
     tailored_matching["match_rates"] = _compute_match_rates(
         tailored_matching["counts"]
