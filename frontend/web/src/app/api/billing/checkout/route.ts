@@ -15,6 +15,7 @@ import { createAdminClient }         from "@/lib/supabase/admin";
 import { getStripe, priceIdForPlan } from "@/lib/billing/stripe";
 import { PLAN_IDS, TRIAL_DAYS, type PlanId } from "@/lib/billing/plans";
 import { jsonError, withUser } from "@/lib/api-utils";
+import { decideCheckout } from "@/lib/billing/checkoutDecision";
 
 export const runtime = "nodejs";
 
@@ -50,21 +51,41 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
   const admin = createAdminClient();
 
   // Reuse an existing Stripe customer if we have one; else create one.
-  const { data: existing } = await admin
+  const { data: existing, error: existingErr } = await admin
     .from("subscriptions").select("stripe_customer_id, status").eq("user_id", user.id).maybeSingle();
-  let customerId = (existing as { stripe_customer_id?: string } | null)?.stripe_customer_id ?? null;
+
+  // BUG #37: `error` was previously discarded, so a transient query failure
+  // was indistinguishable from "no subscription yet" — skipping the
+  // double-billing guard below, creating a SECOND Stripe customer that
+  // overwrote the real stripe_customer_id (upsert onConflict:"user_id"),
+  // and potentially re-granting a trial to a user who already used one.
+  // decideCheckout() checks this first and unconditionally, regardless of
+  // what (if anything) `existing` holds — see checkoutDecision.ts.
+  const decision = decideCheckout(
+    existing as { stripe_customer_id?: string | null; status?: string | null } | null,
+    existingErr,
+    withTrial,
+  );
+
+  if (decision.kind === "query_failed") {
+    console.error(`[billing/checkout] subscription lookup failed for ${user.id}:`, existingErr?.message);
+    return NextResponse.json(
+      { error: "Checkout is temporarily unavailable — please try again in a moment." },
+      { status: 503 },
+    );
+  }
 
   // Guard: a live subscription means checkout would create a SECOND Stripe
   // subscription (double-billing). Plan changes for live subs go through
   // /api/billing/upgrade or the Stripe portal instead.
-  const liveStates = ["active", "trialing", "past_due"];
-  if (liveStates.includes((existing as { status?: string } | null)?.status ?? "")) {
+  if (decision.kind === "already_subscribed") {
     return NextResponse.json(
       { error: "You already have an active subscription — change your plan from the Billing page instead.", code: "already_subscribed" },
       { status: 409 },
     );
   }
 
+  let customerId = decision.customerId;
   if (!customerId) {
     const customer = await stripe.customers.create({
       email: user.email ?? undefined,
@@ -83,9 +104,7 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
   // trial" CTA (withTrial). "Choose <plan>" buttons are direct purchases —
   // charged today, period starts today. And even the trial door is once per
   // customer: anyone who previously held a real subscription pays directly.
-  const everSubscribed = !!(existing as { status?: string } | null)?.status &&
-    !["incomplete", "incomplete_expired"].includes((existing as { status: string }).status);
-  const trialEligible = withTrial && !everSubscribed;
+  const trialEligible = decision.trialEligible;
 
   const origin = req.headers.get("origin")
     ?? process.env.NEXT_PUBLIC_SITE_URL
