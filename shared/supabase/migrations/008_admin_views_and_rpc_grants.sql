@@ -1,0 +1,166 @@
+-- ============================================================
+-- JobTrackr-CV — 008_admin_views_and_rpc_grants.sql
+-- Apply AFTER 004_grants.sql.
+--
+-- Fixes findings #43, #44, and B4-P2 (execution-plan chunk C5, from an
+-- external pre-launch audit's remediation log — not a file in this repo).
+-- #44 was escalated from "P0, next in sequence" to urgent after an
+-- independent review of chunk C4 LIVE-VERIFIED it as exploitable today,
+-- not just theoretically grant-shaped: called
+-- replace_stories as `authenticated` targeting another synthetic user's
+-- id and watched that user's row count go 1 -> 0. Also confirmed
+-- check_user_auth_methods is reachable by `anon`, not just
+-- `authenticated` as originally scoped — an unauthenticated
+-- email-enumeration/auth-method-disclosure oracle.
+--
+-- ── #43 — admin views bypass RLS for anon + authenticated ──────────────
+-- admin_integrations_overview (001_full_schema.sql:541) and
+-- admin_daily_ai_cost (001_full_schema.sql:1381) declare no
+-- `security_invoker`, so both execute with the VIEW OWNER's privileges
+-- (Postgres's default for views) rather than the querying role's — RLS
+-- on the underlying tables (user_integrations, ai_calls, users, ...)
+-- never filters what the view exposes. `004_grants.sql`'s blanket
+-- `grant all on all tables` covers views too, so any authenticated user
+-- — and potentially anon — could read every user's integration
+-- credentials/status and AI spend through these views. No current app
+-- code queries either view (both are unreferenced anywhere in
+-- frontend/web, backend/worker, backend/api — confirmed by search), so
+-- this closes an open door rather than changing any live behaviour;
+-- `security_invoker = true` also has zero effect on the views' one
+-- theoretically-correct caller (an admin route using the service-role
+-- client, which bypasses RLS regardless of this setting).
+--
+-- Independent review (2026-08-12), verified live: post-fix,
+-- admin_daily_ai_cost correctly shows ALL rows to an authenticated admin
+-- (ai_calls' own admin_read_ai_calls RLS policy permits it) but
+-- admin_integrations_overview shows an admin only THEIR OWN row —
+-- user_integrations/users have no admin-read RLS clause, only own-row.
+-- Fails closed (not a security issue), but if a future admin UI is wired
+-- to this view via the user-scoped client rather than service-role, it
+-- will render as a mysteriously empty page rather than an error. If that
+-- happens, the fix is an admin-read RLS policy on the underlying tables
+-- (matching admin_read_ai_calls' pattern), not touching this view.
+--
+-- ── #44 — 004_grants.sql silently undoes two deliberate REVOKEs ────────
+-- 001_full_schema.sql already revokes EXECUTE on both of these from
+-- PUBLIC and grants it only to service_role, immediately after each
+-- function's own definition (:827-828 for replace_stories, :1644-1645
+-- for check_user_auth_methods) — a clear, deliberate original design
+-- decision. `004_grants.sql`'s blanket `grant all on all routines in
+-- schema public to anon, authenticated, service_role` silently reverses
+-- both:
+--   - replace_stories(uuid, jsonb) — SECURITY DEFINER, takes the target
+--     user as a plain parameter with NO auth.uid() check. Confirmed
+--     exploitable: any authenticated user can wipe ANY other user's
+--     entire stories table via
+--     supabase.rpc("replace_stories", {p_user_id: <victim>, p_rows: []}).
+--     The app's only 2 real callers (frontend/web/src/app/api/user/
+--     stories/extract/route.ts:125, app/api/cv/route.ts:243) both
+--     already use the service-role admin client — nothing legitimate
+--     calls this via the user-scoped client, so revoking anon/
+--     authenticated access breaks nothing.
+--   - check_user_auth_methods(text) — SECURITY DEFINER account-existence
+--     oracle. Its one real caller
+--     (frontend/web/src/features/auth/server/passwordReset.ts:31) also
+--     already uses the service-role admin client from a Next.js server
+--     function — the browser never calls this RPC directly, so
+--     forgot-password keeps working unchanged after this revoke.
+--
+-- ── B4-P2 — consume_usage reachable with no ownership check ────────────
+-- Unlike the two functions above, consume_usage(uuid, text, uuid, int,
+-- int, timestamptz) was NEVER explicitly revoked from PUBLIC in
+-- 001_full_schema.sql (no `revoke ... from public` follows its
+-- definition, unlike its two siblings) — so it silently kept Postgres's
+-- default "EXECUTE granted to PUBLIC on every new function" privilege
+-- since the day it was created. 001:1299 additionally grants it to
+-- `authenticated` explicitly, apparently on the assumption that a
+-- caller-scoped billing RPC was safe to expose — but the function takes
+-- `p_user` as a plain parameter with no `auth.uid() = p_user` check, so
+-- any authenticated user can write arbitrary usage_events rows
+-- (INSERT ... status='pending') for ANY user_id, including one they
+-- don't own. Confirmed live via a read-only Supabase query against
+-- production grants: granted to PUBLIC directly, plus anon and
+-- authenticated explicitly. The app's only real callers
+-- (frontend/web/src/lib/billing/entitlements.ts:252,
+-- backend/worker/src/automation/billing.ts:87,
+-- backend/api/app/services/automation/billing.py:154) all already use
+-- service-role clients — the grant is dead weight for every legitimate
+-- path, exactly as the audit assessed ("the grant is dead ... revoking
+-- it is safe").
+--
+-- Non-Negotiable Decision #6 (additive-only). Two `ALTER VIEW ... SET
+-- (security_invoker = true)` option changes (not a view redefinition,
+-- not a table ALTER) and REVOKE statements narrowing grants this
+-- project's own 004_grants.sql made — no table/column ALTER, no data
+-- change, no touch to any pre-existing JobTrackr table or function body.
+--
+-- Durability — same lesson as chunk C4 (see 004_grants.sql's own
+-- 2026-08-12 correction note). 004_grants.sql's blanket routine grant is
+-- exactly what reopens all 3 REVOKEs below if that file is ever re-run
+-- in isolation, so the matching corrective REVOKEs are ALSO appended to
+-- the end of 004_grants.sql in this same change — not relying on
+-- cross-file execution order. This file is the standalone, explicit fix;
+-- 004's copy is the regression guard.
+--
+-- Rollback (one line each):
+--   alter view public.admin_integrations_overview reset (security_invoker);
+--   alter view public.admin_daily_ai_cost reset (security_invoker);
+--   grant execute on function public.check_user_auth_methods(text) to anon, authenticated;
+--   grant execute on function public.replace_stories(uuid, jsonb) to anon, authenticated;
+--   grant execute on function public.consume_usage(uuid, text, uuid, int, int, timestamptz) to public, anon, authenticated;
+--   (and remove the matching statements appended to 004_grants.sql, or
+--   the next application of that file will re-open all three)
+--
+-- Statement order + PG version note (independent review, 2026-08-12, CORRECTED
+-- after a second review live-tested the claim against real PG14 + PG17
+-- instances under three execution modes — the first version of this note
+-- overclaimed what reordering achieves; this is the tested-accurate version):
+-- the three REVOKEs below are the urgent, live-exploitable fix (#44/B4-P2);
+-- the two ALTER VIEW statements are the lower-severity, currently-dead-code
+-- fix (#43). `security_invoker` requires Postgres 15+ and ERRORS on PG14.
+--
+-- Whether ordering the REVOKEs first actually protects the P0 fix on a PG14
+-- project DEPENDS ON HOW THIS FILE IS RUN — live-tested, not assumed:
+--   - `psql -f this_file.sql -v ON_ERROR_STOP=1` (no `-1` flag) autocommits
+--     PER STATEMENT and halts on the first error. Reordering DOES help here:
+--     with REVOKEs first, they commit successfully before psql ever reaches
+--     the failing ALTER VIEW statements and stops.
+--   - A SINGLE multi-statement paste run as one action — this is what the
+--     Supabase SQL editor's "Run" button does, and what `psql -f -1` does —
+--     is genuinely one atomic transaction (Postgres's simple-query protocol
+--     treats a semicolon-separated multi-statement string this way). Under
+--     this mode, reordering provides ZERO protection: an error anywhere
+--     rolls back EVERYTHING already run in that same paste, REGARDLESS of
+--     which statement was written first in the file.
+-- Since the Supabase SQL editor is the tool this file is actually meant to
+-- be run through, reordering alone is NOT sufficient. The REAL protection is
+-- procedural: confirm the live project is PG15+ before applying (Supabase
+-- Dashboard -> Database -> Settings, or
+-- `select current_setting('server_version_num')::int >= 150000;` via SQL
+-- editor) — if it is not (or is unconfirmed), paste and Run the REVOKE block
+-- below as ITS OWN separate action first, then the ALTER VIEW block as a
+-- second, separate action, so a failure in the second cannot roll back the
+-- first. The REVOKEs are still ordered first in this file for readability
+-- (most urgent fix first) and because it is the correct order for the
+-- `psql -f` non-atomic case above — but do not rely on file order alone to
+-- protect the P0 fix through the SQL editor.
+-- ============================================================
+
+revoke execute on function public.check_user_auth_methods(text)
+  from public, anon, authenticated;
+
+revoke execute on function public.replace_stories(uuid, jsonb)
+  from public, anon, authenticated;
+
+revoke execute on function public.consume_usage(uuid, text, uuid, int, int, timestamptz)
+  from public, anon, authenticated;
+
+-- Requires Postgres 15+ (see the note above this file's REVOKE block for the
+-- live-tested detail on which execution modes this protects and which it
+-- doesn't). Via the Supabase SQL editor specifically: if this is pasted and
+-- Run together with the REVOKEs above in one action and the project is on
+-- PG14, the error here rolls back BOTH statement groups, REVOKEs included —
+-- confirm PG15+ first, or paste and Run this block as its own separate
+-- action after the REVOKE block above has already been run and committed.
+alter view public.admin_integrations_overview set (security_invoker = true);
+alter view public.admin_daily_ai_cost         set (security_invoker = true);
