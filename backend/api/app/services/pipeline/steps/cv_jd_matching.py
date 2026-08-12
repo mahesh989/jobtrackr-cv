@@ -186,7 +186,7 @@ async def run_cv_jd_matching(
             )
 
     # Derived counts and rates — computed by us, not the AI.
-    result["counts"] = _compute_counts(result["matched"], jd_analysis)
+    result["counts"] = _compute_counts(result["matched"], jd_analysis, credentials_sidecar)
     result["match_rates"] = _compute_match_rates(result["counts"])
 
     # Auxiliary fields
@@ -643,19 +643,37 @@ def _reconcile_with_jd(
 
 
 def _compute_counts(
-    matched: Dict[str, Dict[str, List[str]]], jd_analysis: Dict[str, Any]
+    matched: Dict[str, Dict[str, List[str]]],
+    jd_analysis: Dict[str, Any],
+    credentials_sidecar: Dict[str, Dict[str, List[str]]] | None = None,
 ) -> Dict[str, Any]:
+    """Finding #2 — credentials_sidecar must be the SAME sidecar
+    _extract_credential_sidecar returned when it stripped credential-shaped
+    keywords out of matched/missed. Without it, the denominator here still
+    counts those keywords via jd_analysis[f"{bucket}_skills"] (unstripped)
+    while the numerator (matched[bucket][cat]) no longer has them — a
+    genuine N-of-N match scored below 100% purely because the credential
+    sidecar correctly moved keywords out of the skill count. On nursing
+    weights this was enough to flip passed_initial_gate at the default
+    min_initial_ats=50, stopping a run that should have proceeded to
+    tailoring — while credentials_required.present reported that same
+    credential as satisfied, actively contradicting the score.
+    """
     counts: Dict[str, Any] = {}
     grand_matched = 0
     grand_total = 0
+    sidecar = credentials_sidecar or {}
 
     for bucket in _BUCKETS:
         jd_block = jd_analysis.get(f"{bucket}_skills") or {}
         if not isinstance(jd_block, dict):
             jd_block = {}
+        sidecar_bucket = sidecar.get(bucket) or {}
         bucket_counts: Dict[str, Dict[str, int]] = {}
         for cat in _CATEGORIES:
             total = len(_normalise_keyword_list(jd_block.get(cat)))
+            stripped = len(sidecar_bucket.get(cat) or [])
+            total = max(0, total - stripped)
             m = len(matched[bucket][cat])
             bucket_counts[cat] = {"matched": m, "total": total}
             grand_matched += m

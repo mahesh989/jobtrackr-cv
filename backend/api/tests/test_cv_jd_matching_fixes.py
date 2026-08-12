@@ -311,3 +311,77 @@ class TestBuildCredentialsGap:
         gap = _build_credentials_gap(jd, {"required": {}, "preferred": {}},
                                      cv_text=cv, contact_details=None)
         assert "Diploma of Community Services" in gap["missing"]
+
+
+class TestComputeCountsCredentialSidecar:
+    """Finding #2 (chunk C18) — _extract_credential_sidecar strips
+    credential-shaped keywords out of matched/missed (cv_jd_matching.py:102)
+    BEFORE _compute_counts runs (:189). The numerator (matched[bucket][cat])
+    reflects the stripped set; the denominator, derived straight from
+    jd_analysis[f"{bucket}_skills"], did not — until credentials_sidecar is
+    threaded through and subtracted from it too. Reproduced the audit's exact
+    scenario: a genuine 3-of-3 match scored 2-of-3 (66.7%) purely because one
+    of the three was a credential-shaped keyword correctly moved out of the
+    skill count — enough to flip passed_initial_gate at the default
+    min_initial_ats=50 on nursing weights, while credentials_required.present
+    reported that same credential as satisfied at the same time.
+    """
+
+    def _jd_analysis(self):
+        return {
+            "required_skills": {
+                "technical": ["wound care", "medication administration", "cert iii aged care"],
+                "soft_skills": [],
+                "domain_knowledge": [],
+            },
+            "preferred_skills": {"technical": [], "soft_skills": [], "domain_knowledge": []},
+        }
+
+    def _matched_after_sidecar_strip(self):
+        # Simulates matched AFTER _extract_credential_sidecar already moved
+        # "cert iii aged care" out — a genuine 3-of-3 CV match, one of the
+        # three credential-shaped and correctly pulled from the skill count.
+        return {
+            "required": {
+                "technical": ["wound care", "medication administration"],
+                "soft_skills": [], "domain_knowledge": [],
+            },
+            "preferred": {"technical": [], "soft_skills": [], "domain_knowledge": []},
+        }
+
+    def _sidecar(self):
+        return {
+            "required": {"technical": ["cert iii aged care"], "soft_skills": [], "domain_knowledge": []},
+            "preferred": {"technical": [], "soft_skills": [], "domain_knowledge": []},
+        }
+
+    def test_without_sidecar_denominator_still_counts_the_stripped_keyword(self):
+        # Pins the OLD call shape (credentials_sidecar omitted) as still
+        # reproducing the exact reported bug — a genuine 2-of-2 match reads
+        # as 2-of-3 (66.7%) because the denominator never learned a keyword
+        # was moved out.
+        from app.services.pipeline.steps.cv_jd_matching import _compute_counts
+
+        counts = _compute_counts(self._matched_after_sidecar_strip(), self._jd_analysis())
+        assert counts["required"]["technical"] == {"matched": 2, "total": 3}
+
+    def test_with_sidecar_denominator_matches_numerator(self):
+        from app.services.pipeline.steps.cv_jd_matching import _compute_counts
+
+        counts = _compute_counts(
+            self._matched_after_sidecar_strip(), self._jd_analysis(), self._sidecar(),
+        )
+        assert counts["required"]["technical"] == {"matched": 2, "total": 2}
+        assert counts["totals"] == {"matched": 2, "total": 2}
+
+    def test_real_pipeline_call_site_passes_the_sidecar(self):
+        # End-to-end guard against the exact regression class: someone
+        # "simplifying" the call site back to 2 args would silently
+        # reintroduce the bug with no type error (the 3rd param is
+        # optional). Assert the source actually threads it through.
+        import inspect
+
+        from app.services.pipeline.steps import cv_jd_matching
+
+        src = inspect.getsource(cv_jd_matching.run_cv_jd_matching)
+        assert '_compute_counts(result["matched"], jd_analysis, credentials_sidecar)' in src
