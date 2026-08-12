@@ -653,7 +653,7 @@ class AIClient:
 # generator.py had claude-opus-4-7 — same failure class as config.py's unrelated,
 # unused DEFAULT_AI_MODEL, which still points at a retired 2024 snapshot).
 DEFAULT_MODELS: Dict[Provider, str] = {
-    Provider.ANTHROPIC: "claude-sonnet-4-6",
+    Provider.ANTHROPIC: "claude-sonnet-5",
     Provider.OPENAI:    "gpt-5.1",
     Provider.DEEPSEEK:  "deepseek-chat",
 }
