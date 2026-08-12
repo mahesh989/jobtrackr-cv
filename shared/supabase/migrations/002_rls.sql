@@ -179,6 +179,10 @@ create policy "users_own_integrations"
 
 -- ============================================================
 -- CV VERSIONS (010)
+-- SUPERSEDED by 009_cv_versions_rls_readonly.sql, which drops this
+-- FOR ALL policy and replaces it with SELECT-only (finding B4-P2 — FOR
+-- ALL let clients write pdf_storage_path to an arbitrary value, which a
+-- service-role signed-URL route then trusted blindly).
 -- ============================================================
 create policy "users_own_cv_versions"
   on public.cv_versions
