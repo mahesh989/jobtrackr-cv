@@ -238,43 +238,50 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     // needs_sponsorship users the matrix drops a strict superset anyway.
     let toSave = settingReady;
 
-    // Stage 10b+: eligibility matrix (migration 080) — hard-drop jobs the
-    // user's declared visa status (My CV) makes them ineligible for, e.g. a
-    // student-visa holder vs "unrestricted working rights required". LEGACY
-    // path only — bucket mode replays this inside serveProfileFromBucket
-    // AFTER the shared write, same reasoning as the setting filter below.
+    // Stages 10b+/10b++/10d: eligibility matrix, work-type filter, work-setting
+    // filter. LEGACY (non-bucket) path only by default — bucket mode replays
+    // all three inside serveProfileFromBucket AFTER the shared bucket write
+    // (upsertGlobalJobs below), so filtering `toSave` before that write would
+    // drop jobs from the shared global_jobs bucket that OTHER profiles want
+    // (bucket poisoning). Extracted to a closure (finding B5-P2 / chunk C15)
+    // so the SAME filters can also be applied as a fallback further down when
+    // bucket mode's own serve is skipped or its result can't be trusted — the
+    // raw scrape must never reach saveJobs unfiltered on ANY path.
     const userVisa = profile.user_visa_status;
-    if (!bucketEnabled() && isUserVisaStatus(userVisa)) {
-      const before = toSave.length;
-      toSave = toSave.filter((j) => computeEligibility(j, userVisa) !== "not_eligible");
-      if (before !== toSave.length) {
-        console.log(`[pipeline] stage 10b+ — eligibility (${userVisa}): ${before - toSave.length} dropped, ${toSave.length} remaining`);
-      }
-    }
+    const applyOwnershipFilters = (jobs: typeof toSave): typeof toSave => {
+      let filtered = jobs;
 
-    // Stage 10b++: work-type filter. User-level (My CV → Details tab "Work
-    // types"), same legacy-only gating. A job with no extracted types always
-    // passes — never hide jobs we couldn't classify.
-    if (!bucketEnabled() && (profile.user_work_types?.length ?? 0) > 0) {
-      const keep = new Set(profile.user_work_types);
-      const before = toSave.length;
-      toSave = toSave.filter((j) => {
-        const types = j.employment_types ?? [];
-        return types.length === 0 || types.some((t) => keep.has(t));
-      });
-      if (before !== toSave.length) {
-        console.log(`[pipeline] stage 10b++ — work-type filter [${profile.user_work_types!.join(",")}]: ${before - toSave.length} dropped, ${toSave.length} remaining`);
+      if (isUserVisaStatus(userVisa)) {
+        const before = filtered.length;
+        filtered = filtered.filter((j) => computeEligibility(j, userVisa) !== "not_eligible");
+        if (before !== filtered.length) {
+          console.log(`[pipeline] eligibility (${userVisa}): ${before - filtered.length} dropped, ${filtered.length} remaining`);
+        }
       }
-    }
 
-    // Stage 10d: work-setting filter (per-profile). LEGACY (non-bucket) path
-    // ONLY — in bucket mode the identical filter runs inside serveProfileFromBucket
-    // AFTER the shared bucket write. Filtering `toSave` here would drop jobs from
-    // the shared global_jobs bucket that OTHER profiles want (bucket poisoning).
-    if (!bucketEnabled() && (profile.setting_filter?.length ?? 0) > 0) {
-      const { kept: afterSetting, dropped, byCategory } = applySettingFilter(toSave, profile);
-      toSave = afterSetting;
-      console.log(`[pipeline] stage 10d — setting filter: ${dropped} dropped, ${toSave.length} remaining${formatSettingBreakdown(byCategory)}`);
+      if ((profile.user_work_types?.length ?? 0) > 0) {
+        const keep = new Set(profile.user_work_types);
+        const before = filtered.length;
+        filtered = filtered.filter((j) => {
+          const types = j.employment_types ?? [];
+          return types.length === 0 || types.some((t) => keep.has(t));
+        });
+        if (before !== filtered.length) {
+          console.log(`[pipeline] work-type filter [${profile.user_work_types!.join(",")}]: ${before - filtered.length} dropped, ${filtered.length} remaining`);
+        }
+      }
+
+      if ((profile.setting_filter?.length ?? 0) > 0) {
+        const { kept: afterSetting, dropped, byCategory } = applySettingFilter(filtered, profile);
+        filtered = afterSetting;
+        console.log(`[pipeline] setting filter: ${dropped} dropped, ${filtered.length} remaining${formatSettingBreakdown(byCategory)}`);
+      }
+
+      return filtered;
+    };
+
+    if (!bucketEnabled()) {
+      toSave = applyOwnershipFilters(toSave);
     }
 
     // Stage 11b: distance computation (Migration 048).
@@ -373,8 +380,18 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
         }
         toSave = served;
       } else {
+        // Finding B5-P2 (chunk C15) — the raw scrape was previously saved
+        // as-is here, having never passed through ANY of the three filters
+        // above (all gated on !bucketEnabled()). A student-visa user could
+        // get jobs the eligibility matrix would hard-drop, and auto-analyze
+        // would then spend AI credits tailoring CVs for them. This is the
+        // one place bucket mode's own filter replay (serveProfileFromBucket)
+        // didn't run, so apply the same legacy filters directly before this
+        // set reaches saveJobs.
         const why = served === null ? "serve unavailable" : "upsert failed, serve result untrusted";
-        console.warn(`[pipeline] bucket ${why} — keeping ${toSave.length} scraped (unfiltered) set`);
+        const before = toSave.length;
+        toSave = applyOwnershipFilters(toSave);
+        console.warn(`[pipeline] bucket ${why} — applying legacy filters directly to the ${before} scraped jobs (${toSave.length} remaining)`);
       }
     }
 

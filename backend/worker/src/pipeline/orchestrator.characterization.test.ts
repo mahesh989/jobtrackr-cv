@@ -707,6 +707,37 @@ describe("A6. filter-placement and new-vs-saved invariants", () => {
   });
 
   /**
+   * Finding B5-P2 (chunk C15). Before the fix, a bucket-mode run whose serve
+   * call failed/was skipped fell back to `toSave` UNCHANGED — which had never
+   * passed through the eligibility/work-type/setting filters at all (all
+   * gated on !bucketEnabled()). The shared bucket write above is correctly
+   * unfiltered (bucket-poisoning invariant); this is about what gets saved to
+   * THIS profile's own `jobs` table afterward, which must still be filtered.
+   */
+  it("still applies the eligibility filter when the bucket serve is unavailable", async () => {
+    restrictive();
+    H.state.bucketOn = true;
+    H.state.serveResult = null; // serve unavailable -> fallback path
+    await runPipeline("profile-1", "auto");
+    expect(savedUrls()).toEqual([
+      "https://www.adzuna.com.au/details/111",
+      "https://www.seek.com.au/job/333",
+    ]);
+  });
+
+  it("still applies the eligibility filter when the bucket upsert failed", async () => {
+    restrictive();
+    H.state.bucketOn = true;
+    H.state.upsertOk = false;
+    H.state.serveResult = []; // masked-failure shape, same as the existing upsertOk test above
+    await runPipeline("profile-1", "auto");
+    expect(savedUrls()).toEqual([
+      "https://www.adzuna.com.au/details/111",
+      "https://www.seek.com.au/job/333",
+    ]);
+  });
+
+  /**
    * Regression guard for 7ff73197: the notification must key off newSaved, not
    * saved — otherwise every re-scrape of still-live postings re-notifies.
    */
