@@ -1,13 +1,13 @@
-// DEFERRED FEATURE — Tier 4 user-initiated JD URL fetch
+// Tier 4 user-initiated JD URL fetch — LIVE, wired up.
 //
-// Status: built, not wired up. No API route calls this.
-// Intended use: user pastes a job URL into the manual JD edit flow,
-//   this fetches and pre-populates the JD text field.
+// Status: called by POST /api/jobs/scrape-url (app/api/jobs/scrape-url/route.ts),
+//   which is called from the "Add job" modal's URL-paste flow
+//   (features/jobs/components/AddModal.tsx). A stale "not wired up" comment
+//   sat here for 4 audit batches and suppressed review of this file as dead
+//   code (#51) — it was live and reachable by any signed-in user the whole
+//   time. Do not let this comment go stale again.
 // Distinct from backend/api/services/scraping/jd_scraper.py, which runs
 //   during analysis from a known JD source.
-// To activate: create POST /api/jobs/scrape-url that calls scrapeJobUrl()
-//   and returns { jdText, source }. Wire to a "Fetch from URL" button on
-//   the JD edit modal.
 
 /**
  * scrapeJobUrl — Tier 4 user-initiated job page fetcher.
@@ -24,6 +24,8 @@
  * Works with: EthicalJobs, Seek (SSR pages), LinkedIn (public), any SSR
  * job board. Returns a clear error if the page requires JS to render.
  */
+
+import { fetchPublicUrl, SSRFError } from "@/lib/ssrf";
 
 const NOISE_TAGS = [
   "script", "style", "nav", "footer", "header",
@@ -182,15 +184,31 @@ export async function scrapeJobUrl(rawUrl: string): Promise<ScrapedJob> {
   const cleanUrl = `${parsed.origin}${parsed.pathname}`;
 
   // ── 2. Fetch (2 MB cap) ───────────────────────────────────────────────────
-  const res = await fetch(rawUrl, {
-    headers: {
-      "User-Agent":      "JobTrackrBot/1.0 (+https://jobtrackr.app/bot)",
-      "Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      "Accept-Language": "en-AU,en;q=0.9",
-      "Cache-Control":   "no-cache",
-    },
-    signal: AbortSignal.timeout(15_000),
-  });
+  // SSRF guard (#51): validates the host AND every redirect hop resolves to
+  // a public IP — an attacker-supplied URL (or a redirect it triggers)
+  // cannot reach cloud metadata (169.254.169.254), localhost, or internal
+  // RFC1918 addresses. Mirrors backend/api/app/security/ssrf.py's guard.
+  let res: Response;
+  try {
+    res = await fetchPublicUrl(
+      rawUrl,
+      {
+        headers: {
+          "User-Agent":      "JobTrackrBot/1.0 (+https://jobtrackr.app/bot)",
+          "Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "en-AU,en;q=0.9",
+          "Cache-Control":   "no-cache",
+        },
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
+  } catch (err) {
+    if (err instanceof SSRFError) {
+      console.warn("[scrapeJobUrl] blocked by SSRF guard:", rawUrl, err.message);
+      throw new Error("URL is not allowed — check the URL and try again.");
+    }
+    throw err;
+  }
 
   if (!res.ok) {
     throw new Error(`Page returned HTTP ${res.status} — check the URL and try again.`);
