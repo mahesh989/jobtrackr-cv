@@ -480,6 +480,76 @@ class TestSectionClamp:
         assert out["required_skills"]["technical"] == []
         assert out["preferred_skills"]["technical"] == ["computer skills"]
 
+    def test_genuine_bullet_starting_with_a_boilerplate_word_is_not_a_heading(self):
+        """C19b round-2 independent review: the first _SECTION_END design
+        matched `\\b.*$` after the heading phrase — i.e. it fired on ANY
+        line merely STARTING with a recognised word, not just a line that
+        IS that heading. A genuine Essential bullet like "Benefits
+        administration and payroll experience" or "To apply for this role
+        you must hold a current NDIS Worker Screening Check" tripped it,
+        prematurely ending the section and reintroducing the exact
+        wrong-bucketing bug this pattern exists to prevent — required
+        skills after such a bullet fell out of the essential blob entirely.
+        _SECTION_END must match a heading LINE (same whole-line convention
+        as _SECTION_HEAD_ESSENTIAL/_SECTION_HEAD_DESIRABLE above it), not a
+        line that happens to start with one of its words.
+
+        Deliberately includes a real Desirable section whose text also
+        contains "care" as a whole word: if the essential blob is wrongly
+        emptied by a false _SECTION_END match, "personal care" loses its
+        in_essential=True protection and gets wrongly demoted to preferred
+        — a plain "stays required" assertion with no Desirable section
+        would pass either way (the clamp is a no-op when both blobs are
+        empty), so it wouldn't actually catch this class of regression."""
+        jd_text = (
+            "Essential:\n"
+            "Benefits administration and payroll experience\n"
+            "Personal care support for elderly residents\n"
+            "\n"
+            "Desirable:\n"
+            "Care coordination experience\n"
+        )
+        ja = {
+            "required_skills": {
+                "technical": [], "soft_skills": [],
+                "domain_knowledge": ["personal care"],
+            },
+            "preferred_skills": {
+                "technical": [], "soft_skills": [], "domain_knowledge": [],
+            },
+        }
+        out = clamp_by_jd_sections(ja, jd_text)
+        assert out["required_skills"]["domain_knowledge"] == ["personal care"]
+        assert out["preferred_skills"]["domain_knowledge"] == []
+
+    def test_genuine_bullet_starting_with_boilerplate_word_does_not_wrongly_promote(self):
+        """Same class as the previous test, opposite (worse) direction: a
+        Desirable bullet starting with "Benefit" ("Benefit realisation
+        exposure") ending the section prematurely drops the REAL desirable
+        item after it from the blob — removing the counter-evidence that
+        keeps a preferred-only skill from being wrongly promoted to
+        required, the same harm class round 1's regressions caused."""
+        jd_text = (
+            "Essential:\n"
+            "Flexible shifts across the roster\n"
+            "\n"
+            "Desirable:\n"
+            "Benefit realisation exposure\n"
+            "Flexible availability\n"
+        )
+        ja = {
+            "required_skills": {
+                "technical": [], "soft_skills": [], "domain_knowledge": [],
+            },
+            "preferred_skills": {
+                "technical": ["flexible availability"],
+                "soft_skills": [], "domain_knowledge": [],
+            },
+        }
+        out = clamp_by_jd_sections(ja, jd_text)
+        assert out["required_skills"]["technical"] == []
+        assert out["preferred_skills"]["technical"] == ["flexible availability"]
+
 
 # ---------------------------------------------------------------------------
 # Fix 3 — universal noise additions

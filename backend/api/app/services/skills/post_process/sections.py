@@ -67,13 +67,22 @@ _INLINE_DESIRABLE = re.compile(
 # double-spaced variant) and, worse, could flip a legitimately-preferred
 # skill to required by removing the desirable-blob evidence that was
 # protecting it from the preferred→required promotion branch.
+#
+# WHOLE-LINE match only (round 2 of this same chunk used `\b.*$` — matched
+# anywhere the phrase STARTED a line, so a genuine requirement bullet like
+# "Benefits administration and payroll experience" or "To apply for this
+# role you must hold a current NDIS Worker Screening Check" tripped it too,
+# reintroducing the exact wrong-bucketing bug this pattern exists to
+# prevent). Same shape as _SECTION_HEAD_ESSENTIAL/_SECTION_HEAD_DESIRABLE
+# above: the heading phrase must BE the line (plus optional trailing
+# punctuation), not just start it.
 _SECTION_END = re.compile(
     r"(?im)^\s*(?:[-*•]\s*)?\**\s*"
-    r"(?:why\s+join|about\s+(?:us|the\s+(?:role|company|organisation))|"
+    r"(?:why\s+join(?:\s+us)?|about\s+(?:us|the\s+(?:role|company|organisation))|"
     r"what\s+we\s+offer|benefits?|our\s+(?:culture|values|team)|"
     r"how\s+to\s+apply|to\s+apply|the\s+offer|what'?s\s+in\s+it\s+for\s+you|"
     r"we\s+offer|join\s+us|apply\s+now|next\s+steps?)"
-    r"\b.*$",
+    r"\s*[:\-?!]?\s*\**\s*$",
 )
 
 
