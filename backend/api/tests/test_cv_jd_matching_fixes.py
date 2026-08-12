@@ -366,6 +366,31 @@ class TestComputeCountsCredentialSidecar:
         assert counts["required"]["technical"] == {"matched": 2, "total": 2}
         assert counts["totals"] == {"matched": 2, "total": 2}
 
+    def test_sidecar_strips_credential_from_missed_too_not_just_matched(self):
+        # Round-2 independent review: the whole matched+missed-derived-total
+        # design depends on _extract_credential_sidecar removing a stripped
+        # credential from BOTH lists, not just matched. If it only stripped
+        # matched, a credential sitting in "missed" would silently keep
+        # inflating the denominator again — the exact bug class this PR
+        # fixes, reintroduced through the one place nothing else checks.
+        from app.services.pipeline.steps.cv_jd_matching import (
+            _extract_credential_sidecar,
+        )
+
+        matched = {
+            "required": {"technical": [], "soft_skills": [], "domain_knowledge": []},
+            "preferred": {"technical": [], "soft_skills": [], "domain_knowledge": []},
+        }
+        missed = {
+            "required": {
+                "technical": ["cert iii aged care"], "soft_skills": [], "domain_knowledge": [],
+            },
+            "preferred": {"technical": [], "soft_skills": [], "domain_knowledge": []},
+        }
+        sidecar = _extract_credential_sidecar(matched, missed)
+        assert missed["required"]["technical"] == []
+        assert sidecar["required"]["technical"] == ["cert iii aged care"]
+
     def test_bucket_and_category_scoped_not_blind(self):
         # Independent review (round 1) found a bucket-blind subtraction
         # variant that survived the old tests because every fixture only
