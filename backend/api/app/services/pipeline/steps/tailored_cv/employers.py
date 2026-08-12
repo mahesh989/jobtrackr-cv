@@ -109,7 +109,7 @@ def _enforce_company_anchor(markdown: str, cv_text: str = "") -> str:
                      "at <E1> and <E2>." to S2 (legacy behaviour).
       • PARTIAL    — exactly one of top-2 is named (the cherry-pick case
                      that produced the recent "...have served as a primary
-                     Medication Assistant" Rashmi example): append a
+                     Medication Assistant" Jane example): append a
                      semicolon-joined clause naming the missing employer
                      so BOTH appear, and convert a trailing "..., and have
                      <verb>" present-perfect tail into simple past (rule:

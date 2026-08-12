@@ -4,7 +4,7 @@ Locks in the deterministic resolver: phrase → canonical taxonomy entry.
 
 Failure of any of these = a regression in the categorisation layer. The
 "real cases" section asserts the exact symptoms from the Hardi/Nepean/
-Rashmi nursing runs that triggered this rewrite — they MUST stay green.
+Jane nursing runs that triggered this rewrite — they MUST stay green.
 
 This module is pure functions + bundled JSON, no DB / AI / network — so
 the conftest's Supabase env stubs are sufficient.
@@ -91,7 +91,7 @@ class TestNormalise:
 
 
 # ---------------------------------------------------------------------------
-# Real cases — Hardi / Nepean / Rashmi nursing runs.
+# Real cases — Hardi / Nepean / Jane nursing runs.
 # These were the actual leaks. They MUST stay green.
 # ---------------------------------------------------------------------------
 
