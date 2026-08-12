@@ -12,7 +12,7 @@
       "variants": "Each entry's `variants` are alternate surface forms that all resolve to `canonical`. This list IS the synonym map used by deterministic CV-JD matching.",
       "credentials_excluded": "Licences / checks / vaccinations are NOT here \u2014 they live in _universal_noise.json (type=credential) and route to Registration & Licences."
     },
-    "review_status": "DRAFT \u2014 Phase 0 seed (~ correct order of magnitude). Add the long tail as real runs surface misses (safe-drop + log). Seeded from the CV categoriser vocabulary + the Hardi/Nepean/Rashmi runs."
+    "review_status": "DRAFT \u2014 Phase 0 seed (~ correct order of magnitude). Add the long tail as real runs surface misses (safe-drop + log). Seeded from the CV categoriser vocabulary + the Hardi/Nepean/Jane runs."
   },
   "domain_knowledge": [
     {

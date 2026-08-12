@@ -147,7 +147,7 @@ class TestVerifyMatchEvidence:
 
 
 class TestFormattingScoreRealWorldCV:
-    """Production regression (Rashmi's CV): the strict-anchor regex required
+    """Production regression (Jane's CV): the strict-anchor regex required
     headings to END a line ($), but PDF-extracted layouts often glue the
     heading word to the next bit of content on the same line. Real CVs were
     scoring 60% on formatting because only 1 of 3 sections matched. The
@@ -187,7 +187,7 @@ class TestFormattingScoreRealWorldCV:
         assert score >= 0.85 * _FORMATTING_MAX
 
     def test_skills_variants_recognised(self):
-        """Production regression (Rashmi Run 2): 2/3 sections matched -> 80%
+        """Production regression (Jane's Run 2): 2/3 sections matched -> 80%
         formatting. Likely culprit was a 'Skills' variant (Key/Core/Technical)
         that the strict regex missed."""
         variants = [

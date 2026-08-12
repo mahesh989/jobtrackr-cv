@@ -1,6 +1,6 @@
 """Regression tests for role-family routing (resolve_role_family).
 
-Origin incident (Rashmi / Moran, 2026-06-27): explicit-vertical routing mapped
+Origin incident (Jane / Moran, 2026-06-27): explicit-vertical routing mapped
 a "general" profile hint straight to the `master` family, short-circuiting the
 JD-based detection below it. A clearly-nursing aged-care JD filed under a
 "general" search profile was therefore composed with the generic `master` role

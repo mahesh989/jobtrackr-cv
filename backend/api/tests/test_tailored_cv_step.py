@@ -294,7 +294,7 @@ def test_enforce_company_anchor_no_op_when_already_present():
 
 
 def test_enforce_company_anchor_partial_cherry_pick_splices_missing_employer():
-    """Reproduces Rashmi's deployed CV: S2 names Uniting but drops Jesmond as
+    """Reproduces Jane's deployed CV: S2 names Uniting but drops Jesmond as
     ', and have served as a primary Medication Assistant'. The enforcer must
     splice the missing employer into the tail and convert 'have served'
     (present-perfect) → 'served' (simple past) for the completed role.

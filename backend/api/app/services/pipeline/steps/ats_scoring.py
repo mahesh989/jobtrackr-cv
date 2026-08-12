@@ -66,7 +66,7 @@ logger = logging.getLogger(__name__)
 # followed by a word boundary. The previous version required end-of-line ($)
 # which broke on PDF-extracted CVs where the heading word gets glued to the
 # next bit of content on the same line — observed in real production runs
-# (Rashmi's CV scored 1-of-3 sections instead of 3-of-3 → 60% formatting
+# (Jane's CV scored 1-of-3 sections instead of 3-of-3 → 60% formatting
 # instead of 100%).  The old "literal word anywhere" check awarded points
 # to any sentence containing the word, which we still don't want. This
 # loosened version requires line-start anchoring but accepts trailing
@@ -77,7 +77,7 @@ _EXPECTED_SECTIONS = ("experience", "education", "skills")
 # with markdown/bold/bullet prefix) followed by a word boundary, so the
 # heading word can stand alone OR have trailing content on the same line.
 # Broadened by section to accept the real-world headings seen in production
-# CVs after Rashmi's Run 2 only scored 2 of 3 sections — likely 'Skills' was
+# CVs after Jane's Run 2 only scored 2 of 3 sections — likely 'Skills' was
 # named "Key Skills" / "Core Skills" / similar.
 _SECTION_PATTERNS = {
     "experience": (
