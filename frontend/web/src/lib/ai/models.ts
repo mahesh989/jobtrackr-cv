@@ -27,9 +27,9 @@ export const PROVIDER_META: Record<AiProvider, ProviderModelMeta> = {
     color:        "#b86a00",
     placeholder:  "sk-ant-...",
     helpUrl:      "https://console.anthropic.com/account/keys",
-    defaultModel: "claude-sonnet-4-6",
+    defaultModel: "claude-sonnet-5",
     models: [
-      { value: "claude-sonnet-4-6", label: "Claude Sonnet 4.6", tag: "recommended"  },
+      { value: "claude-sonnet-5",   label: "Claude Sonnet 5",   tag: "recommended"  },
       { value: "claude-opus-4-8",   label: "Claude Opus 4.8",   tag: "latest"       },
       { value: "claude-opus-4-7",   label: "Claude Opus 4.7",   tag: "most capable" },
       { value: "claude-opus-4-6",   label: "Claude Opus 4.6",   tag: "stable"       },
