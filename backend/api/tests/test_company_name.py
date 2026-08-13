@@ -134,3 +134,53 @@ def test_strip_vet_codes_from_cover_letter():
     assert strip_vet_codes_from_cover_letter(
         "With my Certificate IV in Ageing Support (CHC43015) and HLTAID011 First Aid"
     ) == "With my Certificate IV in Ageing Support and First Aid"
+
+
+from app.services.cover_letter.generator import strip_vet_codes_from_cover_letter
+
+
+class TestVetCodeStripperDoesNotEatOrdinaryEnglishWords:
+    """C25 / finding #55 — the `SIT[A-Z0-9]{2,6}` alternative + re.IGNORECASE
+    matches any word starting "sit" followed by 2-6 letters, since IGNORECASE
+    makes [A-Z0-9] also accept lowercase letters with no digit required.
+    Reproduced verbatim from the audit: "sites" -> "SIT"+"es" (2 chars),
+    "sitting" -> "SIT"+"ting" (4), "situation" -> "SIT"+"uation" (6),
+    "sitters" -> "SIT"+"ters" (4) all match and get silently deleted from
+    every delivered cover letter."""
+
+    def test_sites_is_not_deleted(self):
+        assert strip_vet_codes_from_cover_letter(
+            "I worked across multiple sites in regional NSW."
+        ) == "I worked across multiple sites in regional NSW."
+
+    def test_sitting_is_not_deleted(self):
+        assert strip_vet_codes_from_cover_letter(
+            "I enjoy sitting down to plan each shift."
+        ) == "I enjoy sitting down to plan each shift."
+
+    def test_situation_is_not_deleted(self):
+        assert strip_vet_codes_from_cover_letter(
+            "Given the situation, I adapted quickly."
+        ) == "Given the situation, I adapted quickly."
+
+    def test_sitters_is_not_deleted(self):
+        assert strip_vet_codes_from_cover_letter(
+            "I coordinated with the sitters on schedule changes."
+        ) == "I coordinated with the sitters on schedule changes."
+
+    def test_ordinary_word_survives_alongside_a_real_code_in_the_same_sentence(self):
+        """Not just isolated words — the fix must not become order/position
+        dependent when a genuine code and an ordinary "sit"-word both appear."""
+        assert strip_vet_codes_from_cover_letter(
+            "With my CHC43015 Certificate IV, I've worked across multiple sites."
+        ) == "With my Certificate IV, I've worked across multiple sites."
+
+    def test_genuine_codes_still_strip_after_the_fix(self):
+        """Guards against an overcorrected fix that stops stripping real
+        codes too (e.g. requiring a digit but breaking the group capture)."""
+        assert strip_vet_codes_from_cover_letter(
+            "With my CHC43015 Certificate IV in Ageing Support"
+        ) == "With my Certificate IV in Ageing Support"
+        assert strip_vet_codes_from_cover_letter(
+            "Certificate IV (HLTAID011)"
+        ) == "Certificate IV"

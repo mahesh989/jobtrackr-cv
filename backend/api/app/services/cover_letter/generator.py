@@ -68,9 +68,19 @@ from app.services.ai.prompts.cover_letter.generate import (
 logger = logging.getLogger(__name__)
 
 _AU_UNIT_CODE_INLINE_RE = re.compile(
-    r"\b(?:HLT|CHC|BSB|FSK|SIT|CPP|AHC|HLTHPS|HLTAID|HLTINF|HLTWHS)[A-Z0-9]{2,6}\b",
+    r"\b(?:HLT|CHC|BSB|FSK|SIT|CPP|AHC|HLTHPS|HLTAID|HLTINF|HLTWHS)([A-Z0-9]{2,6})\b",
     re.IGNORECASE,
 )
+
+
+def _strip_if_genuine_code(match: "re.Match[str]") -> str:
+    """Only strip the match if its captured suffix contains a digit — every
+    genuine AU VET unit/qualification code does (CHC43015, HLTAID011,
+    SITXFSA005…), while an ordinary English word that happens to start with
+    a listed prefix (sites/sitting/situation/sitters all start "sit") never
+    does. Leaves non-code matches completely untouched so the surrounding
+    sentence structure survives."""
+    return "" if any(c.isdigit() for c in match.group(1)) else match.group(0)
 
 
 def strip_vet_codes_from_cover_letter(text: str) -> str:
@@ -84,7 +94,7 @@ def strip_vet_codes_from_cover_letter(text: str) -> str:
     # 1. Strip "(CODE)" form first, e.g. "Certificate IV in Ageing Support (CHC43015)"
     out = re.sub(
         r"\s*\(\s*" + _AU_UNIT_CODE_INLINE_RE.pattern + r"\s*\)",
-        "",
+        _strip_if_genuine_code,
         text,
         flags=re.IGNORECASE
     )
@@ -92,7 +102,7 @@ def strip_vet_codes_from_cover_letter(text: str) -> str:
     # 2. Strip "CODE - " or "CODE: " or "CODE – " form, e.g. "CHC43015 - Certificate IV"
     out = re.sub(
         r"\b" + _AU_UNIT_CODE_INLINE_RE.pattern + r"\b\s*[-–—:]\s*",
-        "",
+        _strip_if_genuine_code,
         out,
         flags=re.IGNORECASE
     )
@@ -100,7 +110,7 @@ def strip_vet_codes_from_cover_letter(text: str) -> str:
     # 3. Strip " - CODE" or " – CODE" form, e.g. "Certificate IV - CHC43015"
     out = re.sub(
         r"\s*[-–—:]\s*\b" + _AU_UNIT_CODE_INLINE_RE.pattern + r"\b",
-        "",
+        _strip_if_genuine_code,
         out,
         flags=re.IGNORECASE
     )
@@ -108,7 +118,7 @@ def strip_vet_codes_from_cover_letter(text: str) -> str:
     # 4. Strip bare CODE, e.g. "CHC43015 Certificate IV"
     out = re.sub(
         r"\b" + _AU_UNIT_CODE_INLINE_RE.pattern + r"\b\s*",
-        "",
+        _strip_if_genuine_code,
         out,
         flags=re.IGNORECASE
     )
