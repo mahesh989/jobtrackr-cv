@@ -133,6 +133,16 @@ _SAFE_DATE_PREFIX_LEADING_RE = re.compile(r"^\s*[•·\-*]?\s*$")
 _SAFE_DATE_PREFIX_PIPE_RE = re.compile(r"\|\s*$")
 _SAFE_DATE_PREFIX_PAREN_RE = re.compile(r"\(\s*$")
 _SAFE_DATE_SUFFIX_RE = re.compile(r"^[)\]]?\s*[.,;:]?\s*$")
+# Round 4's own independent review found a FIFTH leak, in a different
+# mechanism entirely: a line that is nothing but a bare year (no range at
+# all) skips every prefix/suffix guard above, because there's no range to
+# anchor. A pypdf column-split wrapping "Camperdown NSW" / "2050" across
+# two lines then makes the postcode line look identical to a genuine
+# standalone placement date. Used in _parse_plaintext_section_entries,
+# which — unlike _parse_role_date_range — can see the previous line.
+_AU_STATE_SUFFIX_RE = re.compile(
+    r"\b(?:NSW|VIC|QLD|SA|WA|TAS|NT|ACT)\s*$", re.IGNORECASE,
+)
 # Either side of a range may be "Mon YYYY" or a bare year — mixed forms
 # ("Mar 2019 - 2023") are real too, not just symmetric ones.
 _DATE_SIDE = r"(?:[A-Za-z]{3,9}\s+(?:\d{1,2}\s*,?\s*)?\d{4}|(?:19|20)\d{2})"
@@ -270,8 +280,30 @@ def _parse_plaintext_section_entries(body_lines: List[str]) -> List["ExperienceE
     # Find all date-range lines — each marks one entry
     date_positions = []
     for i, ln in enumerate(body_lines):
-        if _parse_role_date_range(ln.strip()):
-            date_positions.append(i)
+        stripped = ln.strip()
+        if not _parse_role_date_range(stripped):
+            continue
+        if _BARE_YEAR_ONLY_RE.match(stripped):
+            # Chunk C21 round 4's own review: a line that is NOTHING but a
+            # bare year has no range to anchor against, so none of the
+            # prefix/suffix guards above apply to it at all. A pypdf
+            # column-split can wrap an address across two lines
+            # ("Camperdown NSW" / "2050") — that trailing postcode line
+            # then looks identical to a genuine standalone placement date
+            # ("2023" alone, which test_single_bare_year_placement_parses
+            # deliberately supports and this check must not break). This
+            # function — unlike _parse_role_date_range — sees the
+            # PREVIOUS line, so use it: an AU state abbreviation right
+            # before a bare year is a wrapped postcode, not a date.
+            prev = ""
+            for j in range(i - 1, -1, -1):
+                s = body_lines[j].strip()
+                if s:
+                    prev = s
+                    break
+            if _AU_STATE_SUFFIX_RE.search(prev):
+                continue
+        date_positions.append(i)
 
     if not date_positions:
         return []

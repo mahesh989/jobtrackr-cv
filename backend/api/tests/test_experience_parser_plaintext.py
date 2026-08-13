@@ -492,3 +492,51 @@ Aged Care Placement (120 hours)
         assert entries[0].end == (2023, 1)
         assert len(entries[0].bullets) == 4
         assert entries[0].primary_vertical == "nursing"
+
+    def test_wrapped_postcode_after_a_date_line_does_not_split_entry(self):
+        """Round 4's own independent review found a fifth leak in a
+        DIFFERENT mechanism: a line that is nothing but a bare year has no
+        range to anchor against, so none of the prefix/suffix guards above
+        apply to it — they only guard the RANGE match path. A pypdf
+        column-split can wrap an address across two lines ("Camperdown
+        NSW" / "2050"), and 2000-2099 covers every Sydney metro postcode
+        (this product's flagship market), so the wrapped postcode line
+        then looks identical to a genuine standalone placement date.
+        _parse_plaintext_section_entries (unlike _parse_role_date_range)
+        can see the previous line, so it's the one place this can be
+        fixed: skip a bare-year-only anchor when the previous non-empty
+        line ends with an AU state abbreviation."""
+        cv = """\
+  WORK EXPERIENCE
+
+Sydney Hospital
+Registered Nurse
+Mar 2019 - Jun 2023
+Camperdown NSW
+2050
+• Delivered care on an acute hospital ward.
+• Managed medication administration for 30 patients.
+"""
+        entries = parse_cv_experience(cv)
+        assert len(entries) == 1
+        assert entries[0].employer == "Sydney Hospital"
+        assert entries[0].start == (2019, 3)
+        assert entries[0].end == (2023, 6)
+        assert len(entries[0].bullets) == 2
+
+    def test_standalone_bare_year_placement_still_works_without_a_state_line(self):
+        """The fix above must not break the deliberate feature it sits
+        right next to — a standalone bare year with no preceding address
+        line is still a genuine placement date."""
+        cv = """\
+  WORK EXPERIENCE
+
+General Hospital
+Clinical Placement
+2023
+• Supported nursing staff with personal care tasks.
+"""
+        entries = parse_cv_experience(cv)
+        assert len(entries) == 1
+        assert entries[0].start == (2023, 1)
+        assert entries[0].end == (2023, 1)
