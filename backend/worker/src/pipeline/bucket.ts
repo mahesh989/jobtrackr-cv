@@ -393,6 +393,14 @@ export async function serveProfileFromBucket(
         .eq("is_dead_link", false)
         .eq("is_expired", false)
         .or(`posted_at.gte.${floor},posted_at.is.null`)
+        // ORDER BY before LIMIT — without it, which 5000 rows PostgREST
+        // returns when the true match set is larger is unspecified and can
+        // vary between calls (audit finding, execution chunk C58). Same
+        // most-recent-first convention as every other posted_at-ordered
+        // job list in this codebase (e.g. getDashboardData.ts's board
+        // query), so a metro with >5000 bucket rows in the retention
+        // window loses its oldest postings, not an arbitrary subset.
+        .order("posted_at", { ascending: false, nullsFirst: false })
         .limit(5000);
 
       if (searchOrigin) {
