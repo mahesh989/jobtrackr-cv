@@ -368,6 +368,7 @@ class AIClient:
             for attempt in range(_MAX_RETRIES + 1):
                 try:
                     _t0 = _time.monotonic()
+                    include_temperature = True
                     try:
                         response = await _call(max_tokens)
                     except Exception as exc:
@@ -383,16 +384,21 @@ class AIClient:
                                 "Anthropic model %s rejected temperature; retrying without it.",
                                 self.model,
                             )
+                            include_temperature = False
                             response = await _call(max_tokens, include_temperature=False)
                         else:
                             raise
-                    # Auto-retry once on max_tokens truncation
+                    # Auto-retry once on max_tokens truncation. Reuse
+                    # include_temperature learned above — if the model just
+                    # rejected temperature, re-sending it here would fail
+                    # again, and this call sits outside the except block
+                    # above so that failure would be fatal instead of retried.
                     if getattr(response, "stop_reason", None) == "max_tokens":
                         logger.info(
                             "Anthropic hit max_tokens (%d) for model %s; retrying with doubled cap.",
                             max_tokens, self.model,
                         )
-                        response = await _call(max_tokens * 2)
+                        response = await _call(max_tokens * 2, include_temperature=include_temperature)
                     break  # success
                 except Exception as exc:
                     # Billing failures (Anthropic invalid_request_error with
