@@ -506,9 +506,6 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     // not-yet-applied migration 066 no-ops with a warning, never affects the run.
     const coverageSlices = resolveSlices(profile.keywords, profile.location, Array.from(coverageSources));
     await recordCoverage(coverageSlices, lookbackDays, jobsFetched);
-    // Release single-flight locks so the next caller isn't blocked. (recordCoverage
-    // upserts the row but leaves `refreshing` as-is, so we must clear it here.)
-    if (bucketLockedSlices.length > 0) await releaseSliceLocks(bucketLockedSlices);
 
     console.log(`[pipeline] ─── run complete ───\n`);
   } catch (err) {
@@ -533,5 +530,12 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     } else {
       console.log(`[pipeline] Run gracefully stopped due to user cancellation.`);
     }
+  } finally {
+    // Single-flight locks must be released whether this run succeeded or
+    // threw — previously this only happened on the success path, so any
+    // exception between acquiring a lock and here left it held until the
+    // 10-minute staleness timeout, silently forcing every profile sharing
+    // that slice onto bucket-only serving for up to 10 minutes (#35 audit).
+    if (bucketLockedSlices.length > 0) await releaseSliceLocks(bucketLockedSlices);
   }
 }
