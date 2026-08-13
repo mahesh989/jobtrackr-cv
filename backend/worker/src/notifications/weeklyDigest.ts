@@ -1,4 +1,5 @@
 import { db } from "../db/client.js";
+import { selectInChunked } from "../db/chunkedIn.js";
 import { resend, fromEmail } from "../lib/email.js";
 import { buildDigestHtml, type DigestJob, type DigestProfile } from "./digestEmail.js";
 
@@ -23,14 +24,16 @@ export async function runWeeklyDigest(): Promise<void> {
     return;
   }
 
-  // Load user emails for all affected users
+  // Load user emails for all affected users. CHUNKED — this list is every
+  // active user on the platform (grows with the user base), the same
+  // unbounded-.in() silent-failure class as pipeline/orchestrator/
+  // earlyDedup.ts's stage 3 (audit, execution chunk C44).
   const userIds = [...new Set(profiles.map((p) => p.user_id))];
-  const { data: users } = await db
-    .from("users")
-    .select("id, email")
-    .in("id", userIds);
+  const { rows: users } = await selectInChunked(userIds, (chunk) =>
+    db.from("users").select("id, email").in("id", chunk),
+  );
 
-  const emailMap = new Map((users ?? []).map((u) => [u.id as string, u.email as string]));
+  const emailMap = new Map(users.map((u) => [u.id as string, u.email as string]));
 
   // Group profiles by user
   const byUser = new Map<string, typeof profiles>();

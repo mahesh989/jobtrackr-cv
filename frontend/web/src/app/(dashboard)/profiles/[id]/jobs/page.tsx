@@ -18,6 +18,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
+import { selectInChunked } from "@/lib/supabase/chunkedIn";
 import { getAuthUser } from "@/features/auth/server";
 import { redirect } from "next/navigation";
 import { resolveThresholds } from "@/lib/atsThresholds";
@@ -249,6 +250,10 @@ export default async function JobsPage({
   const jobIdsForCounts = allRows.map((r) => r.id);
 
   // ── BATCH 2 — four parallel queries (need job IDs from BATCH 1) ───────────
+  // jobIdsForCounts comes from countRows, which is deliberately uncapped —
+  // no .limit() — so it grows with this profile's full job history over
+  // its lifetime, not a page size. CHUNKED to avoid the unbounded-.in()
+  // silent-failure class (audit, execution chunk C44).
   const [
     { data: recentRuns },
     { data: recentLetters },
@@ -267,18 +272,18 @@ export default async function JobsPage({
           .in("job_id", jobIds)
           .order("created_at", { ascending: false })
       : Promise.resolve({ data: [] as CoverLetterRef[] }),
-    jobIdsForCounts.length > 0
-      ? supabase.from("analysis_runs")
-          .select("job_id, tailored_cv_storage_path, tailored_pdf_storage_path, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate")
-          .eq("status", "completed")
-          .in("job_id", jobIdsForCounts)
-      : Promise.resolve({ data: [] }),
-    jobIdsForCounts.length > 0
-      ? supabase.from("cover_letters")
-          .select("job_id")
-          .eq("status", "completed")
-          .in("job_id", jobIdsForCounts)
-      : Promise.resolve({ data: [] }),
+    selectInChunked(jobIdsForCounts, (chunk) =>
+      supabase.from("analysis_runs")
+        .select("job_id, tailored_cv_storage_path, tailored_pdf_storage_path, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate")
+        .eq("status", "completed")
+        .in("job_id", chunk),
+    ).then((r) => ({ data: r.rows })),
+    selectInChunked(jobIdsForCounts, (chunk) =>
+      supabase.from("cover_letters")
+        .select("job_id")
+        .eq("status", "completed")
+        .in("job_id", chunk),
+    ).then((r) => ({ data: r.rows })),
   ]);
 
   const runByJob    = indexLatestByJob((recentRuns    ?? []) as AnalysisRunRef[]);

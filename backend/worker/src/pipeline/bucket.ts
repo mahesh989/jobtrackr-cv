@@ -13,6 +13,7 @@
 // worker behaves exactly as before.
 
 import { db } from "../db/client.js";
+import { selectInChunked } from "../db/chunkedIn.js";
 import { normaliseCity } from "./normalise/keys.js";
 import { applyKeywordFilter } from "./keywordFilter.js";
 import { postFetchFilter } from "./postFetchFilter.js";
@@ -169,11 +170,21 @@ export async function upsertGlobalJobs(
     const existingCoords = new Map<string, { lat: number | null; lng: number | null }>();
     const existingSetting = new Map<string, { category: string | null; confidence: number | null; evidence: string | null }>();
     const existingJdAccess = new Map<string, { jd_access: JdAccess; description_full: string | null }>();
-    const { data: existing } = await db
-      .from("global_jobs")
-      .select("url_hash, matched_keywords, lat, lng, setting_category, setting_confidence, setting_evidence, jd_access, description_full")
-      .in("url_hash", hashes);
-    for (const r of (existing ?? []) as Array<{ url_hash: string; matched_keywords: string[]; lat: number | null; lng: number | null; setting_category: string | null; setting_confidence: number | null; setting_evidence: string | null; jd_access: JdAccess | null; description_full: string | null }>) {
+    // CHUNKED — a run can scrape hundreds/thousands of jobs, and a single
+    // unchunked .in() with that many url_hashes builds a querystring past
+    // the PostgREST/proxy URL limit and fails SILENTLY (`data: null`, no
+    // throw). On failure this call previously overwrote other profiles'
+    // matched_keywords, nulled out a setting classification that the
+    // comment two lines above forbids nulling, and forced every posting to
+    // re-geocode serially — while the caller had no signal anything went
+    // wrong. See db/chunkedIn.ts (audit, execution chunk C44).
+    const { rows: existing } = await selectInChunked(hashes, (chunk) =>
+      db
+        .from("global_jobs")
+        .select("url_hash, matched_keywords, lat, lng, setting_category, setting_confidence, setting_evidence, jd_access, description_full")
+        .in("url_hash", chunk),
+    );
+    for (const r of existing as Array<{ url_hash: string; matched_keywords: string[]; lat: number | null; lng: number | null; setting_category: string | null; setting_confidence: number | null; setting_evidence: string | null; jd_access: JdAccess | null; description_full: string | null }>) {
       existingKw.set(r.url_hash, r.matched_keywords ?? []);
       existingCoords.set(r.url_hash, { lat: r.lat, lng: r.lng });
       existingSetting.set(r.url_hash, { category: r.setting_category, confidence: r.setting_confidence, evidence: r.setting_evidence });

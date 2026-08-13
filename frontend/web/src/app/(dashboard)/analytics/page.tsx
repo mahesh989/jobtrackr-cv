@@ -21,6 +21,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
+import { selectInChunked } from "@/lib/supabase/chunkedIn";
 import { getAuthUser } from "@/features/auth/server";
 import { ADMIN_ROLES } from "@/lib/constants";
 import { redirect } from "next/navigation";
@@ -87,12 +88,21 @@ export default async function AnalyticsPage() {
   if (ids.length === 0) return <EmptyState />;
 
   // ── BATCH 1 — run_logs + jobs in parallel (both need only `ids`) ─────────
+  // `ids` is EVERY profile on the platform (admin-only page, unfiltered
+  // search_profiles query above) — CHUNKED to avoid the unbounded-.in()
+  // silent-failure class (audit, execution chunk C44): unchunked, this
+  // page's funnel counts would silently go to zero as the platform grows,
+  // with no error surfaced anywhere.
   const [
-    { data: runLogData },
-    { data: jobRows },
+    { rows: runLogData },
+    { rows: jobRows },
   ] = await Promise.all([
-    supabase.from("run_logs").select("profile_id, jobs_saved, sources_saved").in("profile_id", ids),
-    supabase.from("jobs").select("id, profile_id, source, applied_at").in("profile_id", ids),
+    selectInChunked(ids, (chunk) =>
+      supabase.from("run_logs").select("profile_id, jobs_saved, sources_saved").in("profile_id", chunk),
+    ),
+    selectInChunked(ids, (chunk) =>
+      supabase.from("jobs").select("id, profile_id, source, applied_at").in("profile_id", chunk),
+    ),
   ]);
 
   const scrapedBySource: Record<string, number> = {};
@@ -112,25 +122,32 @@ export default async function AnalyticsPage() {
   const jobIds = jobs.map((j) => j.id);
 
   // ── BATCH 2 — analysis runs + cover letters in parallel (need `jobIds`) ──
+  // `jobIds` is every job across every profile on the platform — same
+  // unbounded-.in() risk as BATCH 1 above. .order() kept PER CHUNK: sufficient
+  // because chunking partitions by distinct job_id, so the downstream
+  // "keep first (=latest) row per job_id" dedup below only needs order to
+  // hold within a job_id's own rows, not across the merged array.
   const [
-    { data: runData },
-    { data: letterRows },
+    { rows: runData },
+    { rows: letterRows },
   ] = await Promise.all([
-    jobIds.length > 0
-      ? supabase.from("analysis_runs")
+    selectInChunked<{ job_id: string; tailored_cv_storage_path: string | null; tailored_pdf_storage_path: string | null }>(
+      jobIds,
+      (chunk) =>
+        supabase.from("analysis_runs")
           .select("job_id, tailored_cv_storage_path, tailored_pdf_storage_path, created_at")
-          .in("job_id", jobIds)
+          .in("job_id", chunk)
           .eq("status", "completed")
           .eq("is_stale", false)
-          .order("created_at", { ascending: false })
-      : Promise.resolve({ data: [] as Array<{ job_id: string; tailored_cv_storage_path: string | null; tailored_pdf_storage_path: string | null }> }),
-    jobIds.length > 0
-      ? supabase.from("cover_letters")
-          .select("job_id")
-          .in("job_id", jobIds)
-          .eq("status", "completed")
-          .eq("is_stale", false)
-      : Promise.resolve({ data: [] as Array<{ job_id: string }> }),
+          .order("created_at", { ascending: false }),
+    ),
+    selectInChunked<{ job_id: string }>(jobIds, (chunk) =>
+      supabase.from("cover_letters")
+        .select("job_id")
+        .in("job_id", chunk)
+        .eq("status", "completed")
+        .eq("is_stale", false),
+    ),
   ]);
 
   const latestRunByJob = new Map<string, { tailored_cv_storage_path: string | null; tailored_pdf_storage_path: string | null }>();

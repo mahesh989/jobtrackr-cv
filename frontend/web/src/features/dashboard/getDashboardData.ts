@@ -29,6 +29,7 @@ import { deriveBoardJob } from "@/features/jobs/lib/boardDerivation";
 import type { PipelineLensData } from "@/features/dashboard/PipelineDonut";
 import type { FunnelCounts } from "@/features/jobs/components/PipelineFunnel";
 import type { createClient } from "@/lib/supabase/server";
+import { selectInChunked } from "@/lib/supabase/chunkedIn";
 
 /** The request-scoped Supabase client, as built by lib/supabase/server. */
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -631,32 +632,43 @@ export async function getDashboardData(args: {
           .in("job_id", jobIds)
           .order("created_at", { ascending: false })
       : Promise.resolve({ data: [] as CoverLetterRef[] }),
-    jobIdsForCounts.length > 0
-      ? supabase.from("analysis_runs")
-          .select("job_id, tailored_cv_storage_path, tailored_pdf_storage_path, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate")
-          .eq("status", "completed")
-          .in("job_id", jobIdsForCounts)
-      : Promise.resolve({ data: [] }),
-    jobIdsForCounts.length > 0
-      ? supabase.from("cover_letters")
-          .select("job_id")
-          .eq("status", "completed")
-          .in("job_id", jobIdsForCounts)
-      : Promise.resolve({ data: [] }),
-    allActiveJobIds.length > 0
-      ? supabase.from("analysis_runs")
-          .select("job_id, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate, ats_lift, tailored_pdf_storage_path, tailored_cv_storage_path, created_at")
-          .in("job_id", allActiveJobIds)
-          .eq("is_stale", false)
-          .order("created_at", { ascending: false })
-      : Promise.resolve({ data: [] as DonutRunRow[] }),
-    allActiveJobIds.length > 0
-      ? supabase.from("cover_letters")
-          .select("job_id")
-          .in("job_id", allActiveJobIds)
-          .eq("is_stale", false)
-          .eq("status", "completed")
-      : Promise.resolve({ data: [] as DonutLetterRow[] }),
+    // jobIdsForCounts/allActiveJobIds below come from countRows (BATCH 1),
+    // which is deliberately uncapped — no .limit() — so these lists grow
+    // with a profile's full lifetime job history, not a page size. CHUNKED
+    // to avoid the unbounded-.in() silent-failure class (audit, execution
+    // chunk C44): unchunked, this previously risked under-reporting ATS/
+    // cover-letter completion counts with no error surfaced anywhere.
+    selectInChunked(jobIdsForCounts, (chunk) =>
+      supabase.from("analysis_runs")
+        .select("job_id, tailored_cv_storage_path, tailored_pdf_storage_path, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate")
+        .eq("status", "completed")
+        .in("job_id", chunk),
+    ).then((r) => ({ data: r.rows })),
+    selectInChunked(jobIdsForCounts, (chunk) =>
+      supabase.from("cover_letters")
+        .select("job_id")
+        .eq("status", "completed")
+        .in("job_id", chunk),
+    ).then((r) => ({ data: r.rows })),
+    // .order() kept PER CHUNK, not globally — sufficient here because
+    // chunking partitions by distinct job_id, so every row for a given
+    // job_id lands in exactly one chunk, and the downstream "keep first
+    // (=latest) row per job_id" dedup below only needs order to hold
+    // within a job_id's own rows, not across the merged array.
+    selectInChunked<DonutRunRow>(allActiveJobIds, (chunk) =>
+      supabase.from("analysis_runs")
+        .select("job_id, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate, ats_lift, tailored_pdf_storage_path, tailored_cv_storage_path, created_at")
+        .in("job_id", chunk)
+        .eq("is_stale", false)
+        .order("created_at", { ascending: false }),
+    ).then((r) => ({ data: r.rows })),
+    selectInChunked<DonutLetterRow>(allActiveJobIds, (chunk) =>
+      supabase.from("cover_letters")
+        .select("job_id")
+        .in("job_id", chunk)
+        .eq("is_stale", false)
+        .eq("status", "completed"),
+    ).then((r) => ({ data: r.rows })),
   ]);
 
   const runByJob    = indexLatestByJob((recentRuns    ?? []) as AnalysisRunRef[]);
