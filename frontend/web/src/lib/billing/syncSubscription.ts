@@ -19,7 +19,16 @@ function iso(unixSeconds: number | null | undefined): string | null {
   return unixSeconds ? new Date(unixSeconds * 1000).toISOString() : null;
 }
 
-/** Resolve our user_id for a Stripe subscription, trying the cheap paths first. */
+/**
+ * Resolve our user_id for a Stripe subscription, trying the cheap paths first.
+ *
+ * ⚠️ DO NOT DELETE AS "DEAD CODE" — a grep for cross-file imports of
+ * `resolveUserId` finds none because its sole caller, `upsertFromSubscription`
+ * below, is IN THIS SAME FILE. That function has 5 call sites across
+ * api/billing/webhook/route.ts and api/billing/checkout/confirm/route.ts.
+ * Deleting this breaks Stripe subscription sync entirely (mis-flagged dead
+ * once already — audit finding #63).
+ */
 export async function resolveUserId(
   stripe: Stripe,
   sub: Stripe.Subscription,
