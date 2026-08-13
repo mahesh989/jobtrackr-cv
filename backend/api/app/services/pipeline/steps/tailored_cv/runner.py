@@ -9,6 +9,7 @@ API is de-facto public (eval/writers/injection.py and _impl.py depend on it).
 """
 from __future__ import annotations
 
+import asyncio
 from app.services.ai.client import AIClient, TAILORED_CV_GENERATION
 from typing import Any, Dict, Optional, Tuple
 from app.services.ai.prompts import (
@@ -95,7 +96,12 @@ async def run_tailored_cv(
     # output is consistent regardless of what the AI emitted.
     final_md = stamp_contact_line(enforced_md, contact_details, role_family_id=role_family_id)
 
-    storage_path = _upload_to_storage(user_id, run_id, final_md)
+    # Blocking Supabase Storage upload — run off the event loop the same way
+    # pdf_output.py's identical upload_or_update call already does (its own
+    # header explains why: this is the DEFAULT w8_verified path, so blocking
+    # the shared event loop here stalls every other concurrent pipeline run,
+    # not just this one — #12 audit).
+    storage_path = await asyncio.to_thread(_upload_to_storage, user_id, run_id, final_md)
     return final_md, storage_path
 
 

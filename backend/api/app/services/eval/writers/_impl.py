@@ -844,7 +844,14 @@ async def run_tailored_cv_w8_verified(
     md = result.tailored_md
     if not md or len(md.strip()) < 200:
         raise ValueError("w8_verified tailored CV: response too short")
-    storage_path = _upload_to_storage(user_id, run_id, md)
+    # Blocking Supabase Storage upload on the DEFAULT w8_verified path — run
+    # off the event loop the same way the very next call already does
+    # (_persist_quality_flags), and the same way pdf_output.py's identical
+    # upload_or_update call does. This was the actual instance the audit
+    # meant (#12: "_impl.py:847 → tailored_cv/runner.py:98") — blocking here
+    # stalls every other concurrent pipeline run sharing this event loop,
+    # not just this one.
+    storage_path = await asyncio.to_thread(_upload_to_storage, user_id, run_id, md)
     # Persist the honesty_guard rewrite notes alongside the run. Best-effort —
     # if migration 057 (analysis_runs.quality_flags) hasn't been applied yet,
     # this writes nothing rather than failing the pipeline.
