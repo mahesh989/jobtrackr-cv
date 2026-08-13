@@ -318,3 +318,60 @@ Clinical Placement
         assert entries[0].start == (2023, 1)
         assert entries[0].end == (2023, 1)
         assert entries[0].tenure_months() == 1
+
+
+class TestBareYearFallbackDoesNotMisreadProseAsADate:
+    """Independent review of the fix above: an earlier draft matched a bare
+    year ANYWHERE in a line. Because _parse_role_date_range is used as the
+    PREDICATE that finds date-anchor lines in the plaintext parser (not just
+    to parse a line already known to be a date), that unanchored match let
+    ordinary CV prose — a postcode, a metric, a "since <year>" bullet —
+    spuriously start a new entry and steal the real entry's bullets."""
+
+    def test_role_date_range_rejects_bare_year_in_prose(self):
+        from app.services.cv.experience_parser import _parse_role_date_range
+
+        dangerous = [
+            "Sydney NSW 2000",
+            "St Leonards NSW 2065",
+            "• Registered with AHPRA since 2021.",
+            "• Completed Certificate IV in Ageing Support in 2023.",
+            "• Supported over 2000 residents across the facility.",
+            "Bachelor of Business Administration Completed 2021",
+            "• Reduced average wait times from 2019 to 2023.",
+        ]
+        for line in dangerous:
+            assert _parse_role_date_range(line) is None, line
+
+    def test_postcode_line_does_not_split_entry_or_steal_bullets(self):
+        cv = """\
+  CLINICAL PLACEMENT
+
+RFBI Concord Community Village
+Aged Care Placement (120 hours)
+Dec 2025 – Feb 2026
+Sydney NSW 2000
+• Provided personal care to elderly residents including dementia care.
+• Assisted with medication administration under RN supervision.
+• Supported mobility assistance and activities of daily living.
+"""
+        entries = parse_cv_experience(cv)
+        assert len(entries) == 1
+        assert entries[0].start == (2025, 12)
+        assert entries[0].end == (2026, 2)
+        assert len(entries[0].bullets) == 3
+        assert entries[0].primary_vertical == "nursing"
+
+    def test_bare_year_bullet_does_not_inflate_tenure(self):
+        cv = """\
+  WORK EXPERIENCE
+
+General Hospital
+Registered Nurse
+2019 - 2023
+• Provided patient care in the acute ward.
+• Registered with AHPRA since 2019.
+"""
+        entries = parse_cv_experience(cv)
+        assert len(entries) == 1
+        assert entries[0].tenure_months() == 49

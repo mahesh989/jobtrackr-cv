@@ -77,44 +77,72 @@ _DATE_TOKEN_RE = re.compile(r"\b([A-Za-z]{3,9})\s+(?:\d{1,2}\s*,?\s*)?(\d{4})\b"
 # common CV date format that _DATE_TOKEN_RE alone can't see — it requires a
 # month name. Fall back to a plain 4-digit year, defaulting to January so a
 # range built from two bare years doesn't overclaim tenure (e.g. "2019 -
-# 2023" resolves to Jan 2019 - Jan 2023, not Jan 2019 - Dec 2023). Anchored
-# to 19xx/20xx so it doesn't accidentally match an unrelated 4-digit number.
-_BARE_YEAR_RE = re.compile(r"\b(19\d{2}|20\d{2})\b")
+# 2023" resolves to Jan 2019 - Jan 2023, not Jan 2019 - Dec 2023).
+#
+# Independent review: an earlier draft matched a bare year ANYWHERE in a
+# line (`\b(19\d{2}|20\d{2})\b`). Because _parse_role_date_range is used as
+# the PREDICATE that finds date-anchor lines in the plaintext parser (not
+# just to parse a line already known to be a date), that unanchored match
+# turned ordinary CV prose into spurious date-anchor lines and corrupted
+# entry segmentation — an Australian postcode ("Sydney NSW 2000"), a metric
+# ("supported over 2000 residents"), or a bullet ("registered with AHPRA
+# since 2021") all falsely split entries and stole bullets from the real
+# one. Fixed two ways: (1) _BARE_YEAR_ONLY_RE requires the WHOLE trimmed
+# string to be just the year — used for the single-date whole-line fallback,
+# so a sentence merely containing a year never matches; (2) a range match
+# whose matched side is a bare year (no month name) must additionally sit at
+# the start of the line or right after a role/date-line separator — a
+# sentence like "...from 2019 to 2023." has "to" and two years, but nothing
+# but prose immediately before "2019", so it's correctly rejected.
+_BARE_YEAR_ONLY_RE = re.compile(r"^(19\d{2}|20\d{2})$")
+_SAFE_DATE_PREFIX_RE = re.compile(r"(?:^|[|,:()–—·•\-])\s*$")
 # Either side of a range may be "Mon YYYY" or a bare year — mixed forms
 # ("Mar 2019 - 2023") are real too, not just symmetric ones.
 _DATE_SIDE = r"(?:[A-Za-z]{3,9}\s+(?:\d{1,2}\s*,?\s*)?\d{4}|(?:19|20)\d{2})"
 _DATE_RANGE_RE = re.compile(
     rf"({_DATE_SIDE})"
-    r"\s*(?:[-–—]|to)\s*"
+    r"\s*(?:[-–—]|\bto\b)\s*"
     rf"(Present|present|current|now|ongoing|{_DATE_SIDE})",
 )
 
 
 def _parse_month_year(s: str) -> Optional[Tuple[int, int]]:
-    m = _DATE_TOKEN_RE.search(s.strip())
+    stripped = s.strip()
+    m = _DATE_TOKEN_RE.search(stripped)
     if m:
         month = _MONTH_TO_NUM.get(m.group(1).lower())
         if month:
             return (int(m.group(2)), month)
-    m2 = _BARE_YEAR_RE.search(s.strip())
+    m2 = _BARE_YEAR_ONLY_RE.match(stripped)
     if m2:
         return (int(m2.group(1)), 1)
     return None
 
 
+def _is_bare_year_side(side_text: str) -> bool:
+    return bool(_BARE_YEAR_ONLY_RE.match(side_text.strip()))
+
+
 def _parse_role_date_range(role_line: str):
     """Mirrors ``eval/writers/experience.py:_parse_role_date_range``. See that
     file for full design notes; inlined here to avoid the writers' import chain."""
-    m = _DATE_RANGE_RE.search(role_line)
-    if m:
-        start = _parse_month_year(m.group(1))
-        end_raw = m.group(2).strip().lower()
+    for m in _DATE_RANGE_RE.finditer(role_line):
+        left, right = m.group(1), m.group(2)
+        end_raw = right.strip().lower()
+        right_is_open = end_raw in ("present", "current", "now", "ongoing")
+        # A bare year (either side) must be anchored — start of line, or
+        # right after a separator — not embedded mid-sentence.
+        if _is_bare_year_side(left) or (not right_is_open and _is_bare_year_side(right)):
+            if not _SAFE_DATE_PREFIX_RE.search(role_line[: m.start()]):
+                continue
+        start = _parse_month_year(left)
         if not start:
-            return None
-        if end_raw in ("present", "current", "now", "ongoing"):
+            continue
+        if right_is_open:
             return (start, "present")
-        end = _parse_month_year(end_raw)
-        return (start, end) if end else None
+        end = _parse_month_year(right)
+        if end:
+            return (start, end)
     d = _parse_month_year(role_line)
     return (d, d) if d else None
 
