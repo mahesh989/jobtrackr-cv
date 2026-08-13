@@ -43,11 +43,22 @@ interface Props {
   latestRun:      Record<string, ProfileRunRow>;
 }
 
-function scheduleLabel(cron: string) {
+/**
+ * Interval markers used to be matched by substring, and the 1-day marker
+ * is a prefix of every 10-19 day marker, so every 10-19 day schedule
+ * rendered as "Daily" (#60 audit, 11 of the 30 selectable intervals hit
+ * the buggy branch). Parse the actual interval number first and branch
+ * on the integer instead.
+ */
+export function scheduleLabel(cron: string) {
   if (!cron) return "Manual";
-  if (cron.includes("*/1") || cron === "0 21 * * *") return "Daily";
+  if (cron === "0 21 * * *") return "Daily";
   const m = cron.match(/\*\/(\d+)/);
-  if (m && parseInt(m[1]) > 1) return `Every ${m[1]} days`;
+  if (m) {
+    const n = parseInt(m[1], 10);
+    if (n === 1) return "Daily";
+    if (n > 1) return `Every ${n} days`;
+  }
   if (cron.includes("* * 1")) return "Weekly Mon";
   if (cron.includes("* * 3")) return "Weekly Wed";
   if (cron.includes("* * 5")) return "Weekly Fri";

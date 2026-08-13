@@ -50,10 +50,16 @@ export function assembleLetter({
   body,
 }: AssembleLetterInput): string {
   const today = new Date();
+  // en-AU controls formatting (day/month order, month names) but not which
+  // calendar day is used — that defaults to the runtime's local timezone
+  // (UTC on this repo's Vercel/Fly deployment), so an explicit timeZone is
+  // required or a letter generated in the first ~10-11 hours of the
+  // Australian day gets dated a day early (#60 audit).
   const dateStr = today.toLocaleDateString("en-AU", {
-    day:   "numeric",
-    month: "long",
-    year:  "numeric",
+    day:      "numeric",
+    month:    "long",
+    year:     "numeric",
+    timeZone: "Australia/Sydney",
   });
 
   // Employer block: recipient name above company is AU convention. When the
