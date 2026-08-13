@@ -251,3 +251,70 @@ Cert III 2022
         entries = parse_cv_experience(cv)
         assert len(entries) == 1
         assert entries[0].primary_vertical == "nursing"
+
+
+# ---------------------------------------------------------------------------
+# Finding #26 (chunk C21) — bare-year date ranges ("2019 - 2023") scored
+# ZERO relevant tenure because the date parser only recognised "Mon YYYY".
+# ---------------------------------------------------------------------------
+
+class TestBareYearDateRanges:
+    def test_bare_year_range_parses_and_scores_nonzero_tenure(self):
+        cv = """\
+  WORK EXPERIENCE
+
+General Hospital
+Registered Nurse
+2019 - 2023
+• Provided patient care in the acute ward.
+
+  EDUCATION
+
+Bachelor of Nursing 2019
+"""
+        entries = parse_cv_experience(cv)
+        assert len(entries) == 1
+        assert entries[0].start == (2019, 1)
+        assert entries[0].end == (2023, 1)
+        # Jan 2019 - Jan 2023 inclusive = 49 months, not the pre-fix 0.
+        assert entries[0].tenure_months() == 49
+
+    def test_mixed_month_and_bare_year_range_parses(self):
+        cv = """\
+  WORK EXPERIENCE
+
+General Hospital
+Registered Nurse
+Mar 2019 - 2023
+• Provided patient care in the acute ward.
+"""
+        entries = parse_cv_experience(cv)
+        assert entries[0].start == (2019, 3)
+        assert entries[0].end == (2023, 1)
+
+    def test_bare_year_to_present_parses(self):
+        cv = """\
+  WORK EXPERIENCE
+
+General Hospital
+Registered Nurse
+2019 - Present
+• Provided patient care in the acute ward.
+"""
+        entries = parse_cv_experience(cv)
+        assert entries[0].start == (2019, 1)
+        assert entries[0].end == "present"
+
+    def test_single_bare_year_placement_parses(self):
+        cv = """\
+  WORK EXPERIENCE
+
+General Hospital
+Clinical Placement
+2023
+• Supported nursing staff with personal care tasks.
+"""
+        entries = parse_cv_experience(cv)
+        assert entries[0].start == (2023, 1)
+        assert entries[0].end == (2023, 1)
+        assert entries[0].tenure_months() == 1

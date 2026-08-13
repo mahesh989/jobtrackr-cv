@@ -73,19 +73,33 @@ _MONTH_TO_NUM: Dict[str, int] = {
     "oct": 10, "october": 10, "nov": 11, "november": 11, "dec": 12, "december": 12,
 }
 _DATE_TOKEN_RE = re.compile(r"\b([A-Za-z]{3,9})\s+(?:\d{1,2}\s*,?\s*)?(\d{4})\b")
+# Finding #26 (chunk C21): a bare year with no month name ("2019 - 2023") is a
+# common CV date format that _DATE_TOKEN_RE alone can't see — it requires a
+# month name. Fall back to a plain 4-digit year, defaulting to January so a
+# range built from two bare years doesn't overclaim tenure (e.g. "2019 -
+# 2023" resolves to Jan 2019 - Jan 2023, not Jan 2019 - Dec 2023). Anchored
+# to 19xx/20xx so it doesn't accidentally match an unrelated 4-digit number.
+_BARE_YEAR_RE = re.compile(r"\b(19\d{2}|20\d{2})\b")
+# Either side of a range may be "Mon YYYY" or a bare year — mixed forms
+# ("Mar 2019 - 2023") are real too, not just symmetric ones.
+_DATE_SIDE = r"(?:[A-Za-z]{3,9}\s+(?:\d{1,2}\s*,?\s*)?\d{4}|(?:19|20)\d{2})"
 _DATE_RANGE_RE = re.compile(
-    r"([A-Za-z]{3,9}\s+(?:\d{1,2}\s*,?\s*)?\d{4})"
+    rf"({_DATE_SIDE})"
     r"\s*(?:[-–—]|to)\s*"
-    r"(Present|present|current|now|ongoing|[A-Za-z]{3,9}\s+(?:\d{1,2}\s*,?\s*)?\d{4})",
+    rf"(Present|present|current|now|ongoing|{_DATE_SIDE})",
 )
 
 
 def _parse_month_year(s: str) -> Optional[Tuple[int, int]]:
     m = _DATE_TOKEN_RE.search(s.strip())
-    if not m:
-        return None
-    month = _MONTH_TO_NUM.get(m.group(1).lower())
-    return (int(m.group(2)), month) if month else None
+    if m:
+        month = _MONTH_TO_NUM.get(m.group(1).lower())
+        if month:
+            return (int(m.group(2)), month)
+    m2 = _BARE_YEAR_RE.search(s.strip())
+    if m2:
+        return (int(m2.group(1)), 1)
+    return None
 
 
 def _parse_role_date_range(role_line: str):
