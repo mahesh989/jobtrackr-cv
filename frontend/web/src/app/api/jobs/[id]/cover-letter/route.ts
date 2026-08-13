@@ -10,7 +10,8 @@
  */
 
 import { NextRequest } from "next/server";
-import { withUser } from "@/lib/api-utils";
+import { jsonError, withUser } from "@/lib/api-utils";
+import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 import { startCoverLetter } from "@/lib/coverLetter/start";
 
 export const runtime     = "nodejs";
@@ -21,6 +22,13 @@ export const POST = withUser(async (
   { params }: { params: Promise<{ id: string }> },
   { user },
 ) => {
+  // Rate limit: generation is a real AI call against the single
+  // platform-wide provider key (BYOK removed, D20) — every user shares one
+  // budget, so an unlimited endpoint is a shared-cost exposure, not just a
+  // per-user one.
+  const rl = await rateLimit(`cover-letter-generate:${user.id}`, 10, 60);
+  if (!rl.allowed) return jsonError(RATE_LIMIT_MESSAGE, 429);
+
   const { id: jobId } = await params;
   return startCoverLetter(req, jobId, user);
 });

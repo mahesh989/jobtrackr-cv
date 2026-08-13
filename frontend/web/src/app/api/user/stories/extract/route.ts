@@ -24,6 +24,7 @@ import { NextResponse }                                  from "next/server";
 import { createAdminClient }                             from "@/lib/supabase/admin";
 import { getActiveAiCredentials }                        from "@/lib/ai/activeProvider";
 import { extractStories, Story, CvBackendError }         from "@/lib/cv/backend";
+import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 import { jsonError, withUser } from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
@@ -31,6 +32,11 @@ export const maxDuration = 90;   // AI call on dense CVs; mirrors cv-backend 90s
 
 export const POST = withUser(async (_req, _ctx, { user }) => {
   // ── 1. Verify session ────────────────────────────────────────────────────────
+
+  // Rate limit: a real AI call against the single platform-wide provider
+  // key (BYOK removed, D20) — every user shares one budget.
+  const rl = await rateLimit(`stories-extract:${user.id}`, 10, 60);
+  if (!rl.allowed) return jsonError(RATE_LIMIT_MESSAGE, 429);
 
   const admin = createAdminClient();
 
