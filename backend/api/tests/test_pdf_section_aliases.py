@@ -12,8 +12,13 @@ regardless of where the vertical itself says they belong.
 """
 from __future__ import annotations
 
+import io
+
+import pypdf
+
 import app.services.cv.pdf_generator.parsing as parsing
 import app.services.cv.pdf_generator.sections as sections
+from app.services.cv.pdf_generator import generate_pdf_from_markdown
 
 
 def _story_header_order(monkeypatch, sections_in):
@@ -106,3 +111,76 @@ class TestManualRolePackRendersInVerticalOrder:
         sections) rather than a named canonical bucket — this asserts it
         is now recognised, not just coincidentally rendered."""
         assert parsing._SECTION_ALIASES["availability"] in parsing._SECTION_ORDER
+
+
+class TestChecksAndClearancesRendersInVerticalOrder:
+    """Round-2 independent review finding: eval/enforce_w8.py's
+    _relabel_registration relabels "## Registration & Licences" to
+    "## Checks & Clearances" whenever the CV holds only clearances (police
+    check, NDIS, WWCC, first aid…) with no genuine AHPRA/RN/EN registration
+    — the common case for aged/personal/disability care workers, which
+    nursing's own alias list (verticals/nursing/config.py) explicitly
+    targets. This relabelled heading had no alias at all, so it still fell
+    into extras and rendered dead last — the original bug, unfixed for
+    what is likely the majority of this repo's nursing users."""
+
+    def test_checks_and_clearances_has_an_alias(self):
+        assert parsing._SECTION_ALIASES.get("checks & clearances") is not None
+
+    def test_checks_and_clearances_renders_before_references(self, monkeypatch):
+        order = _story_header_order(monkeypatch, [
+            ("Professional Summary", [{"type": "paragraph", "text": "x"}]),
+            ("Certifications", [{"type": "bullet", "text": "x"}]),
+            ("References", [{"type": "paragraph", "text": "x"}]),
+            ("Checks & Clearances", [{"type": "paragraph", "text": "x"}]),
+        ])
+        assert order.index("Checks & Clearances") < order.index("References")
+
+    def test_checks_and_clearances_renders_before_references_end_to_end(self):
+        """Same claim, verified against real rendered PDF bytes (not just
+        the _build_story header-order mock) — section headers render
+        UPPERCASE, which the mocked unit tests above never exercise."""
+        md = (
+            "# Jane Doe\njane@example.com\n\n"
+            "## Professional Summary\nCare worker.\n\n"
+            "## Certifications\n- BLS Certified.\n\n"
+            "## Awards\n- Employee of the Month\n\n"
+            "## References\nAvailable on request.\n\n"
+            "## Checks & Clearances\nNational Police Check, valid to 2027.\n"
+        )
+        pdf = generate_pdf_from_markdown(md)
+        text = " ".join(
+            p.extract_text() for p in pypdf.PdfReader(io.BytesIO(pdf)).pages
+        ).upper()
+        assert 0 <= text.find("CHECKS & CLEARANCES") < text.find("REFERENCES")
+
+
+class TestCertificationsAndChecksPreservesH3Items:
+    """Round-2 independent review finding: routing "Certifications & Checks"
+    into the EXISTING "certifications" bucket (as the first fix did) sends it
+    through _render_certifications, which only keeps "bullet"/"paragraph"
+    items and silently drops "h3" items — a real content-loss regression the
+    PR's own "no renderer changes" claim explicitly denied making. Fixed by
+    giving it its own bucket ("certifications_checks") that falls through to
+    the generic fallback instead, which preserves every item type."""
+
+    def test_certifications_and_checks_is_not_merged_into_certifications_bucket(self):
+        assert parsing._SECTION_ALIASES["certifications & checks"] != "certifications"
+
+    def test_h3_subheading_survives_end_to_end(self):
+        """Verified against real rendered PDF bytes: before the fix, this
+        exact input dropped "National Police Check" while its orphaned body
+        ("Valid to 2027.") survived with no context — actively misleading."""
+        md = (
+            "# Jane Doe\njane@example.com\n\n"
+            "## Certifications & Checks\n"
+            "### National Police Check\nValid to 2027.\n\n"
+            "- White Card\n"
+        )
+        pdf = generate_pdf_from_markdown(md)
+        text = " ".join(
+            p.extract_text() for p in pypdf.PdfReader(io.BytesIO(pdf)).pages
+        )
+        assert "National Police Check" in text
+        assert "Valid to 2027" in text
+        assert "White Card" in text

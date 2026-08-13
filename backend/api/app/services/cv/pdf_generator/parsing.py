@@ -269,24 +269,39 @@ _SECTION_ALIASES: Dict[str, str] = {
     # last regardless of where the vertical intended them (finding #25 / C22).
     "registration & licences":      "registration",
     "registration & licenses":      "registration",
-    "certifications & checks":      "certifications",
+    # eval/enforce_w8.py::_relabel_registration relabels the Registration &
+    # Licences heading to this when the CV holds only clearances (police
+    # check, NDIS, WWCC, first aid…) with no genuine AHPRA/RN/EN
+    # registration — the common case for aged/personal/disability care
+    # workers, who nursing's own alias list explicitly targets. Same
+    # canonical bucket: it is the same section, just relabelled by content.
+    "checks & clearances":          "registration",
+    # Deliberately its OWN bucket, not merged into "certifications":
+    # _render_certifications (below) only keeps bullet/paragraph items and
+    # silently drops "h3" items, which this heading's content can contain
+    # (e.g. "### National Police Check" sub-headings) — merging it in would
+    # silently delete real CV content. This bucket instead falls through to
+    # _render_section's generic fallback, which preserves every item type.
+    "certifications & checks":      "certifications_checks",
     "availability":                 "availability",
 }
 
 _SECTION_ORDER = [
     "highlights", "experience", "education", "skills", "projects",
-    "certifications", "registration", "awards", "references", "availability",
+    "certifications", "certifications_checks", "registration", "awards",
+    "references", "availability",
 ]
 
 _SECTION_LABELS = {
-    "highlights":     "Profile",
-    "experience":     "Experience",
-    "education":      "Education",
-    "skills":         "Skills",
-    "projects":       "Projects",
-    "certifications": "Professional Certifications",
-    "registration":   "Registration & Licences",
-    "awards":         "Awards",
-    "references":     "References",
-    "availability":   "Availability",
+    "highlights":            "Profile",
+    "experience":            "Experience",
+    "education":             "Education",
+    "skills":                "Skills",
+    "projects":              "Projects",
+    "certifications":        "Professional Certifications",
+    "certifications_checks": "Certifications & Checks",
+    "registration":          "Registration & Licences",
+    "awards":                "Awards",
+    "references":            "References",
+    "availability":          "Availability",
 }
