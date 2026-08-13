@@ -48,6 +48,7 @@ from app.services.ai.prompts import (
     CV_JD_MATCHING_SYSTEM,
     CV_JD_MATCHING_USER_TEMPLATE,
 )
+from app.services.skills.classifier import is_noise
 
 logger = logging.getLogger(__name__)
 
@@ -557,14 +558,27 @@ def _build_credentials_gap(
         # Police Check") it used to extract by accident. CVs document the
         # credential itself, not the JD's obligation phrasing, so the exact
         # literal match above now fails for a real, already-documented
-        # credential. Retry once against the qualifier-stripped form before
-        # giving up.
+        # credential. Retry once against the qualifier-stripped form.
+        #
+        # Round 2 of that same review: a plain strip-and-retry is unsafe —
+        # "clearance" is sometimes a real credential NOUN, not a decorative
+        # qualifier ("Police Clearance", "NDIS Clearance"), so stripping it
+        # unconditionally left a bare, dangerously generic stem ("police",
+        # "ndis") that word-boundary-matched ANY incidental CV mention —
+        # e.g. "liaised with police and ambulance services" wrongly marking
+        # a Police Clearance the candidate never obtained as present. Only
+        # accept the stripped form if IT is itself still a recognised
+        # credential/eligibility phrase — that's what distinguishes
+        # "National Police Check compliance" -> "National Police Check"
+        # (still a real credential, safe) from "Police Clearance" ->
+        # "Police" (not a credential on its own, unsafe).
         stripped = _strip_credential_qualifier_suffix(phrase)
-        if stripped and stripped != phrase:
-            if _literal_match_in_text(stripped, cv_text):
-                return True
-            if _qualification_subsumed_by_cv(stripped, cv_text):
-                return True
+        if (
+            stripped and stripped != phrase
+            and is_noise(stripped) in ("credential", "eligibility")
+            and _literal_match_in_text(stripped, cv_text)
+        ):
+            return True
         if contact_details and user_has_credential(phrase, contact_details):
             return True
         return False
