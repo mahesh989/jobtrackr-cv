@@ -184,3 +184,48 @@ class TestCertificationsAndChecksPreservesH3Items:
         assert "National Police Check" in text
         assert "Valid to 2027" in text
         assert "White Card" in text
+
+
+class TestChecksAndClearancesCoexistsWithRegistrationAndLicences:
+    """Round-2 review's own fix for "Checks & Clearances" shared the
+    "registration" bucket with "Registration & Licences" (reasoning: "the
+    same section, just relabelled by content"). Round-3 review found that
+    premise false and reproduced real content loss: eval/enforce_w8.py's
+    _relabel_registration renames the heading to "Checks & Clearances", then
+    eval/contact_line.py's stamp_credentials (which runs AFTER, per
+    writers/_impl.py's step ordering) no longer finds a heading matching
+    "registration & licences" and appends a FRESH one at the end of the
+    document — so both headings legitimately co-exist in the same CV.
+    _build_story's duplicate-key merge (sections.py:744-751) keeps only the
+    first-seen title and silently discards the second heading, which
+    absorbed a genuinely AHPRA-registered nurse's stamped credential line
+    under the wrong "Checks & Clearances" header with "Registration &
+    Licences" gone entirely. Fixed by giving "Checks & Clearances" its own
+    bucket ("registration_checks"), the same pattern already used for
+    "Certifications & Checks" vs "certifications"."""
+
+    def test_checks_and_clearances_is_not_merged_into_registration_bucket(self):
+        assert parsing._SECTION_ALIASES["checks & clearances"] != "registration"
+
+    def test_both_headings_survive_and_render_end_to_end(self):
+        """Verified against real rendered PDF bytes: before this fix, the
+        "Registration & Licences" heading vanished from this exact input,
+        its AHPRA content silently absorbed under "Checks & Clearances"."""
+        md = (
+            "# Jane Doe\njane@example.com\n\n"
+            "## Professional Summary\nCare worker.\n\n"
+            "## Certifications\n- BLS Certified.\n\n"
+            "## Checks & Clearances\nNational Police Check, valid to 2027.\n\n"
+            "## References\nAvailable on request.\n\n"
+            "## Registration & Licences\nAHPRA Registration: 12345 (exp. 2027).\n"
+        )
+        pdf = generate_pdf_from_markdown(md)
+        text = " ".join(
+            p.extract_text() for p in pypdf.PdfReader(io.BytesIO(pdf)).pages
+        ).upper()
+        assert "CHECKS & CLEARANCES" in text
+        assert "REGISTRATION & LICENCES" in text
+        assert "AHPRA" in text
+        assert "NATIONAL POLICE CHECK" in text
+        assert text.find("CHECKS & CLEARANCES") < text.find("REFERENCES")
+        assert text.find("REGISTRATION & LICENCES") < text.find("REFERENCES")
