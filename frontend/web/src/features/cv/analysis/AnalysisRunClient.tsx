@@ -485,7 +485,7 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
                 <button
                   onClick={handleResume}
                   disabled={resuming}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-warning px-3 py-1.5 text-label font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-md bg-warning px-3 py-1.5 text-label font-semibold text-warning-fg hover:opacity-90 disabled:opacity-50 transition-colors"
                   title="Continue this run past the gate and generate the tailored CV (reuses the analysis already done)"
                 >
                   {resuming ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}

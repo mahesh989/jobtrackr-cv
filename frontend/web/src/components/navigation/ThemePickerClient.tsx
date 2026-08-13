@@ -96,7 +96,7 @@ export function ThemePickerClient() {
                   <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
                     <path
                       d="M2.5 6.2L4.8 8.5L9.5 3.5"
-                      stroke="white"
+                      stroke={t.preview.fg}
                       strokeWidth="2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
