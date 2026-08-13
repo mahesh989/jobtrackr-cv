@@ -42,15 +42,61 @@ class _Rpc:
         return _Result(self._data)
 
 
-class _FakeClient:
-    """tables: {name: row_or_none}; rpc_result: list/row returned by consume_usage."""
+class _EqAwareQuery:
+    """Like _Query, but .eq() actually filters instead of being a no-op.
 
-    def __init__(self, tables, rpc_result=None):
+    Regression fix (audit finding #58, execution chunk C40): _Query.eq()
+    ignores its arguments and always returns the same canned row no matter
+    what column/value the code under test actually filtered on — proven by
+    mutation to let test_trialing_uses_trial_caps_not_plan pass even with
+    billing.py's trial-cap-selection ternary deleted entirely, since the
+    fake plans table would hand back the same {"max_letter_unique": 3, ...}
+    row regardless of whether "trial" or "monthly" was queried.
+
+    rows_by_key is {(column, value): row}; execute() returns the row whose
+    key matches an .eq() call actually made, or [] if none of them match —
+    so a wrong filter value genuinely changes what comes back.
+    """
+
+    def __init__(self, rows_by_key: dict):
+        self._rows_by_key = rows_by_key
+        self._filters: list = []
+
+    def select(self, *a, **k): return self
+
+    def eq(self, col, val):
+        self._filters.append((col, val))
+        return self
+
+    def limit(self, *a, **k): return self
+    def update(self, *a, **k): return self
+
+    def execute(self):
+        for key in self._filters:
+            row = self._rows_by_key.get(key)
+            if row is not None:
+                return _Result([row])
+        return _Result([])
+
+
+class _FakeClient:
+    """tables: {name: row_or_none}; rpc_result: list/row returned by consume_usage.
+
+    eq_aware_tables: {name: {(column, value): row}} — opt-in per-table
+    override for scenarios that need .eq() to genuinely filter (see
+    _EqAwareQuery). Defaults to {} so every existing test, which relies on
+    .eq() being a no-op, is completely unaffected.
+    """
+
+    def __init__(self, tables, rpc_result=None, eq_aware_tables=None):
         self._tables = tables
         self._rpc_result = rpc_result
+        self._eq_aware_tables = eq_aware_tables or {}
         self.rpc_calls = []
 
     def table(self, name):
+        if name in self._eq_aware_tables:
+            return _EqAwareQuery(self._eq_aware_tables[name])
         # Real .limit(1).execute() yields a list ([] on miss). Scenarios pass a
         # single row dict (or None for "absent") — wrap to match.
         row = self._tables.get(name)
@@ -189,13 +235,27 @@ def test_active_under_cap_reserves_event(monkeypatch):
 
 
 def test_trialing_uses_trial_caps_not_plan(monkeypatch):
-    # A trialing user on the monthly plan is capped at TRIAL limits (3), not 250.
+    # REGRESSION (audit finding #58, execution chunk C40): a trialing user on
+    # the monthly plan is capped at TRIAL limits (3/3), not monthly's 250/375.
+    # Uses eq_aware_tables so the fake "plans" table genuinely distinguishes
+    # a "trial" lookup from a "monthly" one — the previous version of this
+    # test used a single canned plans row regardless of which plan_id was
+    # actually queried, so it kept passing even with billing.py's trial-cap
+    # ternary (line ~144) deleted entirely. Proven by mutation: reverting
+    # just this test back to the single-row _FakeClient form and deleting
+    # billing.py's ternary makes the OLD test still pass; this version fails
+    # under the same mutation, as it should.
     client = _patch(monkeypatch, _FakeClient(
         tables={
             "users": {"role": "beta"},
             "subscriptions": {"plan_id": "monthly", "status": "trialing",
                               "current_period_start": "2026-08-01T00:00:00+00:00"},
-            "plans": {"max_letter_unique": 3, "max_letter_total": 3},  # 'trial' row
+        },
+        eq_aware_tables={
+            "plans": {
+                ("id", "trial"):   {"max_letter_unique": 3,   "max_letter_total": 3},
+                ("id", "monthly"): {"max_letter_unique": 250, "max_letter_total": 375},
+            },
         },
         rpc_result=[{"allowed": True, "reason": "ok", "event_id": "evt-t"}],
     ))
@@ -203,6 +263,7 @@ def test_trialing_uses_trial_caps_not_plan(monkeypatch):
     assert res.allowed is True
     # Caps were loaded for the 'trial' plan id, not 'monthly'.
     assert client.rpc_calls[0][1]["p_max_unique"] == 3
+    assert client.rpc_calls[0][1]["p_max_total"] == 3
 
 
 # ── Fail-closed ───────────────────────────────────────────────────────────────
