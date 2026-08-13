@@ -257,14 +257,6 @@ export async function startCoverLetter(
   const usageEventId = clGate.eventId;
   const release = async () => { if (usageEventId) await releaseUsageEvent(usageEventId); };
 
-  // Mark previous letter stale if regenerating
-  if (existingLetter && regenerate) {
-    await admin
-      .from("cover_letters")
-      .update({ is_stale: true })
-      .eq("id", existingLetter.id);
-  }
-
   // ── 7. Resolve platform AI provider/key/model ─────────────────────────────────
   const creds = await getActiveAiCredentials();
   if (!creds) {
@@ -493,6 +485,19 @@ export async function startCoverLetter(
   }
 
   const letterId = letterRow.id as string;
+
+  // Mark the previous letter stale now that the new one exists (moved here
+  // from right after the billing gate, #47 audit) — every read path filters
+  // is_stale=false, so doing this before any of the early-return failure
+  // paths above left the user with neither the old completed letter nor a
+  // new one on failure. Waiting until the insert has actually succeeded
+  // guarantees a replacement always exists before the old one is hidden.
+  if (existingLetter && regenerate) {
+    await admin
+      .from("cover_letters")
+      .update({ is_stale: true })
+      .eq("id", existingLetter.id);
+  }
 
   // Link the pending reservation to the letter row so the cover_letters status
   // trigger can commit (status 'completed') or void (status 'failed') it.
