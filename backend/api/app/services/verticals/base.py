@@ -18,6 +18,18 @@ from typing import Any, Dict, List, Tuple
 
 from app.enums import CertPolicy, HeadlineBucket, InjectionPolicy
 
+# Per-family ATS keyword weights fallback — sum to 50 (the Keyword Match
+# half of the 100-point ATS score). Single source of truth: ats_scoring.py
+# imports this same constant for its OWN resolution-failure fallback, so
+# the two paths can't silently desync again (was a byte-for-byte-duplicated
+# copy with no shared-source comment on one side — audit finding #60).
+DEFAULT_KEYWORD_WEIGHTS: Dict[str, int] = {
+    "technical_required":        25,
+    "soft_skills_required":      10,
+    "domain_knowledge_required":  5,
+    "preferred_overall":         10,
+}
+
 
 @dataclass(frozen=True)
 class RoleFamilyProfile:
@@ -38,12 +50,7 @@ class RoleFamilyProfile:
     metadata: Dict[str, Any] = field(default_factory=dict)
     # Per-family ATS keyword weights — sum to 50 (the Keyword Match half of the
     # 100-point ATS score).
-    keyword_weights: Dict[str, int] = field(default_factory=lambda: {
-        "technical_required":        25,
-        "soft_skills_required":      10,
-        "domain_knowledge_required":  5,
-        "preferred_overall":         10,
-    })
+    keyword_weights: Dict[str, int] = field(default_factory=lambda: dict(DEFAULT_KEYWORD_WEIGHTS))
 
 
 @dataclass(frozen=True)

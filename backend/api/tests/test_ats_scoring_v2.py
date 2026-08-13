@@ -65,6 +65,37 @@ class TestWeightsSumCorrectly:
     def test_overall_envelope_is_100(self):
         assert sum(DEFAULT_KEYWORD_WEIGHTS.values()) + _EXPERIENCE_MAX + _FORMATTING_MAX == 100
 
+    def test_default_keyword_weights_is_the_single_source_of_truth(self):
+        """
+        REGRESSION (#60, C61): ats_scoring.DEFAULT_KEYWORD_WEIGHTS and
+        RoleFamilyProfile's own keyword_weights default used to be two
+        independently-maintained, byte-for-byte-duplicated dict literals —
+        verticals/base.py carried the load-bearing "sum to 50" comment, the
+        ats_scoring.py copy had none, so a future reweight of one could
+        silently desync the resolution-failure fallback path from the
+        per-vertical path. ats_scoring.py now imports the same object
+        verticals/base.py defines, so this can't happen again by construction
+        — asserted here as identity, not just equal values, since equal
+        values alone wouldn't have caught the duplication (they already
+        matched before this fix; the risk was future drift, not current
+        divergence).
+        """
+        from app.services.verticals.base import (
+            DEFAULT_KEYWORD_WEIGHTS as verticals_base_default,
+        )
+
+        assert DEFAULT_KEYWORD_WEIGHTS is verticals_base_default
+
+        # The general-fallback role-family profile ("master") doesn't override
+        # keyword_weights, so it relies on this same default via the
+        # dataclass field factory (dict(...) copy, not the object itself —
+        # dataclass instances must never share a mutable default).
+        from app.services.verticals import ROLE_FAMILIES
+
+        general = ROLE_FAMILIES["master"]
+        assert general.keyword_weights == verticals_base_default
+        assert general.keyword_weights is not verticals_base_default
+
 
 # ---------------------------------------------------------------------------
 # Fixtures — CV / JD / matching shapes used by the scenarios

@@ -114,13 +114,10 @@ _URL_RE = re.compile(r"https?://[^\s)]+")
 _PHONE_DIGITS_RE = re.compile(r"\d")
 
 from app.enums import CATEGORY_KEYS  # noqa: E402
-
-DEFAULT_KEYWORD_WEIGHTS: dict[str, int] = {
-    "technical_required":        25,
-    "soft_skills_required":      10,
-    "domain_knowledge_required":  5,
-    "preferred_overall":         10,
-}
+# Single source of truth for the default keyword weights — was a byte-for-
+# byte-duplicated literal dict here that could silently desync from
+# verticals/base.py's copy on a future reweight (audit finding #60).
+from app.services.verticals.base import DEFAULT_KEYWORD_WEIGHTS  # noqa: E402
 
 
 def resolve_keyword_weights(jd_analysis: dict[str, Any] | None) -> dict[str, int]:
