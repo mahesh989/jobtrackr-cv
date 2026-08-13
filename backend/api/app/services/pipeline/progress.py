@@ -29,12 +29,22 @@ DEFAULT_STEP_STATUS: Dict[str, str] = {s.value: StepState.PENDING for s in StepN
 
 
 async def mark_run_running(run_id: uuid.UUID) -> None:
-    await supabase_update(ANALYSIS_RUNS, run_id, {"status": RunStatus.RUNNING, "started_at": utcnow_iso()})
+    ok = await supabase_update(ANALYSIS_RUNS, run_id, {"status": RunStatus.RUNNING, "started_at": utcnow_iso()})
+    if not ok:
+        raise RuntimeError(f"mark_run_running: DB write failed for run {run_id} after retries")
     logger.info("run %s → running", run_id)
 
 
 async def mark_run_completed(run_id: uuid.UUID) -> None:
-    await supabase_update(ANALYSIS_RUNS, run_id, {"status": RunStatus.COMPLETED, "completed_at": utcnow_iso()})
+    ok = await supabase_update(ANALYSIS_RUNS, run_id, {"status": RunStatus.COMPLETED, "completed_at": utcnow_iso()})
+    if not ok:
+        # Do NOT log "→ completed" — that was the exact lie this fix closes.
+        # Raise instead of swallowing: the orchestrator's own catch-all
+        # already exists to call mark_run_failed on any internal error, so
+        # this run gets an honest terminal status instead of being stranded
+        # at status='running' forever with a live Realtime spinner and no
+        # visible error (#6 audit).
+        raise RuntimeError(f"mark_run_completed: DB write failed for run {run_id} after retries")
     logger.info("run %s → completed", run_id)
 
 
@@ -51,13 +61,27 @@ async def mark_run_failed(
         for k, v in list(step_status.items()):
             if v == StepState.RUNNING:
                 step_status[k] = StepState.FAILED
-    await supabase_update(ANALYSIS_RUNS, run_id, {
+    # Deliberately does NOT raise on failure here (unlike the other writers
+    # below) — this IS the pipeline's own last-resort error handler
+    # (orchestrator.py's catch-all calls it), so it must never itself throw
+    # an unhandled exception. If its own write fails, log that honestly
+    # instead of the misleading "→ failed" — the row is then genuinely
+    # stuck at whatever status it had before, same failure class as #6, but
+    # with nowhere further to escalate to.
+    ok = await supabase_update(ANALYSIS_RUNS, run_id, {
         "status":        RunStatus.FAILED,
         "error_message": error[:2000],
         "completed_at":  utcnow_iso(),
         "step_status":   step_status,
     })
-    logger.info("run %s → failed (%s)", run_id, error[:120])
+    if ok:
+        logger.info("run %s → failed (%s)", run_id, error[:120])
+    else:
+        logger.error(
+            "run %s: mark_run_failed's own DB write failed after retries — "
+            "run status was NOT updated to 'failed' (intended error: %s)",
+            run_id, error[:120],
+        )
 
 
 async def mark_step(
@@ -77,8 +101,18 @@ async def save_step_result(
     column: str,
     value:  Any,
 ) -> None:
-    """Persist a step's output to its dedicated column on analysis_runs."""
-    await supabase_update(ANALYSIS_RUNS, run_id, {column: value})
+    """Persist a step's output to its dedicated column on analysis_runs.
+
+    Raises on a persistent write failure instead of silently continuing —
+    a swallowed failure here previously let the run reach mark_run_completed
+    with this column still NULL and no error surfaced anywhere (#7 audit).
+    The orchestrator's catch-all routes this into mark_run_failed.
+    """
+    ok = await supabase_update(ANALYSIS_RUNS, run_id, {column: value})
+    if not ok:
+        raise RuntimeError(
+            f"save_step_result: DB write of column '{column}' failed for run {run_id} after retries"
+        )
 
 
 async def save_artifact_if_active(run_id: uuid.UUID, column: str, value: Any) -> bool:
