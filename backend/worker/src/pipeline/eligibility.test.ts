@@ -49,4 +49,23 @@ describe("isUserVisaStatus", () => {
     expect(isUserVisaStatus("permanent")).toBe(false);
     expect(isUserVisaStatus(undefined)).toBe(false);
   });
+
+  it("REGRESSION (B5-P2): rejects Object.prototype keys — 'toString' is not a real visa status", () => {
+    for (const key of ["toString", "constructor", "hasOwnProperty", "valueOf", "__proto__"]) {
+      expect(isUserVisaStatus(key)).toBe(false);
+    }
+  });
+});
+
+describe("computeEligibility — prototype-key poisoning (B5-P2)", () => {
+  it("REGRESSION: a bogus work_rights_requirement of 'toString' must not silently pass through as a real requirement", () => {
+    // Same bug class, same file: DEMAND["toString"] resolves to
+    // Function.prototype.toString via the prototype chain, not a number, so
+    // the OLD `in`-based check let this through as the "requirement" instead
+    // of falling back to not_stated. A citizen (capability 4) must still
+    // pass — proving the fallback (not_stated, demand 0) is taken, not a
+    // NaN-comparison collapse to not_eligible.
+    expect(computeEligibility({ work_rights_requirement: "toString" }, "citizen")).toBe("eligible");
+    expect(computeEligibility({ work_rights_requirement: "constructor" }, "citizen")).toBe("eligible");
+  });
 });

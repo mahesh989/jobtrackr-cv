@@ -37,8 +37,22 @@ export const VISA_STATUS_LABELS: Record<UserVisaStatus, string> = {
   needs_sponsorship: "Overseas — need visa sponsorship",
 };
 
+/**
+ * `in` walks the prototype chain, so `"toString" in CAPABILITY` is true even
+ * though CAPABILITY has no OWN "toString" key — CAPABILITY["toString"] then
+ * resolves to Function.prototype.toString, not a number, and every
+ * `capability >= demand` comparison below silently collapses to NaN-false
+ * (B5-P2: POST {"visa_status":"toString"} passed this guard, then
+ * computeEligibility returned not_eligible for every job — the board
+ * silently emptied while the run still reported completed). hasOwnProperty
+ * only matches CAPABILITY's own keys, not inherited Object.prototype ones.
+ */
+function hasOwn<T extends object>(obj: T, key: PropertyKey): key is keyof T {
+  return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
 export function isUserVisaStatus(v: unknown): v is UserVisaStatus {
-  return typeof v === "string" && v in CAPABILITY;
+  return typeof v === "string" && hasOwn(CAPABILITY, v);
 }
 
 export function computeEligibility(
@@ -50,7 +64,7 @@ export function computeEligibility(
   status: UserVisaStatus
 ): Eligibility {
   const requirement =
-    job.work_rights_requirement && job.work_rights_requirement in DEMAND
+    job.work_rights_requirement && hasOwn(DEMAND, job.work_rights_requirement)
       ? job.work_rights_requirement
       : job.citizen_pr_only === true
         ? "pr_citizen"
