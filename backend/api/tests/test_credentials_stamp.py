@@ -231,6 +231,38 @@ def test_stamp_replaces_existing_section_body():
     assert out.count("## Registration & Licences") == 1
 
 
+def test_REGRESSION_stamp_replaces_a_relabeled_checks_and_clearances_section_in_place():
+    """
+    Regression for #57 (audit, execution chunk C23): restore_and_order's
+    _relabel_registration renames "## Registration & Licences" to "## Checks
+    & Clearances" for an unregistered care worker (clearances only, no
+    AHPRA) BEFORE stamp_credentials runs. stamp_credentials' heading search
+    only recognised the literal "registration & licences" string, so it
+    missed the relabeled heading entirely and APPENDED a second, duplicate
+    "## Registration & Licences" section at the end instead of replacing the
+    existing "## Checks & Clearances" one in place — care workers (the
+    product's core AIN/care-worker user) got two credential sections on
+    every CV where they had no AHPRA registration, which is the default
+    outcome for that user segment.
+    """
+    md = (
+        "# Name\n\nContact\n\n"
+        "## Checks & Clearances\n\n"
+        "Some AI-emitted noise\n- Bullet 1\n\n"
+        "## Experience\n- Did things.\n"
+    )
+    out = stamp_credentials(md, _CREDS, "nursing")
+    # The relabeled section was replaced IN PLACE — not left behind as a
+    # second section alongside a newly appended one.
+    assert "## Checks & Clearances" not in out
+    assert out.count("## Registration & Licences") == 1
+    assert "Some AI-emitted noise" not in out
+    assert "Bullet 1" not in out
+    assert "National Police Check" in out
+    # Exactly one credentials section total, not two.
+    assert out.count("Working with Children Check") == 1
+
+
 def test_stamp_noop_for_non_credentialed_family():
     """Tech/general CVs must NEVER carry a Registration & Licences block."""
     for family in ("tech", "master", None):
@@ -282,6 +314,32 @@ def test_manual_family_stamps_section():
     cd = {"credentials": {"white_card": True, "police_check": True}}
     out = stamp_credentials(_BASE_MD, cd, "manual")
     assert "## Registration & Licences" in out
+    assert "White Card · National Police Check" in out
+
+
+def test_REGRESSION_manual_family_replaces_certifications_and_checks_in_place():
+    """
+    Regression (same root cause as #57/C23, discovered while fixing it):
+    by the time stamp_credentials runs, a manual-family CV's credentials
+    section is ALWAYS named "## Certifications & Checks" — restore_and_order
+    renames it back from the production-canonical "Certifications" to the
+    manual role-pack's own name (_TO_CANONICAL) before stamp_credentials is
+    called. The old exact-match-on-"registration & licences" search never
+    recognised this heading at all, so every manual CV whose writer had
+    already populated that section got a duplicate — this isn't a
+    conditional case like nursing's, it's the family's default heading.
+    """
+    md = (
+        "# Name\n\nContact\n\n"
+        "## Certifications & Checks\n\n"
+        "Some AI-emitted noise\n- Bullet 1\n\n"
+        "## Work Experience\n- Did things.\n"
+    )
+    cd = {"credentials": {"white_card": True, "police_check": True}}
+    out = stamp_credentials(md, cd, "manual")
+    assert "## Certifications & Checks" not in out
+    assert out.count("## Registration & Licences") == 1
+    assert "Some AI-emitted noise" not in out
     assert "White Card · National Police Check" in out
 
 
