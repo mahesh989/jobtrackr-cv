@@ -114,8 +114,24 @@ _DATE_TOKEN_RE = re.compile(r"\b([A-Za-z]{3,9})\s+(?:\d{1,2}\s*,?\s*)?(\d{4})\b"
 # CV-structural, not just common punctuation: '|' ("Role | Date"), '('
 # ("Role (Date)" — the matching suffix check already guards the case
 # where prose follows the closing paren), and a leading bullet marker.
+#
+# Round 4: the SAME class of bug, one layer down. '•'/'·' were blessed as
+# safe ANYWHERE in the prefix, not just as a genuine leading list marker —
+# a bullet line using '•' a second time as a decorative separator
+# ("• Employee of the Year • 2021 - 2022") has "•" right before the year
+# but is exactly the mid-sentence-prose case this whole guard exists to
+# reject. And '(' being optionally-closed in the suffix (`[)\]]?`) meant
+# an UNCLOSED paren ("• Employee of the Year (2021 - 2022", no closing
+# ")" anywhere — a plausible pypdf column-split artifact) looked just as
+# safe as a genuinely closed one, since an empty end-of-line suffix passed
+# either way. Fixed by: (a) a leading bullet/dash marker is only safe when
+# it's the ENTIRE prefix from the start of the line (not merely present
+# somewhere in it); (b) relying on '(' now REQUIRES an actual matching
+# ')' immediately in the suffix, not an optional one.
 _BARE_YEAR_ONLY_RE = re.compile(r"^(19\d{2}|20\d{2})$")
-_SAFE_DATE_PREFIX_RE = re.compile(r"(?:^|[|(•·])\s*$")
+_SAFE_DATE_PREFIX_LEADING_RE = re.compile(r"^\s*[•·\-*]?\s*$")
+_SAFE_DATE_PREFIX_PIPE_RE = re.compile(r"\|\s*$")
+_SAFE_DATE_PREFIX_PAREN_RE = re.compile(r"\(\s*$")
 _SAFE_DATE_SUFFIX_RE = re.compile(r"^[)\]]?\s*[.,;:]?\s*$")
 # Either side of a range may be "Mon YYYY" or a bare year — mixed forms
 # ("Mar 2019 - 2023") are real too, not just symmetric ones.
@@ -156,9 +172,20 @@ def _parse_role_date_range(role_line: str):
         # bracket or terminal punctuation after it — not embedded anywhere
         # inside a longer sentence.
         if _is_bare_year_side(left) or (not right_is_open and _is_bare_year_side(right)):
-            if not _SAFE_DATE_PREFIX_RE.search(role_line[: m.start()]):
+            prefix = role_line[: m.start()]
+            suffix = role_line[m.end():]
+            if _SAFE_DATE_PREFIX_LEADING_RE.match(prefix) or _SAFE_DATE_PREFIX_PIPE_RE.search(prefix):
+                pass  # a leading marker or a "|" field separator — no closing bracket required
+            elif _SAFE_DATE_PREFIX_PAREN_RE.search(prefix):
+                # "(" only counts as safe if it's genuinely CLOSED — an
+                # unclosed paren (pypdf column-split artifact) must not
+                # look identical to a real "Role (Date)" line just because
+                # the optional ")" in the suffix regex happens to be absent.
+                if not suffix.startswith(")"):
+                    continue
+            else:
                 continue
-            if not _SAFE_DATE_SUFFIX_RE.match(role_line[m.end():]):
+            if not _SAFE_DATE_SUFFIX_RE.match(suffix):
                 continue
         start = _parse_month_year(left)
         if not start:

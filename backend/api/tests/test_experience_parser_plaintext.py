@@ -438,3 +438,57 @@ Registered Nurse
         assert _parse_role_date_range(
             "2019 - 2023 was a landmark period for growth."
         ) is None
+
+    def test_rejects_bullet_char_used_mid_line_not_as_a_leading_marker(self):
+        """Round 4 of the same review: '•'/'·' were blessed as a safe
+        prefix ANYWHERE they appeared, not just as a genuine leading list
+        marker. A bullet line that uses '•' a second time as a decorative
+        separator ("• Employee of the Year • 2021 - 2022") has "•" right
+        before the year — but that's exactly the mid-sentence-prose shape
+        this whole guard exists to reject. A leading marker is only safe
+        when it's the ENTIRE prefix from the start of the line."""
+        from app.services.cv.experience_parser import _parse_role_date_range
+
+        dangerous = [
+            "• Employee of the Year • 2021 - 2022",
+            "• Led the ward roster • 2019 - 2023",
+            "Registered Nurse · Employee of the Year · 2019 - 2023",
+        ]
+        for line in dangerous:
+            assert _parse_role_date_range(line) is None, line
+
+    def test_rejects_unclosed_paren_before_a_bare_year(self):
+        """Round 4: relying on '(' for prefix safety let an UNCLOSED paren
+        (a plausible pypdf column-split artifact) through, because the
+        suffix regex's closing bracket was only ever OPTIONAL — an empty
+        end-of-line suffix looked exactly as safe as a genuinely closed
+        one. "(" now requires an actual matching ")" immediately after the
+        range, not just an absent one."""
+        from app.services.cv.experience_parser import _parse_role_date_range
+
+        dangerous = [
+            "• Employee of the Year (2021 - 2022",
+            "• Managed the budget (2019 - 2023",
+            "Grew the team (2019 - 2023",
+        ]
+        for line in dangerous:
+            assert _parse_role_date_range(line) is None, line
+
+    def test_mid_line_bullet_does_not_split_entry_or_steal_bullets(self):
+        cv = """\
+  CLINICAL PLACEMENT
+
+RFBI Concord Community Village
+Aged Care Placement (120 hours)
+2019 - 2023
+• Provided personal care to elderly residents including dementia care.
+• Employee of the Year • 2021 - 2022
+• Assisted with medication administration under RN supervision.
+• Supported mobility assistance and activities of daily living.
+"""
+        entries = parse_cv_experience(cv)
+        assert len(entries) == 1
+        assert entries[0].start == (2019, 1)
+        assert entries[0].end == (2023, 1)
+        assert len(entries[0].bullets) == 4
+        assert entries[0].primary_vertical == "nursing"
