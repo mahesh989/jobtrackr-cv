@@ -319,6 +319,18 @@ def _tidy_skill_qualifiers(entry: str) -> str:
 def _strip_non_skill_phrases(markdown: str) -> str:
     """Remove non-skill entries from each category line in the canonical
     ``## Skills`` section. Drops a category line entirely if it ends up empty."""
+    # Lazy import to avoid a circular dependency — registry.py imports
+    # _is_non_skill_phrase FROM this module at its own module level, so a
+    # module-level import back here would cycle. registry.is_non_skill_phrase
+    # additionally catches enforce._ROLE_CATEGORY_LABELS sector/setting
+    # phrases ("home care", "disability support", ...) that this module's
+    # own _is_non_skill_phrase alone does not — this is the designated
+    # last-resort safety net for exactly that leak class (see the "3a-bis"
+    # call site in writers/_impl.py, which strips these "no matter whether
+    # the base classifier or the surfacing pass added them"), so it must use
+    # the stronger predicate too. Finding #28 / C27, round 2.
+    from app.services.skills.registry import is_non_skill_phrase
+
     lines = markdown.split("\n")
     skills_start = None
     skills_end = len(lines)
@@ -347,7 +359,7 @@ def _strip_non_skill_phrases(markdown: str) -> str:
         kept: list[str] = []
         seen: set[str] = set()
         for p in non_empty:
-            if _is_non_skill_phrase(p):
+            if is_non_skill_phrase(p):
                 continue
             tidied = _tidy_skill_qualifiers(p)
             key = tidied.lower()
