@@ -4,6 +4,7 @@ import asyncio
 import logging
 
 from fastapi import APIRouter, HTTPException, status
+from storage3.exceptions import StorageApiError
 
 from app.config import get_settings
 from app.database import get_supabase
@@ -56,13 +57,38 @@ async def extract_cv_text(body: ExtractCvTextRequest) -> ExtractCvTextResponse:
     def _download() -> bytes:
         return get_supabase().storage.from_(bucket).download(storage_key)
 
+    # #8 (audit): every download failure — including a transient Supabase 5xx
+    # or a network timeout — used to be caught by a blanket `except Exception`
+    # and reported as 404 with the raw exception text echoed into the
+    # response. A transient outage told the user their just-uploaded CV does
+    # not exist, and the caller (this is an internal, HMAC-signed endpoint,
+    # but still) got backend implementation details in a user-facing string.
+    # StorageApiError.status carries the REAL upstream status — only a
+    # genuine 404 from Storage is reported as 404; everything else (other
+    # StorageApiError statuses, or a raw network/timeout exception that never
+    # reached Storage at all) is a 502, matching what actually happened —
+    # storage was unreachable/erroring, not "this file doesn't exist".
     try:
         file_bytes = await asyncio.to_thread(_download)
-    except Exception as exc:
-        logger.warning("extract-cv-text: download failed for %s: %s", storage_key, exc)
+    except StorageApiError as exc:
+        logger.warning(
+            "extract-cv-text: download failed for %s: status=%s code=%s message=%s",
+            storage_key, exc.status, exc.code, exc.message,
+        )
+        if exc.status == 404:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="CV file not found.",
+            ) from exc
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Could not fetch CV file: {exc}",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Could not fetch CV file — storage service error.",
+        ) from exc
+    except Exception as exc:
+        logger.warning("extract-cv-text: unexpected error downloading %s: %s", storage_key, exc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Could not fetch CV file — storage service error.",
         ) from exc
 
     # Size cap — see Settings.MAX_CV_UPLOAD_BYTES for rationale.
