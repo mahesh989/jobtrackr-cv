@@ -41,7 +41,7 @@ export function bucketEnabled(): boolean {
 /** Days the bucket retains a posting as discoverable (migration plan §10). */
 export const BUCKET_RETENTION_DAYS = 30;
 
-type JdAccess = "snippet" | "all" | "unlimited_only";
+export type JdAccess = "snippet" | "all" | "unlimited_only";
 
 /**
  * JD access tier for a row (read-time gating contract):
@@ -53,6 +53,51 @@ type JdAccess = "snippet" | "all" | "unlimited_only";
 function deriveJdAccess(source: string, adzunaFull: boolean): JdAccess {
   if (source === "adzuna") return adzunaFull ? "unlimited_only" : "snippet";
   return "all";
+}
+
+/** Adzuna's real API teaser is ~600 chars (see sources/adzuna.ts, sources/types.ts). */
+const ADZUNA_TEASER_CHARS = 600;
+
+function truncateTeaser(text: string, maxChars = ADZUNA_TEASER_CHARS): string {
+  if (text.length <= maxChars) return text;
+  return `${text.slice(0, maxChars).trimEnd()}…`;
+}
+
+/**
+ * Derive the jd_access / description_snippet / description_full triple for
+ * a bucket row write. Exported for direct unit testing (#46 audit) — the
+ * paywall gate IS this triple, so it needs isolated coverage without
+ * mocking the DB/geocoding around the rest of upsertGlobalJobs.
+ *
+ * Two invariants this enforces that the previous inline version didn't:
+ *  - description_snippet must never carry the untruncated full JD for a
+ *    row gated 'unlimited_only' — free tiers read description_snippet as
+ *    their fallback (projectDescription below), so an untruncated snippet
+ *    was a no-op paywall.
+ *  - a run whose OWN access this time is only 'snippet' (or 'all', which
+ *    can't happen for a previously-adzuna row) must never demote an
+ *    existing 'unlimited_only' row's already-captured paid JD to null —
+ *    a free-tier re-scrape must not destroy content already paid for.
+ */
+export function deriveDescriptionFields(
+  source: string,
+  adzunaFull: boolean,
+  description: string | null,
+  existing: { jd_access: JdAccess; description_full: string | null } | null,
+): { jd_access: JdAccess; description_snippet: string | null; description_full: string | null } {
+  const thisRunAccess = deriveJdAccess(source, adzunaFull);
+  const snippet = source === "adzuna" && description ? truncateTeaser(description) : (description ?? null);
+
+  const hadPaidFull = existing?.jd_access === "unlimited_only" && !!existing.description_full;
+  if (hadPaidFull && thisRunAccess !== "unlimited_only") {
+    return { jd_access: "unlimited_only", description_snippet: snippet, description_full: existing!.description_full };
+  }
+
+  return {
+    jd_access: thisRunAccess,
+    description_snippet: snippet,
+    description_full: thisRunAccess === "snippet" ? null : description,
+  };
 }
 
 // ── Write: scraped survivors → global_jobs (canonical) ───────────────────────
@@ -123,14 +168,16 @@ export async function upsertGlobalJobs(
     const existingKw = new Map<string, string[]>();
     const existingCoords = new Map<string, { lat: number | null; lng: number | null }>();
     const existingSetting = new Map<string, { category: string | null; confidence: number | null; evidence: string | null }>();
+    const existingJdAccess = new Map<string, { jd_access: JdAccess; description_full: string | null }>();
     const { data: existing } = await db
       .from("global_jobs")
-      .select("url_hash, matched_keywords, lat, lng, setting_category, setting_confidence, setting_evidence")
+      .select("url_hash, matched_keywords, lat, lng, setting_category, setting_confidence, setting_evidence, jd_access, description_full")
       .in("url_hash", hashes);
-    for (const r of (existing ?? []) as Array<{ url_hash: string; matched_keywords: string[]; lat: number | null; lng: number | null; setting_category: string | null; setting_confidence: number | null; setting_evidence: string | null }>) {
+    for (const r of (existing ?? []) as Array<{ url_hash: string; matched_keywords: string[]; lat: number | null; lng: number | null; setting_category: string | null; setting_confidence: number | null; setting_evidence: string | null; jd_access: JdAccess | null; description_full: string | null }>) {
       existingKw.set(r.url_hash, r.matched_keywords ?? []);
       existingCoords.set(r.url_hash, { lat: r.lat, lng: r.lng });
       existingSetting.set(r.url_hash, { category: r.setting_category, confidence: r.setting_confidence, evidence: r.setting_evidence });
+      if (r.jd_access) existingJdAccess.set(r.url_hash, { jd_access: r.jd_access, description_full: r.description_full });
     }
 
     // De-dup incoming by url_hash (keep first — carries winning content).
@@ -151,7 +198,12 @@ export async function upsertGlobalJobs(
     }
 
     const rows: GlobalRow[] = Array.from(byHash.values()).map((j) => {
-      const jd_access = deriveJdAccess(j.source, opts.adzunaFull);
+      const { jd_access, description_snippet, description_full } = deriveDescriptionFields(
+        j.source,
+        opts.adzunaFull,
+        j.description ?? null,
+        existingJdAccess.get(j.url_hash) ?? null,
+      );
       const mergedKw = Array.from(
         new Set([...(existingKw.get(j.url_hash) ?? []), ...(j.keywords_matched ?? [])]),
       );
@@ -168,8 +220,8 @@ export async function upsertGlobalJobs(
         lat: c?.lat ?? null,
         lng: c?.lng ?? null,
         matched_keywords: mergedKw,
-        description_snippet: j.description ?? null,
-        description_full: jd_access === "snippet" ? null : (j.description ?? null),
+        description_snippet,
+        description_full,
         jd_access,
         salary_min: j.salary_min ?? null,
         salary_max: j.salary_max ?? null,
