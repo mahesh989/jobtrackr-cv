@@ -29,16 +29,28 @@ interface Props {
 export async function Sidebar({ email, role, userView }: Props) {
   const supabase = await createClient();
 
-  const { data: profileRows } = await supabase
+  const { data: profileRows, error: profilesError } = await supabase
     .from("search_profiles")
     .select("id, name")
     .order("created_at", { ascending: true });
+  // Discarded errors here previously gave no signal at all when the
+  // sidebar silently rendered wrong data on every page load — an empty
+  // profile list (looks like "you have no search profiles"), a stale
+  // "new" badge count, a stuck-looking running indicator, or a wrong
+  // favourites count. This is a best-effort render (a failed sidebar
+  // fetch shouldn't break the whole page), so behaviour is unchanged —
+  // logging only, matching the class of bug in the audit's discarded-
+  // `{error}` finding for this file (execution chunk C45).
+  if (profilesError) console.error(`[Sidebar] search_profiles fetch failed: ${profilesError.message}`);
 
   const profiles = (profileRows ?? []) as { id: string; name: string }[];
   const fullProfileIds = profiles.map((p) => p.id);
 
-  const [{ data: unseenRows }, { data: runRows }, { count: starredCount }] =
-    await Promise.all([
+  const [
+    { data: unseenRows, error: unseenError },
+    { data: runRows, error: runError },
+    { count: starredCount, error: starredError },
+  ] = await Promise.all([
       supabase
         .from("jobs")
         .select("profile_id")
@@ -59,6 +71,9 @@ export async function Sidebar({ email, role, userView }: Props) {
         .not("starred_at", "is", null)
         .is("dismissed_at", null),
     ]);
+  if (unseenError) console.error(`[Sidebar] unseen-count fetch failed: ${unseenError.message}`);
+  if (runError) console.error(`[Sidebar] running-status fetch failed: ${runError.message}`);
+  if (starredError) console.error(`[Sidebar] starred-count fetch failed: ${starredError.message}`);
 
   const unseenCounts = ((unseenRows ?? []) as { profile_id: string }[]).reduce<
     Record<string, number>
