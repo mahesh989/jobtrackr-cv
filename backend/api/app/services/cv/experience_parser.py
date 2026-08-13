@@ -94,8 +94,29 @@ _DATE_TOKEN_RE = re.compile(r"\b([A-Za-z]{3,9})\s+(?:\d{1,2}\s*,?\s*)?(\d{4})\b"
 # the start of the line or right after a role/date-line separator — a
 # sentence like "...from 2019 to 2023." has "to" and two years, but nothing
 # but prose immediately before "2019", so it's correctly rejected.
+#
+# Round 2 of that same review: a PREFIX-only check still leaked a bare-year
+# range parenthesised or comma/colon-delimited mid-sentence — "Awarded
+# Employee of the Year (2021 - 2022) for ward leadership." has a safe
+# prefix ("(" right before "2021") but real prose AFTER the closing paren,
+# which the prefix check alone can't see. Added a symmetric SUFFIX check:
+# what follows the range must be nothing but an optional closing
+# bracket/terminal punctuation and whitespace, not more sentence.
+#
+# Round 3: the suffix check alone isn't enough either — "Total headcount
+# grew, 2019 - 2023." has an UNSAFE prefix (real prose before the comma)
+# but a safe-looking suffix (just a trailing "."), so it slipped through.
+# The prefix regex only ever looked at the single character immediately
+# before the match, not whether anything meaningful preceded THAT — so
+# ',' and ':' (which occur constantly inside ordinary sentences) were
+# wrongly treated as reliable as '|' (which practically never is).
+# Narrowed the safe-prefix set to characters that really are
+# CV-structural, not just common punctuation: '|' ("Role | Date"), '('
+# ("Role (Date)" — the matching suffix check already guards the case
+# where prose follows the closing paren), and a leading bullet marker.
 _BARE_YEAR_ONLY_RE = re.compile(r"^(19\d{2}|20\d{2})$")
-_SAFE_DATE_PREFIX_RE = re.compile(r"(?:^|[|,:()–—·•\-])\s*$")
+_SAFE_DATE_PREFIX_RE = re.compile(r"(?:^|[|(•·])\s*$")
+_SAFE_DATE_SUFFIX_RE = re.compile(r"^[)\]]?\s*[.,;:]?\s*$")
 # Either side of a range may be "Mon YYYY" or a bare year — mixed forms
 # ("Mar 2019 - 2023") are real too, not just symmetric ones.
 _DATE_SIDE = r"(?:[A-Za-z]{3,9}\s+(?:\d{1,2}\s*,?\s*)?\d{4}|(?:19|20)\d{2})"
@@ -130,10 +151,14 @@ def _parse_role_date_range(role_line: str):
         left, right = m.group(1), m.group(2)
         end_raw = right.strip().lower()
         right_is_open = end_raw in ("present", "current", "now", "ongoing")
-        # A bare year (either side) must be anchored — start of line, or
-        # right after a separator — not embedded mid-sentence.
+        # A bare year (either side) must be anchored on BOTH sides — start
+        # of line / a separator before it, and end of line / a closing
+        # bracket or terminal punctuation after it — not embedded anywhere
+        # inside a longer sentence.
         if _is_bare_year_side(left) or (not right_is_open and _is_bare_year_side(right)):
             if not _SAFE_DATE_PREFIX_RE.search(role_line[: m.start()]):
+                continue
+            if not _SAFE_DATE_SUFFIX_RE.match(role_line[m.end():]):
                 continue
         start = _parse_month_year(left)
         if not start:

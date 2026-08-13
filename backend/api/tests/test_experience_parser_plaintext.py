@@ -375,3 +375,66 @@ Registered Nurse
         entries = parse_cv_experience(cv)
         assert len(entries) == 1
         assert entries[0].tenure_months() == 49
+
+    def test_rejects_bare_year_range_parenthesised_mid_sentence(self):
+        """Round 2 of the same review: a PREFIX-only anchor check still let
+        a bare-year range through when it sat inside parens/commas/colons
+        mid-sentence — the text right before "2021" in this example IS a
+        safe separator ("("), but real prose follows the closing paren,
+        which a prefix-only check can't see. Needs the SUFFIX check too."""
+        from app.services.cv.experience_parser import _parse_role_date_range
+
+        dangerous = [
+            "Awarded Employee of the Year (2021 - 2022) for ward leadership.",
+            "Grew the team (2019 - 2023) from 4 to 22 people.",
+            "Worked in Sydney, 2019 - 2023, across three wards.",
+            "Key achievements: 2019 - 2023 revenue doubled.",
+            "• Led the transformation programme - 2019 to 2023 - across sites.",
+        ]
+        for line in dangerous:
+            assert _parse_role_date_range(line) is None, line
+
+    def test_rejects_comma_or_colon_or_dash_before_a_bare_year(self):
+        """Round 3 of the same review: the prefix guard originally treated
+        ',', ':' and '-' as safe separators, same footing as '|'. Unlike
+        '|' (a deliberate CV field separator that essentially never occurs
+        mid-sentence), commas/colons/dashes are constant in ordinary prose
+        — "Total headcount grew, 2019 - 2023." has an unsafe prefix (real
+        prose before the comma) but a safe-LOOKING suffix (just a trailing
+        "."), so a suffix-only check alone would wrongly accept it. Narrowed
+        the safe-prefix set to '|', '(' and bullet markers only — '(' stays
+        safe because the suffix check independently catches prose after the
+        closing paren (see the test above)."""
+        from app.services.cv.experience_parser import _parse_role_date_range
+
+        dangerous = [
+            "Total headcount grew, 2019 - 2023.",
+            "Total headcount grew: 2019 - 2023.",
+            "Total headcount grew - 2019 - 2023.",
+        ]
+        for line in dangerous:
+            assert _parse_role_date_range(line) is None, line
+
+    def test_prefix_guard_is_independently_load_bearing(self):
+        """A bare-year range with an UNSAFE prefix (embedded after real
+        prose, via a comma so it isn't swallowed by the month-name
+        alternative first) but a SAFE-looking suffix (just a trailing
+        period) — only the prefix check can reject this; a suffix-only
+        design would wrongly accept it since ending in "." looks like
+        end-of-sentence."""
+        from app.services.cv.experience_parser import _parse_role_date_range
+
+        assert _parse_role_date_range(
+            "Total headcount grew, 2019 - 2023."
+        ) is None
+
+    def test_suffix_guard_is_independently_load_bearing(self):
+        """A bare-year range with a SAFE prefix (start of line) but an
+        UNSAFE suffix (real prose follows) — only the suffix check can
+        reject this; a prefix-only design (round 2's own bug) wrongly
+        accepts it since starting the line looks like a real date anchor."""
+        from app.services.cv.experience_parser import _parse_role_date_range
+
+        assert _parse_role_date_range(
+            "2019 - 2023 was a landmark period for growth."
+        ) is None
