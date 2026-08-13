@@ -313,6 +313,109 @@ class TestBuildCredentialsGap:
         assert "Diploma of Community Services" in gap["missing"]
 
 
+class TestQualifierSuffixSatisfiesLiteralCV:
+    """Chunk C20's own independent review — found alongside the load-order
+    fix, not a separate finding. Fixing #27 (noise-lexicon load order) lets
+    extract_credentials_from_jd's greedy longest-match picker
+    (credentials.py) start preferring a JD's own obligation-shaped wording
+    ("vaccination requirements", "National Police Check compliance") over
+    the shorter base form ("vaccination", "National Police Check") it used
+    to extract by accident (the base form was the only one classified as
+    credential/eligibility before the load-order fix; both now are, and the
+    longer one wins the greedy pick). CVs document the credential itself,
+    not the JD's obligation phrasing — a CV literally saying "National
+    Police Check" no longer word-boundary-matches the JD-extracted phrase
+    "National Police Check compliance", so a real, already-documented
+    credential was reported as missing for any user without a matching
+    profile flag stamped. Reviewer's own reproduction, reused verbatim."""
+
+    def _jd(self):
+        return {"credentials": {
+            "required": [
+                "National Police Check compliance",
+                "NDIS Worker Screening Clearance",
+            ],
+            "preferred": [],
+            "eligibility": [
+                "Vaccination requirements",
+                "Immunisation compliance",
+            ],
+        }}
+
+    def test_qualifier_suffixed_jd_phrase_satisfied_by_cv_base_form(self):
+        cv = (
+            "Registrations & Licences: National Police Check. "
+            "NDIS Worker Screening completed 2023. "
+            "Vaccination: up to date. Immunisation records available."
+        )
+        gap = _build_credentials_gap(
+            self._jd(), {"required": {}, "preferred": {}},
+            cv_text=cv, contact_details=None,
+        )
+        assert gap["missing"] == []
+        assert set(gap["present"]) == {
+            "National Police Check compliance",
+            "NDIS Worker Screening Clearance",
+            "Vaccination requirements",
+            "Immunisation compliance",
+        }
+
+    def test_genuinely_absent_credential_still_reported_missing(self):
+        # Stripping the qualifier suffix must not make an ABSENT credential
+        # look present — only rescue a real match the exact literal check
+        # missed because of the suffix.
+        gap = _build_credentials_gap(
+            self._jd(), {"required": {}, "preferred": {}},
+            cv_text="Experienced aged care worker with no listed checks.",
+            contact_details=None,
+        )
+        assert "National Police Check compliance" in gap["missing"]
+        assert "Vaccination requirements" in gap["missing"]
+
+
+class TestQualifierSuffixStripDoesNotFabricateCredentials:
+    """Round 2 of C20's independent review, found on the fix above: a plain
+    strip-and-retry is unsafe because "clearance" is sometimes a real
+    credential NOUN, not a decorative obligation qualifier — "Police
+    Clearance", "NDIS Clearance". Stripping it unconditionally left a bare,
+    dangerously generic stem ("police", "ndis") that word-boundary-matched
+    ANY incidental CV mention of that word, e.g. "liaised with police and
+    ambulance services" wrongly marking a Police Clearance the candidate
+    never obtained as present — a fabrication risk WORSE than the bug being
+    fixed (round 1 under-reported a held credential as missing; this
+    over-reported an unheld one as present). Fixed by only accepting the
+    stripped form when IT is itself still a recognised credential/
+    eligibility phrase via is_noise — "National Police Check compliance"
+    strips to "National Police Check" (still a real credential, safe);
+    "Police Clearance" strips to "Police" (not a credential on its own,
+    correctly rejected)."""
+
+    @pytest.mark.parametrize("jd_credential,cv_text", [
+        ("Police Clearance",
+         "Experienced support worker who has liaised with police and "
+         "ambulance services during emergencies."),
+        ("NDIS Clearance",
+         "Familiar with NDIS funding categories and support plans."),
+        ("NDIS Worker Clearance Compliance",
+         "Worked as an NDIS worker since 2020 across several disability "
+         "services."),
+        ("National Police Clearance Compliance",
+         "Called the national police hotline to report an incident."),
+    ])
+    def test_stripped_stem_that_is_not_itself_a_credential_stays_missing(
+        self, jd_credential, cv_text,
+    ):
+        jd = {"credentials": {
+            "required": [jd_credential], "preferred": [], "eligibility": [],
+        }}
+        gap = _build_credentials_gap(
+            jd, {"required": {}, "preferred": {}},
+            cv_text=cv_text, contact_details=None,
+        )
+        assert jd_credential in gap["missing"]
+        assert jd_credential not in gap["present"]
+
+
 class TestComputeCountsCredentialSidecar:
     """Finding #2 (chunk C18) — _extract_credential_sidecar strips
     credential-shaped keywords out of matched/missed (cv_jd_matching.py:102)

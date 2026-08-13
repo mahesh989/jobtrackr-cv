@@ -55,6 +55,10 @@ MatchKindT = Literal["exact", "normalised", "fuzzy"]
 _VERTICALS: Tuple[VerticalT, ...] = ("nursing", "cleaning", "tech")
 from app.enums import CATEGORY_KEYS as _CATEGORY_KEYS  # noqa: E402 — canonical source
 _CATEGORIES: Tuple[CategoryT, ...] = _CATEGORY_KEYS  # type: ignore[assignment]
+# The set of valid noise types. NOT the load order used to resolve
+# cross-list duplicates in _universal_noise.json — that's the separate
+# `load_order` local inside _load_noise(), which deliberately differs
+# from this tuple's order (see that function's docstring, chunk C20).
 _NOISE_TYPES: Tuple[NoiseT, ...] = ("credential", "eligibility", "noise")
 
 
@@ -177,11 +181,30 @@ def _load_noise() -> Dict[str, NoiseT]:
     """Build {normalised_phrase: noise_type} from _universal_noise.json.
 
     _universal_noise.json is cross-vertical and stays in skills/lexicons/.
+
+    Finding #27: 14 phrases (e.g. "vaccination requirements", "immunisation
+    compliance") are duplicated across two of the three lists in the JSON
+    data, a curation artifact from separate editing sessions rather than a
+    deliberate ambiguity. Loading in `_NOISE_TYPES` order (credential,
+    eligibility, noise) meant the generic "noise" bucket — which routes to
+    a silent drop, not a surfaced classification — always won for any
+    duplicate, since it loads last and each `out[key] = typ` assignment
+    overwrites the previous one. That silently dropped real credentials
+    (e.g. "vaccination requirements") and eligibility/work-rights items
+    (e.g. "own reliable vehicle") that should have been surfaced instead.
+    Load "noise" FIRST so a duplicate's more specific credential/
+    eligibility classification correctly overwrites it, not the reverse.
+    This only changes outcomes for the noise-vs-(credential|eligibility)
+    duplicates (12 of the 14) — the 2 remaining duplicates are
+    credential-vs-eligibility only (no noise involved) and keep their
+    existing resolution unchanged, since "eligibility" still loads after
+    "credential" in this order.
     """
     path = _LEXICON_DIR / "_universal_noise.json"
     data = json.loads(path.read_text())
     out: Dict[str, NoiseT] = {}
-    for typ in _NOISE_TYPES:
+    load_order: Tuple[NoiseT, ...] = ("noise", "credential", "eligibility")
+    for typ in load_order:
         for term in data.get(typ, []):
             key = normalise(term)
             if key:

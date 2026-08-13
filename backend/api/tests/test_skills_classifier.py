@@ -309,6 +309,55 @@ class TestNoiseDominatesVertical:
             assert c.noise_type == "eligibility"
 
 
+class TestNoiseTypeLoadOrderDoesNotDropRealCredentials:
+    """Finding #27 (chunk C20). 14 phrases in _universal_noise.json are
+    duplicated across two of its three lists ("credential"/"eligibility"/
+    "noise") — a data-curation artifact, not a deliberate ambiguity.
+    _load_noise() built its lookup by iterating the noise types in a fixed
+    order and doing `out[key] = typ` for every term, so whichever type
+    loaded LAST silently won for any duplicate. With "noise" listed last,
+    it always won over "credential"/"eligibility" — meaning a real
+    credential like "vaccination requirements" or a real eligibility item
+    like "own reliable vehicle" was classified as generic noise (a silent
+    drop) instead of being correctly surfaced (routed to Registration &
+    Licences, or matched against the user's work-rights profile).
+
+    12 of the 14 duplicates have this exact noise-vs-specific shape and are
+    pinned here. The remaining 2 are credential-vs-eligibility only (no
+    noise involved) and are NOT touched by this fix — both already resolved
+    to "eligibility" before and after, since "eligibility" still loads
+    after "credential"."""
+
+    @pytest.mark.parametrize("phrase,expected_type", [
+        ("australian healthcare work rights", "eligibility"),
+        ("immunisation compliance", "credential"),
+        ("immunisation requirements", "credential"),
+        ("immunization compliance", "credential"),
+        ("immunization requirements", "credential"),
+        ("infection control and immunity requirements", "eligibility"),
+        ("national police check compliance", "credential"),
+        ("ndis worker screening clearance", "credential"),
+        ("own reliable vehicle", "eligibility"),
+        ("ability to pass pre-employment medical", "credential"),
+        ("vaccination compliance", "credential"),
+        ("vaccination requirements", "credential"),
+    ])
+    def test_duplicate_phrase_resolves_to_specific_type_not_noise(
+        self, phrase, expected_type,
+    ):
+        assert is_noise(phrase) == expected_type
+
+    @pytest.mark.parametrize("phrase", [
+        # Credential-vs-eligibility duplicates, no "noise" involved —
+        # deliberately unchanged by this fix, pinned so a future change
+        # to the load order doesn't silently flip these too.
+        "national police check and ndis worker check",
+        "reliable vehicle",
+    ])
+    def test_credential_vs_eligibility_duplicate_unchanged(self, phrase):
+        assert is_noise(phrase) == "eligibility"
+
+
 # ---------------------------------------------------------------------------
 # Batch API
 # ---------------------------------------------------------------------------

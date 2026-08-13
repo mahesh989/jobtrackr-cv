@@ -48,6 +48,7 @@ from app.services.ai.prompts import (
     CV_JD_MATCHING_SYSTEM,
     CV_JD_MATCHING_USER_TEMPLATE,
 )
+from app.services.skills.classifier import is_noise
 
 logger = logging.getLogger(__name__)
 
@@ -320,6 +321,35 @@ def _literal_match_in_text(keyword: str, cv_text: str) -> bool:
     return _re.search(pattern, cv_text.lower()) is not None
 
 
+# Trailing JD-obligation qualifier words that decorate a credential's NAME
+# without changing what it IS — "vaccination requirements" and "vaccination"
+# name the same credential, the former just phrases it as an obligation the
+# way JDs (not CVs) write it. Same pattern as tailored_rescoring.py's
+# _CREDENTIAL_PREFIX_QUALIFIERS (leading "current"/"valid"/etc.), mirrored
+# here for TRAILING words because _build_credentials_gap's literal-CV-text
+# check needs it, not the synonym-map lookup that module owns.
+_CREDENTIAL_QUALIFIER_SUFFIXES: Tuple[str, ...] = (
+    "compliance", "requirements", "requirement", "clearance",
+)
+
+
+def _strip_credential_qualifier_suffix(phrase: str) -> str:
+    """Strip trailing JD-obligation qualifier words from a credential phrase.
+
+    'vaccination requirements' -> 'vaccination'
+    'national police check compliance' -> 'national police check'
+    'ndis worker screening clearance' -> 'ndis worker screening'
+
+    Idempotent (repeated words like 'clearance compliance' are both
+    stripped). Returns the original phrase when no qualifier suffix matches,
+    or when stripping would leave nothing.
+    """
+    words = phrase.strip().split()
+    while words and words[-1].lower().strip(".,;:()") in _CREDENTIAL_QUALIFIER_SUFFIXES:
+        words.pop()
+    return " ".join(words) if words else phrase.strip()
+
+
 # Australian VET qualification ladder. A higher AQF level in the same vocational
 # family subsumes a lower one — completing a Certificate IV in Ageing Support
 # embeds the Certificate III in Individual Support, so a JD asking for the Cert
@@ -519,6 +549,35 @@ def _build_credentials_gap(
         if _literal_match_in_text(phrase, cv_text):
             return True
         if _qualification_subsumed_by_cv(phrase, cv_text):
+            return True
+        # Chunk C20's own review: fixing the noise-lexicon load order (finding
+        # #27) let extract_credentials_from_jd's greedy longest-match picker
+        # (credentials.py) start preferring a JD's own obligation-shaped
+        # wording — "vaccination requirements", "National Police Check
+        # compliance" — over the shorter base form ("vaccination", "National
+        # Police Check") it used to extract by accident. CVs document the
+        # credential itself, not the JD's obligation phrasing, so the exact
+        # literal match above now fails for a real, already-documented
+        # credential. Retry once against the qualifier-stripped form.
+        #
+        # Round 2 of that same review: a plain strip-and-retry is unsafe —
+        # "clearance" is sometimes a real credential NOUN, not a decorative
+        # qualifier ("Police Clearance", "NDIS Clearance"), so stripping it
+        # unconditionally left a bare, dangerously generic stem ("police",
+        # "ndis") that word-boundary-matched ANY incidental CV mention —
+        # e.g. "liaised with police and ambulance services" wrongly marking
+        # a Police Clearance the candidate never obtained as present. Only
+        # accept the stripped form if IT is itself still a recognised
+        # credential/eligibility phrase — that's what distinguishes
+        # "National Police Check compliance" -> "National Police Check"
+        # (still a real credential, safe) from "Police Clearance" ->
+        # "Police" (not a credential on its own, unsafe).
+        stripped = _strip_credential_qualifier_suffix(phrase)
+        if (
+            stripped and stripped != phrase
+            and is_noise(stripped) in ("credential", "eligibility")
+            and _literal_match_in_text(stripped, cv_text)
+        ):
             return True
         if contact_details and user_has_credential(phrase, contact_details):
             return True
