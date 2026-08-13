@@ -175,8 +175,17 @@ function main() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
-    console.log("⚠ schema-drift check SKIPPED — SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set.");
+    // #29 (audit): see check-code-schema.mjs's identical guard for the full
+    // rationale — this sibling check shipped the same day for the same
+    // outage and had the exact same silent-skip gap.
+    const trusted = process.env.REQUIRE_SCHEMA_CREDS === "true";
+    console.log(`⚠ schema-drift check ${trusted ? "MISSING CREDENTIALS" : "SKIPPED"} — SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set.`);
     console.log("  This is a SKIP, not a pass: column drift is unverified.");
+    if (trusted) {
+      console.error("  REQUIRE_SCHEMA_CREDS=true — this run should have had the secrets. Add them to the repo (#29) or fix the workflow.");
+      process.exit(1);
+    }
+    console.log("  (untrusted/fork context — OK to skip; secrets are never handed to a fork PR.)");
     process.exit(0);
   }
 

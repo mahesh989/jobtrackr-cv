@@ -42,14 +42,23 @@ jobs:
       # was ever saved, and the pipeline still logged "run complete". Nothing
       # compared the code, the migrations and the live database to each other.
       #
-      # Both SKIP (exit 0, with a loud notice) when the Supabase secrets are
-      # absent, so forks and secret-less runs are not blocked — a skip is
-      # visible in the log rather than being a silent pass.
+      # #29 (audit): for weeks after that, both guards SILENTLY SKIPPED on
+      # every run (exit 0) because the Supabase secrets they need had never
+      # actually been added to this repo — CI stayed green and the guards
+      # were decorative, the exact failure class they exist to catch. The
+      # secrets are now set (see graph.json G5), but a skip must never again
+      # look identical to a real pass: REQUIRE_SCHEMA_CREDS is true for a
+      # push or a same-repo PR (which always get repo secrets) and false
+      # only for an actual fork PR (which GitHub never hands secrets to) —
+      # so a trusted run with the secrets unexpectedly missing now fails
+      # loudly instead of skipping quietly, while a genuine fork
+      # contribution still degrades gracefully.
       - name: Code vs live schema
         run: node shared/supabase/scripts/check-code-schema.mjs
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          REQUIRE_SCHEMA_CREDS: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
       # Catches the OTHER half: a column hand-applied to the database and never
       # written into a migration. That is how the visa columns were lost — they
       # existed in the old Supabase project but in no file, so a new project
@@ -59,6 +68,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          REQUIRE_SCHEMA_CREDS: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
       # Proves the check-code-schema parser still detects the historical bug —
       # a guard whose detector silently breaks is worse than none, and this one
       # needs no credentials, so it runs everywhere.

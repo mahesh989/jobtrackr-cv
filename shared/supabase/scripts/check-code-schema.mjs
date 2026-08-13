@@ -176,8 +176,24 @@ if (SELF_TEST) {
 
 const url = process.env.SUPABASE_URL, key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !key) {
-  console.log("⚠ code-vs-schema check SKIPPED — SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set.");
-  console.log("  This is a SKIP, not a pass.");
+  // #29 (audit): this guard shipped after the 2026-08-08 outage specifically
+  // to catch a code/DB mismatch, then went unnoticed for weeks because the
+  // secrets it needs were never added to the repo — every run silently
+  // skipped with exit 0, so CI stayed green and the guard was decorative,
+  // the exact failure class it exists to catch. REQUIRE_SCHEMA_CREDS (set by
+  // ci.yml to true on this repo's own runs — push, or a same-repo PR — and
+  // left unset for a fork PR, which GitHub never hands repo secrets to)
+  // turns a missing-secret run into a hard failure whenever it happens on a
+  // run that SHOULD have had them, instead of a silent, indistinguishable
+  // skip.
+  const trusted = process.env.REQUIRE_SCHEMA_CREDS === "true";
+  console.log(`⚠ code-vs-schema check ${trusted ? "MISSING CREDENTIALS" : "SKIPPED"} — SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set.`);
+  console.log("  This is a SKIP, not a pass: column drift is unverified.");
+  if (trusted) {
+    console.error("  REQUIRE_SCHEMA_CREDS=true — this run should have had the secrets. Add them to the repo (#29) or fix the workflow.");
+    process.exit(1);
+  }
+  console.log("  (untrusted/fork context — OK to skip; secrets are never handed to a fork PR.)");
   process.exit(0);
 }
 
