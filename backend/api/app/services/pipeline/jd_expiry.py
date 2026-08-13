@@ -36,7 +36,12 @@ _EXPIRY_PATTERNS: tuple[tuple[str, str], ...] = (
      "Recruitment for this role has closed."),
     (r"\bvacancy closed\b",
      "The vacancy is closed."),
-    (r"\bno longer (?:available|open|active)\b",
+    # Unlike this, every other pattern here anchors its SUBJECT to the job
+    # itself. This one used to match "no longer available/open/active"
+    # ANYWHERE in the JD, so a live, open JD saying e.g. "visa sponsorship
+    # is no longer available" or "remote work is no longer available for
+    # this role" was wrongly hard-failed as closed (#14 audit).
+    (r"\bthis (?:job|role|position|posting|vacancy) is no longer (?:available|open|active)\b",
      "The role is no longer available."),
     (r"\bapplications closed\b",
      "Applications closed."),
