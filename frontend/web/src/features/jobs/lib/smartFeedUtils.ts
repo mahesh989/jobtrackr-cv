@@ -19,6 +19,12 @@ export function isPostedToday(j: BoardJob): boolean {
       && d.getDate()     === now.getDate();
 }
 
+// ⚠️ DO NOT DELETE AS "DEAD CODE" — a grep for cross-file imports of
+// ATS_BAND_META finds none because its sole consumer, getAtsMeta below, is
+// IN THIS SAME FILE. getAtsMeta is imported and rendered at 7+ sites
+// (FeedCards/chips.tsx, cards.tsx) — the ATS dot, label, tooltip and bar on
+// every job card (mis-flagged dead once already — audit finding #64).
+//
 // Theme-driven. The dot/bar read the --chart-* palette (globals.css ships a
 // default set; Aurora re-tints it), and the chip reuses the same
 // --{colour}/--{colour}-light pairs the .badge-* classes already use — every

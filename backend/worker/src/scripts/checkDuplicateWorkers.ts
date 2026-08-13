@@ -1,3 +1,11 @@
+// ⚠️ DO NOT DELETE AS "DEAD CODE". Nothing in-repo imports this file — it is
+// invoked as a standalone script (package.json's "check:duplicate-workers",
+// tsx src/scripts/checkDuplicateWorkers.ts) by the "verify-worker" job in
+// .github/workflows/deploy.yml, which a grep for TS imports will not find.
+// Has been mis-flagged dead before (see proxy.ts's own header for the same
+// class of mistake — same class of file, framework/CI invokes it by
+// convention rather than by import).
+//
 // Post-deploy CI guard against the zombie-VM pattern (2026-07-10 incident,
 // see .claude/graph.json OPS-36): a Fly deploy can leave the OLD machine
 // running and polling Redis while the control plane reports it "stopped",
