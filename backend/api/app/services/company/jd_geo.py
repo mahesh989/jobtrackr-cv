@@ -32,7 +32,7 @@ _COUNTRY_MARKERS: dict[str, tuple[str, ...]] = {
     "AU": (
         "australia", "australian",
         "nsw", "vic", "qld", "wa", "tas", "act", "nt",
-        "new south wales", "victoria", "queensland", "western australia",
+        "new south wales", "queensland", "western australia",
         "tasmania", "australian capital territory", "northern territory",
         "sydney", "melbourne", "brisbane", "perth", "adelaide", "hobart",
         "canberra", "darwin", "gold coast", "newcastle", "wollongong",
@@ -58,6 +58,14 @@ _COUNTRY_MARKERS: dict[str, tuple[str, ...]] = {
         "auckland", "wellington", "christchurch", "hamilton",
     ),
 }
+
+# "Victoria" alone is NOT in _COUNTRY_MARKERS["AU"] — it collides with the
+# real Canadian city Victoria, BC (e.g. "Victoria, British Columbia, Canada",
+# "Victoria, BC, Canada"), which would wrongly resolve AU since AU is checked
+# first. The genuine AU usage is always "<Town>, Victoria" — the state name
+# TRAILING a comma, never leading the string — so match that specific shape
+# instead of the bare word. Checked before the generic marker loop.
+_AU_VICTORIA_STATE_SUFFIX_RE = re.compile(r",\s*victoria\b", re.IGNORECASE)
 
 _COUNTRY_FULL_NAME: dict[str, str] = {
     "AU": "Australia",
@@ -86,6 +94,8 @@ def detect_country(location: Optional[str]) -> Optional[str]:
     if not location or not location.strip():
         return None
     text = " " + location.lower() + " "
+    if _AU_VICTORIA_STATE_SUFFIX_RE.search(text):
+        return "AU"
     # First-match-wins by order of preference. AU has highest signal density
     # in production right now; the rest are listed below it in rough order
     # of how often each appears.

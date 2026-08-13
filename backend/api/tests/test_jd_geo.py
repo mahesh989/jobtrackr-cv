@@ -74,6 +74,23 @@ def test_detect_country_genuine_uk_wales_still_resolves_uk():
     assert detect_country("Wales, United Kingdom") == "UK"
 
 
+def test_detect_country_victoria_bc_canada_is_not_misclassified_au():
+    """Regression guard, found during this chunk's own self-review before
+    any PR was opened: bare "victoria" is genuinely ambiguous with the real
+    Canadian city Victoria, BC — an earlier draft of this fix added it as an
+    unqualified AU marker, which (since AU is checked first) wrongly
+    reclassified "Victoria, BC, Canada" as AU instead of the correct CA,
+    and "Victoria, British Columbia, Canada" as AU instead of its
+    pre-existing (separately-tracked, out of scope) UK misclassification.
+    The genuine AU usage is always "<Town>, Victoria" — the state name
+    TRAILING a comma, never leading the string — so the fix matches that
+    specific shape instead of the bare word. These three assertions pin the
+    exact pre-fix behaviour: unaffected by this chunk either way."""
+    assert detect_country("Victoria, British Columbia, Canada") == "UK"
+    assert detect_country("Victoria, BC") is None
+    assert detect_country("Victoria, BC, Canada") == "CA"
+
+
 def test_detect_country_unknown_returns_none():
     """Conservative — return None rather than guess for locations we don't
     confidently match. Downstream code treats None as 'skip geo gates'."""
