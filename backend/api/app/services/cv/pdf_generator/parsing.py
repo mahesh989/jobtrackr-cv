@@ -263,17 +263,55 @@ _SECTION_ALIASES: Dict[str, str] = {
     "honors":                       "awards",
     "references":                   "references",
     "referees":                     "references",
+    # Role-pack headings (verticals/nursing/config.py, verticals/manual/config.py)
+    # — each vertical's own section_order names these, but the PDF's canonical
+    # order didn't know them, so they fell into "extras" and rendered dead
+    # last regardless of where the vertical intended them (finding #25 / C22).
+    "registration & licences":      "registration",
+    "registration & licenses":      "registration",
+    # eval/enforce_w8.py::_relabel_registration relabels the Registration &
+    # Licences heading to this when the CV holds only clearances (police
+    # check, NDIS, WWCC, first aid…) with no genuine AHPRA/RN/EN
+    # registration — the common case for aged/personal/disability care
+    # workers, who nursing's own alias list explicitly targets. Deliberately
+    # its OWN bucket, NOT merged into "registration": eval/contact_line.py's
+    # stamp_credentials runs AFTER this relabel, doesn't find a heading named
+    # "registration & licences" any more, and appends a FRESH one at the end
+    # of the document — so both headings can legitimately co-exist in the
+    # same CV. Sharing a bucket would silently drop whichever heading
+    # _build_story sees second (same class of bug as the certifications
+    # merge below — confirmed by round-2 review reproducing real content
+    # loss: a genuinely AHPRA-registered nurse's stamped credential line
+    # rendered mislabelled under "Checks & Clearances" with the real
+    # "Registration & Licences" heading gone entirely).
+    "checks & clearances":          "registration_checks",
+    # Deliberately its OWN bucket, not merged into "certifications":
+    # _render_certifications (below) only keeps bullet/paragraph items and
+    # silently drops "h3" items, which this heading's content can contain
+    # (e.g. "### National Police Check" sub-headings) — merging it in would
+    # silently delete real CV content. This bucket instead falls through to
+    # _render_section's generic fallback, which preserves every item type.
+    "certifications & checks":      "certifications_checks",
+    "availability":                 "availability",
 }
 
-_SECTION_ORDER = ["highlights", "experience", "education", "skills", "projects", "certifications", "awards", "references"]
+_SECTION_ORDER = [
+    "highlights", "experience", "education", "skills", "projects",
+    "certifications", "certifications_checks", "registration_checks",
+    "registration", "awards", "references", "availability",
+]
 
 _SECTION_LABELS = {
-    "highlights":     "Profile",
-    "experience":     "Experience",
-    "education":      "Education",
-    "skills":         "Skills",
-    "projects":       "Projects",
-    "certifications": "Professional Certifications",
-    "awards":         "Awards",
-    "references":     "References",
+    "highlights":            "Profile",
+    "experience":            "Experience",
+    "education":             "Education",
+    "skills":                "Skills",
+    "projects":              "Projects",
+    "certifications":        "Professional Certifications",
+    "certifications_checks": "Certifications & Checks",
+    "registration_checks":   "Checks & Clearances",
+    "registration":          "Registration & Licences",
+    "awards":                "Awards",
+    "references":            "References",
+    "availability":          "Availability",
 }
