@@ -51,27 +51,26 @@ def _build_jd_vocabulary(jd_analysis: Dict[str, Any]) -> set[str]:
     """
     Flatten the JD analysis into a set of relevance tokens.
 
-    Reads keywords.required.* and keywords.preferred.* across all three
-    categories (technical / soft_skills / domain_knowledge) plus role
-    title / industry hints if present. Tokenised the same way as
+    Reads required_skills.* and preferred_skills.* across all three
+    categories (technical / soft_skills / domain_knowledge) plus job_title,
+    matching jd_analysis.py's actual output schema (see its module
+    docstring — {job_title, ..., required_skills: {technical, soft_skills,
+    domain_knowledge}, preferred_skills: {...}}). Tokenised the same way as
     `_tokenise_for_relevance` so the comparison is apples-to-apples.
     """
     bag: set[str] = set()
     if not jd_analysis:
         return bag
 
-    keywords = jd_analysis.get("keywords") or {}
     for bucket in BUCKET_KEYS:
-        cats = keywords.get(bucket) or {}
+        skills = jd_analysis.get(f"{bucket}_skills") or {}
         for cat in CATEGORY_KEYS:
-            for kw in cats.get(cat) or []:
+            for kw in skills.get(cat) or []:
                 bag.update(_tokenise_for_relevance(str(kw)))
 
-    # Role title and industry context
-    for field in ("role_title", "primary_domain", "industry"):
-        v = jd_analysis.get(field)
-        if isinstance(v, str):
-            bag.update(_tokenise_for_relevance(v))
+    v = jd_analysis.get("job_title")
+    if isinstance(v, str):
+        bag.update(_tokenise_for_relevance(v))
 
     bag.discard("")
     return bag
