@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 import { db } from "../../db/client.js";
+import { selectInChunked } from "../../db/chunkedIn.js";
 import type { RawJob } from "../../sources/types.js";
 import { canonicalUrl } from "../normalise.js";
 
@@ -93,14 +94,24 @@ export async function earlyDedup(
       hash: createHash("sha256").update(canonicalUrl(j.url)).digest("hex"),
     }));
 
-    const { data: existingRows } = await db
-      .from("jobs")
-      .select("url_hash")
-      .in("profile_id", siblingIds)
-      .in("url_hash", hashByJob.map((x) => x.hash));
+    // CHUNKED on url_hash — a profile's uniqueRawJobs list (one hash per
+    // scraped job) can run into the hundreds/thousands, and the same
+    // unchunked-.in() silent-failure this stage's own header comment
+    // documents for the L1 lookup above applies here too (audit, execution
+    // chunk C44). siblingIds stays a single filter per chunk — it's a
+    // user's own other profiles, always small.
+    const { rows: existingRows } = await selectInChunked(
+      hashByJob.map((x) => x.hash),
+      (chunk) =>
+        db
+          .from("jobs")
+          .select("url_hash")
+          .in("profile_id", siblingIds)
+          .in("url_hash", chunk),
+    );
 
     const seenInSiblings = new Set(
-      (existingRows ?? []).map((r) => r.url_hash as string)
+      existingRows.map((r) => r.url_hash as string)
     );
 
     let droppedCrossProfile = 0;
