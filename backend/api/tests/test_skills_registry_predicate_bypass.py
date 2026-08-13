@@ -28,6 +28,17 @@ registry.py's own docstring states: "All call sites that previously
 reimplemented this check should route through here" — removes a fragile,
 non-obvious cross-function coupling in favour of the single source of
 truth, with zero behaviour change for these two (confirmed below).
+
+Round 2 (independent review): a 5th bypass, skills_section.py's own
+_strip_non_skill_phrases, was found — and this one is a LIVE bug on
+EVERY vertical, unlike the two round-1 live bugs (which get partially
+masked for the nursing vertical by a later lexicon-reroute pass). It is
+the module's OWN designated last-resort safety net — writers/_impl.py's
+"3a-bis" call site explicitly documents it as stripping non-skill
+entries "no matter whether the base classifier or the surfacing pass
+added them" — so an AI writer emitting a bare sector label directly
+into the Skills section (no injector involved at all; historically the
+most common source of this leak class) sailed straight through it.
 """
 from __future__ import annotations
 
@@ -37,7 +48,10 @@ from app.services.eval.writers.injection import (
     _surface_matched_skills,
     force_inject_missed_approved,
 )
-from app.services.eval.writers.skills_section import _is_non_skill_phrase
+from app.services.eval.writers.skills_section import (
+    _is_non_skill_phrase,
+    _strip_non_skill_phrases,
+)
 from app.services.pipeline.steps.tailored_cv import _inject_missing_skills
 from app.services.skills.registry import is_non_skill_phrase
 
@@ -180,3 +194,46 @@ class TestForceInjectMissedApprovedRoutesThroughRegistryWithNoBehaviourChange:
         feas = _feasibility(("dementia care", "domain_knowledge", "inject_directly"))
         out, notes = force_inject_missed_approved(md, feas)
         assert "Dementia Care" in out
+
+
+class TestStripNonSkillPhrasesNoLongerLeaksSectorLabels:
+    """eval/writers/skills_section.py::_strip_non_skill_phrases — round-2
+    finding (independent review). This is the safety-net pass writers/
+    _impl.py's "3a-bis" call site documents as stripping non-skill entries
+    "no matter whether the base classifier or the surfacing pass added
+    them" — i.e. it exists specifically to catch every OTHER leak class,
+    including a sector label the AI writer itself put directly into the
+    Skills section (no injector involved). It was still routed through the
+    weaker base predicate, so it was blind to the same 8 terms — and
+    unlike the two round-1 live bugs, nothing downstream masks this one on
+    any vertical."""
+
+    def test_sector_labels_stripped_from_writer_authored_skills_line(self):
+        md = (
+            "## Skills\n"
+            "**Care Skills:** Personal Care, Home Care, Disability Support, "
+            "Domestic Assistance, In-Home Care\n\n"
+            "## Experience\n"
+        )
+        out = _strip_non_skill_phrases(md)
+        for term in ("Home Care", "Disability Support", "Domestic Assistance", "In-Home Care"):
+            assert term not in out
+        assert "Personal Care" in out
+
+    def test_experience_narrative_is_not_touched(self):
+        """Scoping guard: the function only ever operates on lines within
+        the ## Skills section boundaries — the same sector words appearing
+        in ordinary Experience prose must survive verbatim."""
+        md = (
+            "## Experience\n"
+            "### Org A | Sydney\n"
+            "- Provided home care and disability support to elderly residents.\n\n"
+            "## Skills\n"
+            "**Care Skills:** Personal Care, Home Care\n\n"
+            "## Awards\n"
+        )
+        out = _strip_non_skill_phrases(md)
+        assert "Provided home care and disability support to elderly residents." in out
+        skills_block = out.split("## Skills")[1].split("## Awards")[0]
+        assert "Home Care" not in skills_block
+        assert "Personal Care" in skills_block
