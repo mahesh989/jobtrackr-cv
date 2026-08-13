@@ -111,15 +111,21 @@ export function createSeekAdapter(apifyToken: string): {
 
         if (!res.ok) {
           const body = await res.text().catch(() => "");
-          console.error(`[seek] Apify ${res.status}: ${body.slice(0, 300)}`);
-          return { jobs: [], costUsd: COST_PER_RUN_USD };
+          // THROW instead of returning a normal-looking empty result — the
+          // orchestrator's own catch (sourceFetch.ts) exists specifically to
+          // mark the integration invalid and skip billing on a real failure.
+          // Returning {jobs:[], costUsd} here made a dead/expired token
+          // indistinguishable from a legitimate zero-result search: the
+          // caller billed quota AND reset status to "valid" on every auth
+          // failure, permanently hiding the broken token (#23 audit).
+          throw new Error(`Apify ${res.status}: ${body.slice(0, 300)}`);
         }
 
         items = (await res.json()) as SeekItem[];
         console.log(`[seek] actor returned ${items.length} raw items`);
       } catch (err) {
         console.error(`[seek] actor call failed: ${err instanceof Error ? err.message : err}`);
-        return { jobs: [], costUsd: COST_PER_RUN_USD };
+        throw err;
       }
 
       let skipped = 0;
