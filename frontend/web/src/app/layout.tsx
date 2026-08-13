@@ -1,66 +1,73 @@
 import type { Metadata } from "next";
-import { Sofia_Sans, DM_Serif_Display, Manrope, Noto_Serif, Plus_Jakarta_Sans, Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
+
+// All fonts are self-hosted via next/font/local (latin subset, woff2, in
+// src/app/fonts/). next/font/google was dropped because it fetches the CSS +
+// woff2 from Google at build time, and Google's file rotation periodically
+// 404s those fetches on Vercel, breaking every deploy.
+// The weight ranges mirror the static weights the themes actually use.
 
 // ── "Default" theme fonts (original JobTrackr look) ───────────────────────
 // These only apply when a user explicitly picks the "Default" theme, so
 // preload: false — the browser fetches them lazily on theme switch.
-const sofiaSans = Sofia_Sans({
+const sofiaSans = localFont({
+  src: "./fonts/sofia-sans.woff2",
   variable: "--font-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
+  weight: "400 700",
   display: "swap",
   preload: false,
 });
 
-const dmSerif = DM_Serif_Display({
+const dmSerif = localFont({
+  src: [
+    { path: "./fonts/dm-serif-normal.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/dm-serif-italic.woff2", weight: "400", style: "italic" },
+  ],
   variable: "--font-serif",
-  subsets: ["latin"],
-  weight: ["400"],
-  style:   ["normal", "italic"],
   display: "swap",
   preload: false,
 });
 
 // ── cv-magic theme fonts (Classic / Gilded Noir / Notion / Clay) ──────────
 // Classic is the new default, so Manrope + Noto Serif are preloaded.
-const manrope = Manrope({
+const manrope = localFont({
+  src: "./fonts/manrope.woff2",
   variable: "--font-cv-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
+  weight: "400 700",
   display: "swap",
 });
 
-const notoSerif = Noto_Serif({
+const notoSerif = localFont({
+  src: "./fonts/noto-serif.woff2",
   variable: "--font-cv-serif",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: "400 600",
   display: "swap",
 });
 
 // ── Aurora theme fonts (Aurora Dark / Aurora Light) ───────────────────────
 // No longer the default (Classic is), so these load lazily on theme switch.
-const jakarta = Plus_Jakarta_Sans({
+const jakarta = localFont({
+  src: "./fonts/plus-jakarta-sans.woff2",
   variable: "--font-jakarta",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: "400 700",
   display: "swap",
   preload: false,
 });
 
-const spaceGrotesk = Space_Grotesk({
+const spaceGrotesk = localFont({
+  src: "./fonts/space-grotesk.woff2",
   variable: "--font-grotesk",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: "400 700",
   display: "swap",
   preload: false,
 });
 
-const jetbrainsMono = JetBrains_Mono({
+const jetbrainsMono = localFont({
+  src: "./fonts/jetbrains-mono.woff2",
   variable: "--font-jbmono",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  weight: "500 700",
   display: "swap",
   preload: false,
 });
