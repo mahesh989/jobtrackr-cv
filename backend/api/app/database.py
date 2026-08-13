@@ -84,14 +84,19 @@ async def supabase_update(
     *,
     max_attempts: int = _MAX_ATTEMPTS,
     base_delay_s: float = _BASE_DELAY_S,
-) -> None:
+) -> bool:
+    """Retry an UPDATE up to max_attempts times. Returns True on success,
+    False if every attempt failed — the caller decides what "continuing"
+    means for it (progress.py's terminal-status writers raise on False so
+    the run doesn't silently strand at status='running' forever; other
+    callers may reasonably choose to stay best-effort)."""
     def _do() -> None:
         get_supabase().table(table).update(patch).eq("id", str(row_id)).execute()
 
     for i in range(max_attempts):
         try:
             await asyncio.to_thread(_do)
-            return
+            return True
         except Exception as exc:
             if i < max_attempts - 1:
                 await asyncio.sleep(base_delay_s * (2 ** i))
@@ -100,6 +105,7 @@ async def supabase_update(
                 "supabase_update(%s, %s): failed after %d attempts (%s) — continuing",
                 table, row_id, max_attempts, exc,
             )
+    return False
 
 
 # ── Storage upload (upload → fallback to update) ──────────────────────────────
