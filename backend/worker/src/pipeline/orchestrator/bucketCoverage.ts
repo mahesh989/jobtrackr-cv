@@ -66,19 +66,25 @@ export async function planBucketCoverage(
         const cold = stale.filter((s) => !coverage.has(key(s)));
         if (cold.length === 0) {
           const claimed = await acquireSliceLocks(stale);
-          if (claimed === 0) {
+          if (claimed.length === 0) {
             // Another in-flight refresh already owns all stale slices → don't
             // double-scrape; serve the (about-to-be-refreshed) bucket.
             bucketSkipScrape = true;
             console.log(`[pipeline] bucket: ${stale.length} stale slices locked by another refresh — skip scrape, serve from bucket`);
           } else {
-            bucketLockedSlices = stale;
-            console.log(`[pipeline] bucket lookback: ${lookbackDays}d (claimed ${claimed}/${stale.length} stale slices)`);
+            // Only the slices THIS call actually claimed — not the full
+            // `stale` list — or releasing later would release locks this run
+            // never held, letting a third run double-scrape a still-in-flight
+            // slice (#34 audit).
+            bucketLockedSlices = claimed;
+            console.log(`[pipeline] bucket lookback: ${lookbackDays}d (claimed ${claimed.length}/${stale.length} stale slices)`);
           }
         } else {
           // Cold slices present → scrape; still claim existing locks for hygiene.
-          await acquireSliceLocks(stale.filter((s) => coverage.has(key(s))));
-          bucketLockedSlices = stale;
+          // Cold slices themselves were never locked (no coverage row to lock),
+          // so they must not appear in bucketLockedSlices either.
+          const claimed = await acquireSliceLocks(stale.filter((s) => coverage.has(key(s))));
+          bucketLockedSlices = claimed;
           console.log(`[pipeline] bucket lookback: ${lookbackDays}d (${cold.length} cold + ${stale.length - cold.length} stale slices — scraping)`);
         }
       }
