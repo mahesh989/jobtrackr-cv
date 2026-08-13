@@ -13,7 +13,7 @@
 
 import type { NormalisedJob } from "../types.js";
 
-const SOURCE_BONUS: Record<string, number> = {
+export const SOURCE_BONUS: Record<string, number> = {
   seek:       2000,
   agedcare:   1800,   // Direct-from-employer Workday JD — most authoritative
                       // (full canonical description); should win duplicates

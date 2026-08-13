@@ -6,7 +6,27 @@ import type { NormalisedJob } from "./types.js";
 // itself never touches the db, so stub the client rather than requiring env.
 vi.mock("../db/client.js", () => ({ db: {} }));
 
-const { computeHashes } = await import("./dedup.js");
+const { computeHashes, scoreOf } = await import("./dedup.js");
+
+function existingJob(source: string, description = ""): {
+  id: string;
+  url_hash: string;
+  title: string;
+  company: string;
+  location: string;
+  source: string;
+  description?: string | null;
+} {
+  return {
+    id: "1",
+    url_hash: "abc",
+    title: "Registered Nurse",
+    company: "Acme",
+    location: "Sydney NSW",
+    source,
+    description,
+  };
+}
 
 function job(url: string): NormalisedJob {
   return {
@@ -47,5 +67,19 @@ describe("computeHashes", () => {
     const a = computeHashes(job("https://example.com/job/abc"));
     const b = computeHashes(job("https://example.com/job/xyz"));
     expect(a.url_hash).not.toBe(b.url_hash);
+  });
+});
+
+describe("scoreOf (existing rows) — source bonus must match winner.ts's SOURCE_BONUS", () => {
+  it("does not let careerjet outscore adzuna (careerjet is demoted to 300, below adzuna's 400)", () => {
+    const careerjet = scoreOf({ kind: "existing", job: existingJob("careerjet") });
+    const adzuna = scoreOf({ kind: "existing", job: existingJob("adzuna") });
+    expect(adzuna).toBeGreaterThan(careerjet);
+  });
+
+  it("gives agedcare its authoritative 1800 bonus instead of silently falling through to 0", () => {
+    const agedcare = scoreOf({ kind: "existing", job: existingJob("agedcare") });
+    const adzuna = scoreOf({ kind: "existing", job: existingJob("adzuna") });
+    expect(agedcare).toBeGreaterThan(adzuna);
   });
 });
