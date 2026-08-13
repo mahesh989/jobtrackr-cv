@@ -32,7 +32,7 @@ _COUNTRY_MARKERS: dict[str, tuple[str, ...]] = {
     "AU": (
         "australia", "australian",
         "nsw", "vic", "qld", "wa", "tas", "act", "nt",
-        "new south wales", "queensland", "western australia",
+        "new south wales", "western australia",
         "tasmania", "australian capital territory", "northern territory",
         "sydney", "melbourne", "brisbane", "perth", "adelaide", "hobart",
         "canberra", "darwin", "gold coast", "newcastle", "wollongong",
@@ -59,13 +59,51 @@ _COUNTRY_MARKERS: dict[str, tuple[str, ...]] = {
     ),
 }
 
-# "Victoria" alone is NOT in _COUNTRY_MARKERS["AU"] — it collides with the
-# real Canadian city Victoria, BC (e.g. "Victoria, British Columbia, Canada",
-# "Victoria, BC, Canada"), which would wrongly resolve AU since AU is checked
-# first. The genuine AU usage is always "<Town>, Victoria" — the state name
-# TRAILING a comma, never leading the string — so match that specific shape
-# instead of the bare word. Checked before the generic marker loop.
-_AU_VICTORIA_STATE_SUFFIX_RE = re.compile(r",\s*victoria\b", re.IGNORECASE)
+# "Victoria" and "Queensland" are NOT in _COUNTRY_MARKERS["AU"] above — both
+# collide with real places elsewhere ("Victoria, British Columbia, Canada";
+# "Queensland Road, London"), which would wrongly resolve AU since AU is
+# checked first. Genuine AU usage of either is always "<Town>, <State>" —
+# the state name TRAILING a comma, never leading the string ("Queensland
+# Road" has no comma before "Queensland") — so match that specific shape,
+# not the bare word.
+#
+# Even in the correct trailing-comma position, both are still ambiguous
+# enough to collide with an explicit OTHER country ("Esquimalt, Victoria,
+# Canada" — comma-preceded "Victoria", but "Canada" makes the true answer
+# CA). So this suffix match is suppressed whenever an unambiguous non-AU
+# signal (a country name/nationality, or another country's own
+# state/province) is ALSO present in the string — but NOT suppressed by an
+# ordinary city name alone (e.g. NZ's "hamilton" in "Hamilton, Victoria"),
+# since that city-name-level ambiguity is exactly what caused the original
+# bug (finding #56) and what this whole fix exists to resolve.
+#
+# Residual, deliberately accepted gap: a colliding city/street name from
+# another country with NO explicit country qualifier at all ("Vancouver
+# Island, Victoria"; bare "London, Victoria") is indistinguishable from the
+# genuine "Hamilton, Victoria" case by marker presence alone — both are
+# "<foreign city>, Victoria" with no stronger signal either way. Resolving
+# this would need a real gazetteer of AU vs. non-AU place names, well
+# beyond this finding's scope; this platform's own stated design
+# philosophy (AU checked first, "highest signal density in production
+# right now") already biases toward AU in exactly this kind of genuine
+# ambiguity, so this residual is a documented, reasoned trade-off, not an
+# oversight.
+_AU_STATE_SUFFIX_RE = re.compile(r",\s*(?:victoria|queensland)\b", re.IGNORECASE)
+
+_STRONG_NON_AU_MARKERS: dict[str, tuple[str, ...]] = {
+    "UK": ("united kingdom", "uk", "u.k.", "england", "scotland", "wales", "british"),
+    "US": ("united states", "u.s.a.", "u.s.", "california", "texas", "florida"),
+    "CA": ("canada", "canadian", "ontario", "quebec", "alberta", "british columbia"),
+    "NZ": ("new zealand",),
+}
+
+
+def _has_strong_non_au_signal(text: str) -> bool:
+    for markers in _STRONG_NON_AU_MARKERS.values():
+        for marker in markers:
+            if re.search(r"\b" + re.escape(marker) + r"\b", text):
+                return True
+    return False
 
 _COUNTRY_FULL_NAME: dict[str, str] = {
     "AU": "Australia",
@@ -94,7 +132,7 @@ def detect_country(location: Optional[str]) -> Optional[str]:
     if not location or not location.strip():
         return None
     text = " " + location.lower() + " "
-    if _AU_VICTORIA_STATE_SUFFIX_RE.search(text):
+    if not _has_strong_non_au_signal(text) and _AU_STATE_SUFFIX_RE.search(text):
         return "AU"
     # First-match-wins by order of preference. AU has highest signal density
     # in production right now; the rest are listed below it in rough order

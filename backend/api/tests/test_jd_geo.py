@@ -75,9 +75,10 @@ def test_detect_country_genuine_uk_wales_still_resolves_uk():
 
 
 def test_detect_country_victoria_bc_canada_is_not_misclassified_au():
-    """Regression guard, found during this chunk's own self-review before
-    any PR was opened: bare "victoria" is genuinely ambiguous with the real
-    Canadian city Victoria, BC — an earlier draft of this fix added it as an
+    """Regression guard, found during this chunk's own review process (after
+    PR #157 was opened, via independent self-verification — NOT before any
+    PR existed): bare "victoria" is genuinely ambiguous with the real
+    Canadian city Victoria, BC — an earlier commit added it as an
     unqualified AU marker, which (since AU is checked first) wrongly
     reclassified "Victoria, BC, Canada" as AU instead of the correct CA,
     and "Victoria, British Columbia, Canada" as AU instead of its
@@ -89,6 +90,49 @@ def test_detect_country_victoria_bc_canada_is_not_misclassified_au():
     assert detect_country("Victoria, British Columbia, Canada") == "UK"
     assert detect_country("Victoria, BC") is None
     assert detect_country("Victoria, BC, Canada") == "CA"
+
+
+def test_detect_country_explicit_non_au_signal_overrides_a_comma_preceded_state_name():
+    """Independent review round found the comma-anchor guard above wasn't
+    enough on its own: it fires whenever "victoria"/"queensland" appears
+    in the correct trailing-comma position, with NO regard for other
+    evidence in the string — so a comma-preceded "Victoria" or "Queensland"
+    alongside an EXPLICIT competing country name still wrongly won as AU.
+    An unambiguous non-AU signal (a country name/nationality, or another
+    country's own state/province) must override the AU state-suffix match."""
+    assert detect_country("Esquimalt, Victoria, Canada") == "CA"
+    assert detect_country("Sidney, Victoria, BC, Canada") == "CA"
+    assert detect_country("London, Victoria, United Kingdom") == "UK"
+    assert detect_country("Pimlico, Victoria, London, UK") == "UK"
+    assert detect_country("Houston, Victoria, Texas") == "US"
+
+
+def test_detect_country_queensland_road_is_not_misclassified_au():
+    """Same collision class as "victoria", found in the same review round:
+    "Queensland Road" is a real London street. Fixed the same way — AU's
+    "queensland" marker only fires in the trailing-comma state-name shape
+    ("<Town>, Queensland"), which "Queensland Road, ..." never has (the
+    word leads the string, immediately followed by "Road", not preceded by
+    a comma)."""
+    assert detect_country("Queensland Road, London") == "UK"
+    assert detect_country("Queensland Road, Islington, London, UK") == "UK"
+
+
+def test_detect_country_ambiguous_colliding_city_defaults_au_by_design():
+    """Documented, deliberately accepted residual gap (see the comment above
+    _AU_STATE_SUFFIX_RE in jd_geo.py): a colliding city/street name from
+    another country with NO explicit country qualifier at all is
+    indistinguishable, by marker presence alone, from the genuine
+    "Hamilton, Victoria" audit case — both are "<foreign city>, Victoria"
+    with no stronger signal on either side. Resolving this perfectly would
+    need a real gazetteer of AU vs. non-AU place names; this platform's own
+    documented design philosophy (AU checked first, "highest signal density
+    in production right now") already biases toward AU in exactly this kind
+    of genuine ambiguity, so these pin the current, intentional, non-gazetteer
+    behaviour rather than silently drifting if it ever changes."""
+    assert detect_country("Vancouver Island, Victoria") == "AU"
+    assert detect_country("London, Victoria") == "AU"
+    assert detect_country("Langford, Victoria, BC") == "AU"
 
 
 def test_detect_country_unknown_returns_none():
@@ -169,3 +213,25 @@ def test_no_jd_country_means_no_mismatch():
 def test_empty_fact_text_is_not_mismatch():
     assert fact_text_country_mismatch("", "AU") is False
     assert fact_text_country_mismatch(None, "AU") is False
+
+
+def test_au_fact_on_non_au_jd_is_mismatch():
+    """Independent review noted every existing test above used jd_country
+    == "AU" — this exercises the reverse direction, the other value that
+    matters given fact_text_country_mismatch skips its own jd_country's
+    markers (jd_geo.py's `if cc == jd_country: continue`)."""
+    fact = "Operates aged care facilities across Sydney NSW and Melbourne."
+    assert fact_text_country_mismatch(fact, "CA") is True
+
+
+def test_fact_mentioning_victoria_or_queensland_alone_is_not_flagged_as_au_mismatch():
+    """Documents a deliberate, conservative scope boundary (see the C26 fix
+    commit message): fact_text_country_mismatch iterates _COUNTRY_MARKERS
+    directly, not detect_country, so it never gets the comma-anchored
+    "victoria"/"queensland" AU signal — a fact mentioning bare "Victoria" or
+    "Queensland" is never flagged as AU-relevant. This is the SAFE
+    direction (may keep a fact it could arguably drop), the opposite of the
+    original bug's over-filtering direction, and not one of finding #56's
+    proven failure cases — left as an explicit, documented boundary."""
+    fact = "Operates aged care facilities across regional Victoria and Queensland."
+    assert fact_text_country_mismatch(fact, "CA") is False
