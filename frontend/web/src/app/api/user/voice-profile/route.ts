@@ -21,6 +21,7 @@ import { createAdminClient }                                   from "@/lib/supab
 import { getActiveAiCredentials }                              from "@/lib/ai/activeProvider";
 import { extractVoiceFingerprint, CvBackendError }             from "@/lib/cv/backend";
 import { type SourceTag } from "@/features/cv/voice/types";
+import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 import { jsonError, withUser } from "@/lib/api-utils";
 
 export const runtime     = "nodejs";
@@ -45,6 +46,11 @@ export const GET = withUser(async (_req, _ctx, { user }) => {
 // ── POST ──────────────────────────────────────────────────────────────────────
 
 export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
+
+  // Rate limit: a real AI call against the single platform-wide provider
+  // key (BYOK removed, D20) — every user shares one budget.
+  const rl = await rateLimit(`voice-profile:${user.id}`, 10, 60);
+  if (!rl.allowed) return jsonError(RATE_LIMIT_MESSAGE, 429);
 
   let body: { voice_sample_text?: unknown; source?: unknown };
   try { body = await req.json(); }
