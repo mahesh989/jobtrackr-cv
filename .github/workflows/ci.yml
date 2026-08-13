@@ -64,6 +64,19 @@ jobs:
       # needs no credentials, so it runs everywhere.
       - name: Schema guard self-test
         run: node shared/supabase/scripts/check-code-schema.mjs --self-test
+      # C5b — proves check_user_auth_methods/replace_stories/consume_usage
+      # (chunk C5's exploit, #43/#44) stay unreachable by the anon role, so a
+      # future signature change (DROP+CREATE, not just CREATE OR REPLACE)
+      # can't silently reopen the grant via ALTER DEFAULT PRIVILEGES with no
+      # failing test. SKIPS until SUPABASE_ANON_KEY (the PUBLIC anon key,
+      # not a secret in the security sense) is added as a repo secret.
+      - name: RPC-grant guard self-test
+        run: node shared/supabase/scripts/check-rpc-grants.mjs --self-test
+      - name: RPC-grant guard (C5)
+        run: node shared/supabase/scripts/check-rpc-grants.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
   web-typecheck:
     name: web · typecheck
