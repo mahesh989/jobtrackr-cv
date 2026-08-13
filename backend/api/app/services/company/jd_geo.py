@@ -32,6 +32,8 @@ _COUNTRY_MARKERS: dict[str, tuple[str, ...]] = {
     "AU": (
         "australia", "australian",
         "nsw", "vic", "qld", "wa", "tas", "act", "nt",
+        "new south wales", "victoria", "queensland", "western australia",
+        "tasmania", "australian capital territory", "northern territory",
         "sydney", "melbourne", "brisbane", "perth", "adelaide", "hobart",
         "canberra", "darwin", "gold coast", "newcastle", "wollongong",
     ),

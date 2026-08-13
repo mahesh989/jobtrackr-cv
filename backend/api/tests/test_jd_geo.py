@@ -44,6 +44,36 @@ def test_detect_country_ca_and_nz():
     assert detect_country("Auckland, New Zealand") == "NZ"
 
 
+def test_detect_country_au_regional_town_with_full_state_name():
+    """C26 / finding #56 — the AU marker list only had state ABBREVIATIONS
+    (nsw/vic/qld/wa/tas/act/nt), not full state names. A regional AU town
+    not already in the AU city list (Dubbo, Geelong) paired with a JD that
+    spells the state out in full had nothing in the AU list to match,
+    so the search fell through to other countries' markers instead —
+    "wales" (UK), "hamilton" (NZ) — or matched nothing at all. Reproduced
+    verbatim from the audit."""
+    assert detect_country("Dubbo, New South Wales") == "AU"
+    assert detect_country("Hamilton, Victoria") == "AU"
+    assert detect_country("Geelong, Victoria") == "AU"
+
+
+def test_detect_country_au_every_full_state_and_territory_name():
+    assert detect_country("Some Town, New South Wales") == "AU"
+    assert detect_country("Some Town, Victoria") == "AU"
+    assert detect_country("Some Town, Queensland") == "AU"
+    assert detect_country("Some Town, Western Australia") == "AU"
+    assert detect_country("Some Town, Tasmania") == "AU"
+    assert detect_country("Some Town, Australian Capital Territory") == "AU"
+    assert detect_country("Some Town, Northern Territory") == "AU"
+
+
+def test_detect_country_genuine_uk_wales_still_resolves_uk():
+    """Guard against overcorrection: adding "new south wales" as an AU
+    marker must not stop a genuinely UK "Wales" JD from resolving UK."""
+    assert detect_country("Cardiff, Wales") == "UK"
+    assert detect_country("Wales, United Kingdom") == "UK"
+
+
 def test_detect_country_unknown_returns_none():
     """Conservative — return None rather than guess for locations we don't
     confidently match. Downstream code treats None as 'skip geo gates'."""
