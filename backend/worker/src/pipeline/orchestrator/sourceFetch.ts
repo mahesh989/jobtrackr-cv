@@ -11,6 +11,40 @@ import { SEEK_MONTHLY_BUDGET_USD } from "./apifyIntegration.js";
 import type { FullProfile, UserIntegration, SourceMethods, SubscriptionTier } from "./types.js";
 
 /**
+ * SEEK counts as "covered" only if a scrape was actually ATTEMPTED this run
+ * (not skipped because the bucket serve is fresh/locked, or because SEEK is
+ * disabled for this profile) AND it either returned results or legitimately
+ * succeeded empty. A 403→0-item-actor chain yields nothing and is NOT marked
+ * covered, so the slice stays stale and SEEK is retried next run instead of
+ * being cached as fresh for the TTL window.
+ *
+ * B5-P2: the ORIGINAL condition (`seekEnabled && (seekRawCount > 0 ||
+ * !seekDirectFailed)`) omitted the bucketSkipScrape check — `seekDirectFailed`
+ * is only ever set to `true` inside the branch that actually attempts a
+ * fetch, so on a run that skips scraping entirely (bucketSkipScrape),
+ * `seekDirectFailed` sits at its unset default `false`, `!seekDirectFailed`
+ * evaluates `true`, and the slice got marked freshly covered despite SEEK
+ * never having been touched. On a future run that condition (bucket
+ * fresh/locked) still triggered a skip, but coverage still looked fresh
+ * from the LAST skip — a self-sustaining skip loop where SEEK is never
+ * actually scraped again yet always looks covered.
+ *
+ * Extracted as a pure function for testability — mocking the whole stage-2
+ * orchestrator (DB, adapters, healthTracker, Apify) just to test one boolean
+ * decision isn't worth it.
+ */
+export function shouldMarkSeekCovered(params: {
+  seekEnabled: boolean;
+  bucketSkipScrape: boolean;
+  seekRawCount: number;
+  seekDirectFailed: boolean;
+}): boolean {
+  const { seekEnabled, bucketSkipScrape, seekRawCount, seekDirectFailed } = params;
+  if (!seekEnabled || bucketSkipScrape) return false;
+  return seekRawCount > 0 || !seekDirectFailed;
+}
+
+/**
  * Stage 2 - the source layer.
  *
  * The generic adapters are independent origins that never write to the DB and
@@ -241,11 +275,11 @@ export async function fetchFromSources(
     }
   }
 
-  // SEEK counts as "covered" only if it returned results OR direct succeeded
-  // (legitimately empty). A 403→0-item-actor chain yields nothing and is NOT
-  // marked covered, so the slice stays stale and SEEK is retried next run
-  // instead of being cached as fresh for the TTL window.
-  if (seekEnabled && (seekRawCount > 0 || !seekDirectFailed)) coverageSources.add("seek");
+  // SEEK counts as "covered" only if a scrape was actually ATTEMPTED this run
+  // AND it either returned results or legitimately succeeded empty.
+  if (shouldMarkSeekCovered({ seekEnabled, bucketSkipScrape, seekRawCount, seekDirectFailed })) {
+    coverageSources.add("seek");
+  }
 
   // Careerjet listings run in the adapters[] loop above via the free v4 API
   // (snippet). Full JDs are enriched later at stage 7c via the JD-fetcher
