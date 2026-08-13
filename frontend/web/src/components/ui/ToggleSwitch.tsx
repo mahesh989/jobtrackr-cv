@@ -25,9 +25,13 @@ export function ToggleSwitch({
       } ${disabled ? "opacity-60" : ""} ${className}`.trim()}
     >
       <span
-        className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-          checked ? "translate-x-[18px]" : "translate-x-[3px]"
-        }`}
+        className={`inline-block h-3.5 w-3.5 transform rounded-full transition-transform ${
+          // On (bg-[var(--brand)] track): brand-fg, same token the brand
+          // CTAs use, so the knob stays visible on every theme — a plain
+          // white knob was 1.57:1 on Gilded Noir / 1.63:1 on Aurora Dark.
+          // Off (bg-[var(--border)] track) is unaffected — untouched.
+          checked ? "bg-brand-fg" : "bg-white"
+        } ${checked ? "translate-x-[18px]" : "translate-x-[3px]"}`}
       />
     </button>
   );

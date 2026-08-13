@@ -500,7 +500,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
             </button>
           )}
           {!letter && (
-            <button onClick={() => handleGenerate(false)} disabled={loading} className="rounded bg-brand px-3 py-1.5 text-label font-medium text-white hover:opacity-90 disabled:opacity-50">
+            <button onClick={() => handleGenerate(false)} disabled={loading} className="rounded bg-brand px-3 py-1.5 text-label font-medium text-brand-fg hover:opacity-90 disabled:opacity-50">
               {loading ? "Generating options…" : "Generate cover letter"}
             </button>
           )}
@@ -560,7 +560,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
             <button
               onClick={() => handleGenerate(false)}
               disabled={loading}
-              className="rounded bg-brand px-3 py-1.5 text-label font-medium text-white hover:opacity-90 disabled:opacity-50"
+              className="rounded bg-brand px-3 py-1.5 text-label font-medium text-brand-fg hover:opacity-90 disabled:opacity-50"
             >
               {loading ? "Generating options…" : "Generate cover letter"}
             </button>
@@ -588,7 +588,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
                 <button
                   onClick={() => handlePick(variant.id)}
                   disabled={pickingId !== null}
-                  className="rounded bg-brand px-3 py-1.5 text-label font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+                  className="rounded bg-brand px-3 py-1.5 text-label font-medium text-brand-fg hover:opacity-90 disabled:opacity-50 transition-opacity"
                 >
                   {pickingId === variant.id ? "Confirming…" : "Use this opener"}
                 </button>
@@ -779,7 +779,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
               <button
                 onClick={handleDownloadPDF}
                 disabled={downloading}
-                className="rounded bg-brand px-3 py-1.5 text-label font-medium text-white hover:opacity-90 disabled:opacity-50"
+                className="rounded bg-brand px-3 py-1.5 text-label font-medium text-brand-fg hover:opacity-90 disabled:opacity-50"
               >
                 {downloading ? "Generating…" : "Download"}
               </button>

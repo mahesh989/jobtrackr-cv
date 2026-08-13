@@ -705,7 +705,7 @@ export function ApplyModal({
                           type="button"
                           onClick={confirmApplied}
                           disabled={!!busy}
-                          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-success py-2 text-body font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-success py-2 text-body font-medium text-success-fg transition-opacity hover:opacity-90 disabled:opacity-50"
                         >
                           {busy === "source"
                             ? <Loader2 className="h-4 w-4 animate-spin" />
