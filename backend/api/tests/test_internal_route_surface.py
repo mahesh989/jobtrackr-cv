@@ -12,8 +12,12 @@ it stays green across the internal.py → routers/ refactor and guards it.
 """
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.main import app, fastapi_app
 
+# TestClient wraps the REAL exported app (RequestIdMiddleware included) so
+# this test exercises what's actually served, not just the inner FastAPI
+# instance. Route introspection below needs fastapi_app specifically —
+# `app` is a plain ASGI wrapper with no `.routes` attribute (#15).
 client = TestClient(app)
 
 # (method, path) for every internal endpoint. Path params use a literal so the
@@ -42,14 +46,14 @@ def _discovered_internal_routes():
     """Every /internal/* (method, path) FastAPI actually has registered right now."""
     return {
         (m, r.path)
-        for r in app.routes
+        for r in fastapi_app.routes
         for m in (getattr(r, "methods", set()) or set())
         if getattr(r, "path", "").startswith("/internal/")
     }
 
 
 def test_all_internal_routes_registered():
-    registered = {(m, r.path) for r in app.routes for m in getattr(r, "methods", set()) or set()}
+    registered = {(m, r.path) for r in fastapi_app.routes for m in getattr(r, "methods", set()) or set()}
     for method, path in EXPECTED:
         assert (method, path) in registered, f"missing route: {method} {path}"
 
