@@ -263,9 +263,20 @@ _SECTION_ALIASES: Dict[str, str] = {
     "honors":                       "awards",
     "references":                   "references",
     "referees":                     "references",
+    # Role-pack headings (verticals/nursing/config.py, verticals/manual/config.py)
+    # — each vertical's own section_order names these, but the PDF's canonical
+    # order didn't know them, so they fell into "extras" and rendered dead
+    # last regardless of where the vertical intended them (finding #25 / C22).
+    "registration & licences":      "registration",
+    "registration & licenses":      "registration",
+    "certifications & checks":      "certifications",
+    "availability":                 "availability",
 }
 
-_SECTION_ORDER = ["highlights", "experience", "education", "skills", "projects", "certifications", "awards", "references"]
+_SECTION_ORDER = [
+    "highlights", "experience", "education", "skills", "projects",
+    "certifications", "registration", "awards", "references", "availability",
+]
 
 _SECTION_LABELS = {
     "highlights":     "Profile",
@@ -274,6 +285,8 @@ _SECTION_LABELS = {
     "skills":         "Skills",
     "projects":       "Projects",
     "certifications": "Professional Certifications",
+    "registration":   "Registration & Licences",
     "awards":         "Awards",
     "references":     "References",
+    "availability":   "Availability",
 }
