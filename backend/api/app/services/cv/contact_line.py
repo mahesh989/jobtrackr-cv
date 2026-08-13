@@ -164,6 +164,24 @@ def _normalise_url(value: Optional[str]) -> str:
 # heading and let the role-pack rename it via to_canonical/restore_and_order.
 _CREDENTIALS_HEADING = "## Registration & Licences"
 
+# Every heading name the credentials section can carry BY THE TIME
+# stamp_credentials runs (i.e. after restore_and_order has already renamed
+# canonical headings back to the family's own names). Matching only the
+# literal "registration & licences" missed both of these, causing a second,
+# duplicate section to be appended instead of the existing one being
+# replaced in place (#57 audit, C23):
+#   • "checks & clearances" — restore_and_order's _relabel_registration
+#     renames the nursing section to this for an unregistered care worker
+#     (clearances only, no AHPRA) — the DEFAULT case for that user segment.
+#   • "certifications & checks" — the manual role-pack's OWN canonical name
+#     for this section (_TO_CANONICAL's reverse mapping restores it before
+#     stamp_credentials runs) — every manual CV hits this, not just some.
+_CREDENTIALS_HEADING_ALIASES = frozenset({
+    "registration & licences",
+    "checks & clearances",
+    "certifications & checks",
+})
+
 # Role families that surface credentials. Each picks a different subset of
 # the unified credentials JSON via build_credentials_line(family_id=...).
 _CREDENTIAL_FAMILIES = frozenset({"nursing", "manual"})
@@ -359,7 +377,7 @@ def stamp_credentials(
     # deterministic line so we never compound user input with AI noise.
     start_idx = next(
         (i for i, l in enumerate(lines)
-         if l.startswith("## ") and l[3:].strip().lower().rstrip(":") == "registration & licences"),
+         if l.startswith("## ") and l[3:].strip().lower().rstrip(":") in _CREDENTIALS_HEADING_ALIASES),
         -1,
     )
     if start_idx >= 0:
