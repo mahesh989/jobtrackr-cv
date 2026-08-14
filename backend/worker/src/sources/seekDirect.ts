@@ -90,6 +90,11 @@ function extractRedux(html: string): ReduxData | null {
   }
 }
 
+// Real AU state names that happen to END in the word "Australia" — must
+// survive the redundant-suffix strip below unchanged, unlike a country
+// suffix a user appends to an otherwise valid location.
+const AU_STATE_NAMES_ENDING_IN_AUSTRALIA = new Set(["western australia", "south australia"]);
+
 /**
  * Normalise a user-entered profile location to what SEEK's `where` param
  * accepts. SEEK understands city names ("Sydney NSW"), state names
@@ -98,13 +103,22 @@ function extractRedux(html: string): ReduxData | null {
  *
  * Returns empty string for AU-wide searches (no `where` param).
  */
-function normaliseSeekLocation(raw: string): string {
-  let loc = raw.trim();
-  // Strip trailing ", Australia" or " Australia" (case-insensitive)
-  loc = loc.replace(/,?\s*australia$/i, "").trim();
-  const low = loc.toLowerCase();
-  if (!low || low === "australia" || low === "all australia") return "";
-  return loc;
+export function normaliseSeekLocation(raw: string): string {
+  const loc = raw.trim();
+  const lowFull = loc.toLowerCase();
+  if (!lowFull) return "";
+  // AU-wide sentinels — checked on the ORIGINAL string, before any
+  // stripping, so a trailing-"Australia" strip can never corrupt them
+  // (previously "All Australia" -> stripped to "All" -> sentinel check
+  // ran too late to ever match, making this branch unreachable — finding
+  // #21 / C28).
+  if (lowFull === "australia" || lowFull === "all australia") return "";
+  if (AU_STATE_NAMES_ENDING_IN_AUSTRALIA.has(lowFull)) return loc;
+  // Strip a redundant trailing ", Australia" / " Australia" suffix a user
+  // sometimes appends to an otherwise valid location, e.g.
+  // "Sydney, Australia" -> "Sydney".
+  const stripped = loc.replace(/,?\s*australia$/i, "").trim();
+  return stripped;
 }
 
 function buildSearchUrl(keyword: string, location: string, page: number, dateRange: number): string {

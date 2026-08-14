@@ -30,12 +30,29 @@ interface AdzunaResponse {
   count: number;
 }
 
+// Trailing AU state token (abbreviation or full name), optionally preceded
+// by a comma — the part normalizeLocation actually needs to strip.
+const AU_STATE_SUFFIX_RE = new RegExp(
+  "[,\\s]+(NSW|VIC|QLD|WA|SA|TAS|ACT|NT" +
+  "|New South Wales|Victoria|Queensland|Western Australia|South Australia" +
+  "|Tasmania|Australian Capital Territory|Northern Territory)\\s*$",
+  "i",
+);
+
 /**
  * Normalize location — Adzuna works best with city name only.
  * "Sydney NSW" → "Sydney", "Melbourne, VIC" → "Melbourne"
+ *
+ * Strips a trailing AU state token, not just the first whitespace-split
+ * token — a bare `.split(/[,\s]+/)[0]` truncated every multi-word city
+ * name ("Gold Coast" → "Gold", "Alice Springs" → "Alice", "Port
+ * Macquarie" → "Port", "Wagga Wagga" → "Wagga") since it had no state
+ * suffix to strip in the first place (finding #20 / C28).
  */
-function normalizeLocation(location: string): string {
-  return location.split(/[,\s]+/)[0].trim() || "Australia";
+export function normalizeLocation(location: string): string {
+  const trimmed = location.trim();
+  if (!trimmed) return "Australia";
+  return trimmed.replace(AU_STATE_SUFFIX_RE, "").trim() || "Australia";
 }
 
 async function fetchPage(params: URLSearchParams, page: number): Promise<AdzunaResult[]> {
