@@ -24,9 +24,13 @@ import { createAdminClient }         from "@/lib/supabase/admin";
 import { getStripe, STRIPE_WEBHOOK_SECRET } from "@/lib/billing/stripe";
 import { upsertFromSubscription } from "@/lib/billing/syncSubscription";
 import { jsonError } from "@/lib/api-utils";
-import { runIdempotent, type IdempotencyStore } from "@/lib/billing/webhookIdempotency";
+import { runIdempotent, outcomeToHttpResponse } from "@/lib/billing/webhookIdempotency";
+import { createStripeEventStore } from "@/lib/billing/stripeEventStore";
 
 export const runtime = "nodejs";
+// stripeEventStore.ts's claim staleness window (45s) is sized just above
+// this — keep them in sync if either changes (independent review, round 2).
+export const maxDuration = 20;
 
 export async function POST(req: NextRequest) {
   const sig = req.headers.get("stripe-signature");
@@ -45,47 +49,13 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient();
 
-  // Idempotency store backed by stripe_events. Claim = insert; on a
-  // transient handler failure the claim is RELEASED (row deleted) so
-  // Stripe's retry re-runs the handler instead of being permanently
-  // swallowed as a duplicate — see BUG #36 / webhookIdempotency.ts.
-  const store: IdempotencyStore = {
-    async claim(eventId, type) {
-      const { error: dupeErr } = await admin
-        .from("stripe_events").insert({ event_id: eventId, type });
-      if (dupeErr) {
-        // Unique violation = already claimed (in progress or processed).
-        // Anything else, log but proceed — a transient insert error must
-        // not silently drop a Stripe event.
-        if (dupeErr.code === "23505") return { duplicate: true };
-        console.error("[billing/webhook] dedupe insert error:", dupeErr.message);
-      }
-      return { duplicate: false };
-    },
-    async release(eventId) {
-      // One retry: release() commonly fails in the SAME outage that just
-      // failed the handler (e.g. a PostgREST 503 lasting a few seconds) —
-      // independent review of this chunk named this as the residual case
-      // where BUG #36 survives unfixed (claim never released -> the next
-      // Stripe retry is wrongly treated as a duplicate again). A brief
-      // retry closes most of that window without adding real complexity;
-      // it does not close it entirely (a durable fix needs a
-      // claimed_at/status column — schema change, out of scope here).
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        const { error } = await admin.from("stripe_events").delete().eq("event_id", eventId);
-        if (!error) return;
-        if (attempt === 1) {
-          // Brief delay before the one retry — a zero-delay retry against
-          // an outage still in progress has little chance of succeeding.
-          await new Promise((resolve) => setTimeout(resolve, 300));
-        } else {
-          // RELEASE_FAILED prefix is deliberately greppable/alertable —
-          // this exact case silently reintroduces #36 for this one event.
-          console.error("[billing/webhook] RELEASE_FAILED — dedupe row not cleared, next retry will be wrongly treated as a duplicate:", eventId, error.message);
-        }
-      }
-    },
-  };
+  // Idempotency store backed by stripe_events, via the claim_stripe_event()
+  // Postgres function (migrations/011_stripe_events_claim_status.sql) — a
+  // durable status column + row-locked atomic claim decision, replacing
+  // the original insert/delete design (BUG #36) once its own two residuals
+  // (BUG-25 F3/F4 — no forensic trace, no ownership token on release) were
+  // found by independent review. See stripeEventStore.ts.
+  const store = createStripeEventStore(admin);
 
   const outcome = await runIdempotent(store, event.id, event.type, async () => {
     switch (event.type) {
@@ -137,16 +107,24 @@ export async function POST(req: NextRequest) {
     }
   });
 
-  if (outcome.status === "duplicate") {
-    return NextResponse.json({ received: true, duplicate: true });
-  }
   if (outcome.status === "failed") {
     const err = outcome.error;
     console.error("[billing/webhook] handler error:", err instanceof Error ? err.message : err);
-    // 500 → Stripe retries with backoff. The dedupe claim was released
-    // above, so the retry re-runs the handler instead of being swallowed.
-    return jsonError("Handler failed", 500);
   }
-
-  return NextResponse.json({ received: true });
+  if (outcome.status === "in-flight") {
+    // Greppable — this is the one operationally interesting new signal
+    // this chunk introduces: it means concurrent deliveries of the same
+    // event are genuinely happening, and it will show up as a "failed"
+    // 409 delivery in the Stripe dashboard (round-2 review, N3). Expected
+    // and self-resolving (Stripe's own retry converges once the
+    // original claim settles), not a real failure.
+    console.warn("[billing/webhook] CLAIM_IN_FLIGHT_409 — genuinely concurrent delivery of a still-fresh claim, asking Stripe to retry:", event.id);
+  }
+  // outcomeToHttpResponse is the actual fix for BUG-25 F3 (independent
+  // review, round 2): "duplicate" (a TRUE, already-succeeded duplicate)
+  // gets a 2xx; "in-flight" (a genuinely concurrent delivery whose
+  // original claim is still fresh and might yet fail) does NOT — Stripe
+  // must keep retrying it rather than receive a false all-clear.
+  const { status, body } = outcomeToHttpResponse(outcome);
+  return NextResponse.json(body, { status });
 }
