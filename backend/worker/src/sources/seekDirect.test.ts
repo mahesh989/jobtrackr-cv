@@ -8,8 +8,19 @@
  * `all australia` branch (meant to signal "no where param, search all of
  * AU") was completely unreachable — no input could ever reach it.
  *
- * Fix: check the AU-wide sentinels and the two state names ending in
- * "Australia" against the ORIGINAL string, before any stripping.
+ * Fix: check the AU-wide sentinels against the ORIGINAL string, before
+ * any stripping, and use a negative-lookbehind on the redundant-suffix
+ * strip itself so "Western "/"South " immediately before "Australia"
+ * blocks the strip — regardless of whether a city precedes them.
+ *
+ * Round 2 (independent review): the round-1 fix only guarded the BARE
+ * state name via an exact string-equality Set lookup — "Perth, Western
+ * Australia" still fell through to the redundant-suffix strip and became
+ * "Perth, Western", the identical failure mode finding #21 describes one
+ * input shape over. This is exactly the shape the sibling adzuna.test.ts
+ * already asserted as realistic input to the same `profile.location`
+ * field, so the two adapters disagreed on it. The lookbehind fix covers
+ * both the bare and city-qualified shapes with one mechanism.
  */
 import { describe, it, expect } from "vitest";
 import { normaliseSeekLocation } from "./seekDirect.js";
@@ -22,6 +33,12 @@ describe("normaliseSeekLocation", () => {
 
   it("is case-insensitive for the state-name preservation too", () => {
     expect(normaliseSeekLocation("western australia")).toBe("western australia");
+  });
+
+  it("preserves the state name even when a city precedes it (round 2)", () => {
+    expect(normaliseSeekLocation("Perth, Western Australia")).toBe("Perth, Western Australia");
+    expect(normaliseSeekLocation("Adelaide South Australia")).toBe("Adelaide South Australia");
+    expect(normaliseSeekLocation("Perth Western Australia")).toBe("Perth Western Australia");
   });
 
   it("the All Australia sentinel is reachable and returns empty (AU-wide search)", () => {

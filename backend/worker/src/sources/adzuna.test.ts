@@ -10,6 +10,16 @@
  * Fix: strip a trailing AU state token (abbreviation or full name),
  * rather than truncating to the first token — a multi-word city with no
  * state suffix now passes through unchanged.
+ *
+ * Round 2 (independent review): the state-only strip regressed a case the
+ * original (buggy) first-token split handled as a side effect —
+ * "Sydney, Australia" no longer reduced to "Sydney" at all, since
+ * "Australia" isn't a state token. Added a chained country-suffix strip,
+ * only re-running the state strip a second time when the country strip
+ * actually removed something — running it unconditionally twice would
+ * cascade onto ordinary city names whose own second word happens to be a
+ * state name too ("Mount Victoria NSW" would wrongly become "Mount"
+ * instead of "Mount Victoria").
  */
 import { describe, it, expect } from "vitest";
 import { normalizeLocation } from "./adzuna.js";
@@ -44,5 +54,32 @@ describe("normalizeLocation", () => {
   it("falls back to Australia for empty input", () => {
     expect(normalizeLocation("")).toBe("Australia");
     expect(normalizeLocation("   ")).toBe("Australia");
+  });
+
+  it("strips a redundant trailing country suffix (round 2)", () => {
+    expect(normalizeLocation("Sydney, Australia")).toBe("Sydney");
+    expect(normalizeLocation("Sydney Australia")).toBe("Sydney");
+  });
+
+  it("fully reduces City, STATE, Australia by chaining both strips (round 2)", () => {
+    expect(normalizeLocation("Gold Coast, QLD, Australia")).toBe("Gold Coast");
+  });
+
+  it("falls back to Australia for a bare state name with no city (round 2)", () => {
+    expect(normalizeLocation("Western Australia")).toBe("Australia");
+    expect(normalizeLocation("South Australia")).toBe("Australia");
+  });
+
+  it("does not cascade the state strip onto a city name containing a state word, when there is no country suffix to trigger the second pass (round 2 regression guard)", () => {
+    expect(normalizeLocation("Mount Victoria NSW")).toBe("Mount Victoria");
+    expect(normalizeLocation("Port Victoria SA")).toBe("Port Victoria");
+  });
+
+  it("leaves a fully-qualified street address's numeric suffix untouched", () => {
+    expect(normalizeLocation("Sydney NSW 2000")).toBe("Sydney NSW 2000");
+  });
+
+  it("known, accepted tradeoff: a BARE city name whose own last word is a real state name still truncates — not solvable without a place-name gazetteer, see the source comment", () => {
+    expect(normalizeLocation("Mount Victoria")).toBe("Mount");
   });
 });

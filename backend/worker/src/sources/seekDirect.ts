@@ -90,11 +90,6 @@ function extractRedux(html: string): ReduxData | null {
   }
 }
 
-// Real AU state names that happen to END in the word "Australia" — must
-// survive the redundant-suffix strip below unchanged, unlike a country
-// suffix a user appends to an otherwise valid location.
-const AU_STATE_NAMES_ENDING_IN_AUSTRALIA = new Set(["western australia", "south australia"]);
-
 /**
  * Normalise a user-entered profile location to what SEEK's `where` param
  * accepts. SEEK understands city names ("Sydney NSW"), state names
@@ -113,12 +108,17 @@ export function normaliseSeekLocation(raw: string): string {
   // ran too late to ever match, making this branch unreachable — finding
   // #21 / C28).
   if (lowFull === "australia" || lowFull === "all australia") return "";
-  if (AU_STATE_NAMES_ENDING_IN_AUSTRALIA.has(lowFull)) return loc;
   // Strip a redundant trailing ", Australia" / " Australia" suffix a user
-  // sometimes appends to an otherwise valid location, e.g.
-  // "Sydney, Australia" -> "Sydney".
-  const stripped = loc.replace(/,?\s*australia$/i, "").trim();
-  return stripped;
+  // sometimes appends to an otherwise valid location, e.g. "Sydney,
+  // Australia" -> "Sydney" — but NOT when "Australia" is itself the tail
+  // of a real AU state name ("Western Australia", "South Australia"),
+  // regardless of whether a city precedes it. Round-1 fix only guarded
+  // the BARE state name (an exact-match Set lookup) — "Perth, Western
+  // Australia" still fell through to the bare strip and became "Perth,
+  // Western", the identical failure mode finding #21 describes one input
+  // shape over. The lookbehind blocks the strip whenever "Australia" is
+  // immediately preceded by "Western "/"South ", city-qualified or not.
+  return loc.replace(/,?\s*(?<!\bwestern\s)(?<!\bsouth\s)australia$/i, "").trim();
 }
 
 function buildSearchUrl(keyword: string, location: string, page: number, dateRange: number): string {
