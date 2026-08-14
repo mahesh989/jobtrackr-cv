@@ -528,7 +528,7 @@ export async function getDashboardData(args: {
     { data: countRows },
     { data: runLogData },
     { data: completedRuns },
-    { count: anyJobCount },
+    { count: anyJobCount, error: anyJobCountError },
   ] = await Promise.all([
     q,
     dq,
@@ -554,8 +554,20 @@ export async function getDashboardData(args: {
       .limit(300),
     ids.length > 0
       ? supabase.from("jobs").select("id", { count: "exact", head: true }).in("profile_id", ids)
-      : Promise.resolve({ count: 0 }),
+      : Promise.resolve({ count: 0, error: null }),
   ]);
+
+  // A discarded error here previously fell straight into the first-run gate
+  // below (count ?? 0 -> 0 -> "empty") — a transient failure on this ONE
+  // query showed a real user with hundreds of jobs the "ready to scan"
+  // first-run screen, materially misrepresenting their account state. This
+  // is not a cosmetic badge (contrast Sidebar.tsx's log-and-degrade fix,
+  // C45) — thrown, caught by the existing (dashboard)/dashboard/error.tsx
+  // boundary, matching the fail-loud precedent set for C47 (audit finding,
+  // execution chunk C45).
+  if (anyJobCountError) {
+    throw new Error(`Failed to check whether the user has any jobs: ${anyJobCountError.message}`);
+  }
 
   // ── First-run gate ────────────────────────────────────────────────────────
   // Show the "ready to scan" empty state until jobs exist. The setup wizard
