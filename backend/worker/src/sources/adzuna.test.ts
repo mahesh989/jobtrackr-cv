@@ -20,6 +20,21 @@
  * cascade onto ordinary city names whose own second word happens to be a
  * state name too ("Mount Victoria NSW" would wrongly become "Mount"
  * instead of "Mount Victoria").
+ *
+ * Round 3 (independent review): round 2's fix for a BARE "Western
+ * Australia"/"South Australia" (letting the state-suffix regex match at
+ * the very start of the string) accidentally applied to ALL 15 state
+ * tokens, not just those two — "NSW", "Victoria", "New South Wales" etc.
+ * all wrongly collapsed to "Australia" when entered bare, discarding real
+ * location info (and, combined with the `distance` radius param this
+ * function's output feeds, turning a state-scoped search into a
+ * meaningless country-wide one). Fixed by reverting the state-suffix
+ * regex to require a preceding city (matching round 1 and dev-5's
+ * behaviour for all 15 bare tokens again) and instead giving the
+ * country-suffix strip the same Western/South lookbehind guard
+ * seekDirect.ts already uses — a bare state name now survives completely
+ * unchanged, same as seekDirect.ts, rather than falling back to
+ * "Australia".
  */
 import { describe, it, expect } from "vitest";
 import { normalizeLocation } from "./adzuna.js";
@@ -65,9 +80,18 @@ describe("normalizeLocation", () => {
     expect(normalizeLocation("Gold Coast, QLD, Australia")).toBe("Gold Coast");
   });
 
-  it("falls back to Australia for a bare state name with no city (round 2)", () => {
-    expect(normalizeLocation("Western Australia")).toBe("Australia");
-    expect(normalizeLocation("South Australia")).toBe("Australia");
+  it("leaves a bare state name with no city completely unchanged (round 3 — was wrongly falling back to Australia in round 2)", () => {
+    expect(normalizeLocation("Western Australia")).toBe("Western Australia");
+    expect(normalizeLocation("South Australia")).toBe("South Australia");
+  });
+
+  it("leaves every other bare state token unchanged too — round 2's fix regressed all 15, not just the 2 tested (round 3)", () => {
+    expect(normalizeLocation("NSW")).toBe("NSW");
+    expect(normalizeLocation("VIC")).toBe("VIC");
+    expect(normalizeLocation("Victoria")).toBe("Victoria");
+    expect(normalizeLocation("New South Wales")).toBe("New South Wales");
+    expect(normalizeLocation("Queensland")).toBe("Queensland");
+    expect(normalizeLocation("Tasmania")).toBe("Tasmania");
   });
 
   it("does not cascade the state strip onto a city name containing a state word, when there is no country suffix to trigger the second pass (round 2 regression guard)", () => {
@@ -81,5 +105,9 @@ describe("normalizeLocation", () => {
 
   it("known, accepted tradeoff: a BARE city name whose own last word is a real state name still truncates — not solvable without a place-name gazetteer, see the source comment", () => {
     expect(normalizeLocation("Mount Victoria")).toBe("Mount");
+  });
+
+  it("the cascade guard holds under a layered input (state-shaped city word + real state + country, all three at once)", () => {
+    expect(normalizeLocation("Mount Victoria, QLD, Australia")).toBe("Mount Victoria");
   });
 });

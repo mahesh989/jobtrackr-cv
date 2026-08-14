@@ -30,10 +30,21 @@ interface AdzunaResponse {
   count: number;
 }
 
-// Trailing AU state token (abbreviation or full name), preceded either by
-// a comma/whitespace OR the start of the string (so a BARE state name with
-// no city, e.g. "Western Australia" on its own, is matchable too — not
-// just a state token following a real city name).
+// Trailing AU state token (abbreviation or full name), preceded by a
+// comma/whitespace — i.e. following a real city name. Deliberately does
+// NOT also match at the very start of the string (round-3 fix,
+// independent review): an earlier draft used `(?:^|[,\s]+)` so a BARE
+// multi-word state name like "Western Australia" alone would reduce to
+// "Australia" — but that same start-of-string match ALSO fired for every
+// other bare state token (`"NSW"`, `"Victoria"`, `"New South Wales"`, all
+// 15 of them), discarding a real, useful location down to a bare country
+// fallback. Combined with `distance` also being sent as a search radius
+// (buildBaseParams), a bare "NSW" input silently became a radius search
+// centred on "Australia" — a materially broken query, not just a wider
+// one. Adzuna's own location taxonomy accepts state names directly
+// (Australia > New South Wales > Sydney), so a bare state name is left
+// UNCHANGED here now, same as seekDirect.ts already does — no fallback to
+// "Australia" for bare state input at all.
 //
 // Known, accepted tradeoff (independent review, non-blocking): a hand-typed
 // location with NO state qualifier at all, whose own last word happens to
@@ -45,20 +56,19 @@ interface AdzunaResponse {
 // signal present is not solvable without a full AU place-name gazetteer —
 // out of scope for this fix.
 const AU_STATE_SUFFIX_RE = new RegExp(
-  "(?:^|[,\\s]+)(NSW|VIC|QLD|WA|SA|TAS|ACT|NT" +
+  "[,\\s]+(NSW|VIC|QLD|WA|SA|TAS|ACT|NT" +
   "|New South Wales|Victoria|Queensland|Western Australia|South Australia" +
   "|Tasmania|Australian Capital Territory|Northern Territory)\\s*$",
   "i",
 );
 
 // Redundant trailing country suffix a user sometimes appends to an
-// otherwise valid location, e.g. "Sydney, Australia" -> "Sydney". Unlike
-// seekDirect.ts's sibling strip, this one does NOT need a Western/South
-// lookbehind guard — a bare "Western Australia"/"South Australia" is
-// caught by AU_STATE_SUFFIX_RE first in the chain below and reduced to
-// "", not left as a state name to preserve (Adzuna wants city-only, never
-// a fallback to the state name the way SEEK's `where` param can accept).
-const AU_COUNTRY_SUFFIX_RE = /,?\s*australia$/i;
+// otherwise valid location, e.g. "Sydney, Australia" -> "Sydney". Needs
+// the same Western/South lookbehind guard seekDirect.ts uses — now that
+// AU_STATE_SUFFIX_RE no longer reduces a bare "Western Australia"/"South
+// Australia" to "", this strip would otherwise wrongly mangle it to
+// "Western"/"South" on its own.
+const AU_COUNTRY_SUFFIX_RE = /,?\s*(?<!\bwestern\s)(?<!\bsouth\s)australia$/i;
 
 /**
  * Normalize location — Adzuna works best with city name only.
