@@ -17,8 +17,14 @@ export const runtime = "nodejs";
 export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
 
   const admin = createAdminClient();
-  const { data: sub } = await admin
+  const { data: sub, error } = await admin
     .from("subscriptions").select("stripe_customer_id").eq("user_id", user.id).maybeSingle();
+
+  // A discarded error here previously looked identical to "never
+  // subscribed" — a transient read failure told a paying customer they
+  // have no billing account instead of surfacing a retryable 500.
+  if (error) return jsonError(error.message, 500);
+
   const customerId = (sub as { stripe_customer_id?: string } | null)?.stripe_customer_id ?? null;
 
   if (!customerId) {

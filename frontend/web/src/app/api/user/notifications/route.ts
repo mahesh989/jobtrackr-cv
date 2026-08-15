@@ -9,11 +9,13 @@ import { jsonError, withUser } from "@/lib/api-utils";
 
 export const GET = withUser(async (_req, _ctx, { user, supabase }) => {
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("user_engagement")
     .select("notify_new_jobs")
     .eq("user_id", user.id)
     .maybeSingle();
+
+  if (error) return jsonError(error.message, 500);
 
   // Row may not exist yet (user pre-dates the touch RPC / migration 079
   // backfill only covers users existing at migration time) — default true.
@@ -40,13 +42,19 @@ export const PATCH = withUser(async (request: NextRequest, _ctx, { user, supabas
   // migration backfill) — only own-read/own-update. So: ensure the row
   // exists via the RPC first (no-op if already fresh, but always creates it
   // when missing), then UPDATE the preference, which own-update permits.
-  await supabase.rpc("touch_user_engagement");
+  const { error: touchError } = await supabase.rpc("touch_user_engagement");
+  if (touchError) return jsonError(touchError.message, 500);
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("user_engagement")
     .update({ notify_new_jobs: notifyNewJobs, updated_at: new Date().toISOString() })
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .select("user_id");
 
   if (error) return jsonError(error.message, 500);
+  // touch_user_engagement() guarantees the row exists by this point — a
+  // zero-row match here means the update silently no-op'd (RLS/race), which
+  // must not be reported as success on a consent-adjacent preference.
+  if (!data || data.length === 0) return jsonError("Preference could not be saved", 500);
   return NextResponse.json({ notify_new_jobs: notifyNewJobs });
 });

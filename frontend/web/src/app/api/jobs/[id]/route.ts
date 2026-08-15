@@ -153,18 +153,29 @@ export const PATCH = withUser(async (
 
   // Ownership check: load the job's profile_id, then verify the profile belongs
   // to the user. Service-role bypasses RLS so this check is non-optional.
-  const { data: job } = await admin
+  const { data: job, error: jobErr } = await admin
     .from("jobs")
     .select("id, profile_id")
     .eq("id", jobId)
     .maybeSingle();
+  // Fails closed either way (right direction for an ownership gate) — but
+  // a transient read failure previously returned the same 404 as "doesn't
+  // exist", a wrong, non-retryable error on a job that exists.
+  if (jobErr) {
+    console.error("[jobs/[id]] job ownership read failed:", jobErr.message);
+    return jsonError("Could not load job, try again", 500);
+  }
   if (!job) return jsonError("Job not found", 404);
 
-  const { data: profile } = await admin
+  const { data: profile, error: profileErr } = await admin
     .from("search_profiles")
     .select("user_id")
     .eq("id", job.profile_id)
     .maybeSingle();
+  if (profileErr) {
+    console.error("[jobs/[id]] profile ownership read failed:", profileErr.message);
+    return jsonError("Could not load job, try again", 500);
+  }
   if (!profile || profile.user_id !== user.id) {
     return jsonError("Job not found", 404);
   }

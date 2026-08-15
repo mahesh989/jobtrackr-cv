@@ -139,18 +139,26 @@ export const PATCH = withAdmin(async (req: NextRequest, _ctx, { userId, admin })
 
   if (body!.setActive === true) {
     // Require the provider to actually have a valid key before activating it.
-    const { data: row } = await admin
+    const { data: row, error: readErr } = await admin
       .from("platform_ai_settings")
       .select("status, encrypted_api_key")
       .eq("provider", p)
       .maybeSingle();
+    if (readErr) return jsonError(readErr.message, 500);
     if (!row?.encrypted_api_key || row.status !== "valid") {
       return NextResponse.json(
         { error: "Connect and validate a key for this provider before activating it." },
         { status: 422 },
       );
     }
-    await admin.from("platform_ai_settings").update({ is_active: false }).neq("provider", p);
+    const { error: deactivateErr } = await admin
+      .from("platform_ai_settings").update({ is_active: false }).neq("provider", p);
+    // A failed deactivate here previously proceeded silently — the new
+    // provider gets activated below regardless, but a still-active OLD
+    // provider means two providers report is_active:true simultaneously,
+    // breaking the single-admin-managed-provider invariant every AI-call
+    // site assumes. Abort before activating the new one.
+    if (deactivateErr) return jsonError(deactivateErr.message, 500);
     const { error: activateErr } = await admin
       .from("platform_ai_settings")
       .update({ is_active: true, updated_at: new Date().toISOString(), updated_by: userId })
