@@ -44,11 +44,108 @@ interface SeekItem {
 // ── Salary parsing ─────────────────────────────────────────────────────────────
 // Shared with seekDirect.ts (identical SEEK salary-label format on both paths).
 // Period alternation matches careerjet.ts's own H/D/W/M scaling, plus the AU
-// abbreviated forms ("p.h.", "p.d." etc) that this free-text label commonly uses.
-const HOURLY_RE  = /per\s*hour|hourly|\/hr|p\.?h\.?/i;
-const DAILY_RE   = /per\s*day|daily|p\.?d\.?/i;
-const WEEKLY_RE  = /per\s*week|weekly|p\.?w\.?/i;
-const MONTHLY_RE = /per\s*month|monthly|p\.?m\.?/i;
+// abbreviated forms ("p.h.", "p.d." etc) this free-text label commonly uses.
+//
+// C29b (6 review rounds — see EXECUTION-LOG.md [C29b] for the full history,
+// summarized here since the final shape isn't self-explanatory):
+//
+// Both the abbreviated forms ("ph"/"pd"/"pw"/"pm", punctuation optional) and
+// the bare word forms ("daily"/"weekly"/"monthly"/"hourly") are, on their
+// own, indistinguishable from ordinary English substrings genuinely present
+// in real SEEK labels — "Phone", "Physiotherapist", "(PM)", "9am-5pm",
+// "monthly commission/incentive", "weekly on-call allowance" all matched and
+// mis-scaled a correct figure by 12x-2080x. An enumerated exclusion-noun
+// blocklist is unfixably incomplete against an unbounded vocabulary and
+// regressed genuine cases like "$45 hourly pay" — replaced with a
+// magnitude-plausibility gate instead (mirrors ai/jdFacts.ts's own "hourly
+// rates above $500... are misparses"): a period match is only trusted if
+// the RAW (pre-scale) figure is a plausible magnitude for that period
+// (MAX_PLAUSIBLE_RAW). A separate STRONG/WEAK split (explicit "per day" /
+// bare "daily" vs the collision-prone abbreviations) stops a spurious
+// abbreviation match from being preferred over an unambiguous marker.
+//
+// Neither fix alone was enough: with MULTIPLE plausible candidates in the
+// SAME tier (e.g. "$1,800 per week + daily site allowance" — both "per
+// week" and "daily" are present, and $1,800 is plausible as EITHER a
+// weekly or a daily rate), a fixed H>D>W>M precedence order still picked
+// whichever period happened to be checked first, not whichever marker was
+// actually describing the headline figure. Fixed with PROXIMITY: among all
+// plausible candidates in a tier, the marker positioned CLOSEST to the
+// first number in the raw text wins — the qualifier immediately next to a
+// number is what describes it, matching how these labels read in English.
+// STRONG tier is still tried in full before WEAK (an unambiguous marker
+// anywhere beats a collision-prone abbreviation, regardless of distance).
+//
+// Separately, `salary_max` was derived by scaling `hi` with WHATEVER scale
+// `lo`'s context selected, with no plausibility check of its own — a
+// second, unrelated already-annual figure elsewhere in the label (e.g.
+// "$55 per hour, up to $120,000 package") got multiplied by the hourly
+// scale into a nine-figure number. Guarded as a CLAMP (not a conditional
+// gate — an earlier version only rewrote salary_max when hi >= $20k,
+// leaving a smaller `hi` like a real $15,900/$18,550 AU salary-packaging
+// cap to slip through unclamped): any candidateMax above $1M is always
+// replaced with `hi` unscaled (if `hi` independently looks annual) or
+// `salary_min` (otherwise), never left as the fabricated 8-figure product.
+//
+// Accepted residual, NOT closed by this chunk (documented, not silently
+// missed): the clamp only fires once candidateMax exceeds $1M, so a
+// smaller mis-scale on a low-multiplier period can still slip under it —
+// e.g. "$7,500 per month + $18,000 annual bonus" -> max=216000 (should be
+// 90000). Every case found stays UNDER the same ceiling a genuine wide
+// range could legitimately reach, so tightening this needs a relative
+// check (hi vs salary_min) rather than an absolute one — a real design
+// decision for a future round, not a defect in this one.
+//
+// Verified against a 69-case table spanning every round's finding (see
+// seek.salary.test.ts) with zero regressions.
+const HOURLY_STRONG  = /per\s*hours?\b|\bhourly\b|an\s+hour/i;
+const HOURLY_WEAK    = /\/\s*hrs?\b|p[.\/]?hr?\.?/i;
+const DAILY_STRONG   = /per\s*day\b|\bdaily\b/i;
+const DAILY_WEAK     = /p[.\/]?d\.?/i;
+const WEEKLY_STRONG  = /per\s*week\b|\bweekly\b/i;
+const WEEKLY_WEAK    = /p[.\/]?w\.?/i;
+const MONTHLY_STRONG = /per\s*month\b|\bmonthly\b/i;
+const MONTHLY_WEAK   = /p[.\/]?m\.?/i;
+
+// Upper bound on the RAW (pre-scale) figure for each period, beyond which a
+// matched period marker is almost certainly describing something other than
+// the headline figure's own period (a bonus/allowance/pay-cycle mention).
+const MAX_PLAUSIBLE_RAW: Record<number, number> = {
+  2080: 500,    // hourly:  > $500/hr is not a real rate
+  260:  5000,   // daily:   > $5,000/day is not a real rate
+  52:   10000,  // weekly:  > $10,000/week is not a real rate
+  12:   40000,  // monthly: > $40,000/month is not a real rate
+};
+// No real individual AU salary on a general job board reaches this — beyond
+// it, a scaled `hi` is almost certainly a mis-scale of an unrelated figure.
+const MAX_PLAUSIBLE_ANNUAL = 1_000_000;
+// Floor matching ai/jdFacts.ts's own "annual below $20k is a misparse" —
+// used here as evidence a second figure is ALREADY an annual amount.
+const MIN_PLAUSIBLE_ANNUAL = 20_000;
+
+const STRONG_PERIODS: [RegExp, number][] = [
+  [HOURLY_STRONG, 2080], [DAILY_STRONG, 260], [WEEKLY_STRONG, 52], [MONTHLY_STRONG, 12],
+];
+const WEAK_PERIODS: [RegExp, number][] = [
+  [HOURLY_WEAK, 2080], [DAILY_WEAK, 260], [WEEKLY_WEAK, 52], [MONTHLY_WEAK, 12],
+];
+
+// Among candidates that both match and pass their own magnitude cap, picks
+// whichever marker sits CLOSEST (by string index) to the number at
+// `loIndex` — not simply the first in fixed H/D/W/M order.
+function closestPlausibleScale(
+  candidates: [RegExp, number][], text: string, lo: number | undefined, loIndex: number,
+): number | undefined {
+  let best: { scale: number; dist: number } | undefined;
+  for (const [re, scale] of candidates) {
+    const idx = text.search(re);
+    if (idx === -1) continue;
+    if ((lo ?? 0) > MAX_PLAUSIBLE_RAW[scale]) continue;
+    const dist = Math.abs(idx - loIndex);
+    if (!best || dist < best.dist) best = { scale, dist };
+  }
+  return best?.scale;
+}
 
 export function parseSalary(text: string | undefined | null): { salary_min?: number; salary_max?: number } {
   if (!text) return {};
@@ -57,21 +154,31 @@ export function parseSalary(text: string | undefined | null): { salary_min?: num
   // dollar figure (e.g. "$120,000 + 11.5% Super") — exclude it from the
   // candidate pool entirely so it's never mistaken for salary_max, rather
   // than blindly taking the first two numbers in the label.
-  const nums = (text.match(/\d[\d,]*(?:\.\d+)?%?/g) ?? [])
-    .filter((m) => !m.endsWith("%"))
-    .map((m) => Number(m.replace(/,/g, "")));
-  if (nums.length === 0) return {};
-
-  const scale =
-    HOURLY_RE.test(text)  ? 2080 :  // annualise hourly (2080 working hours/year)
-    DAILY_RE.test(text)   ? 260  :  // annualise daily (5 days × 52 weeks)
-    WEEKLY_RE.test(text)  ? 52   :  // annualise weekly
-    MONTHLY_RE.test(text) ? 12   :  // annualise monthly
-    1;                               // already annual (default)
-
+  const numMatches = [...text.matchAll(/\d[\d,]*(?:\.\d+)?%?/g)]
+    .filter((m) => !m[0].endsWith("%"));
+  if (numMatches.length === 0) return {};
+  const nums = numMatches.map((m) => Number(m[0].replace(/,/g, "")));
+  const loIndex = numMatches[0].index ?? 0;
   const [lo, hi] = nums;
+
+  const scale = closestPlausibleScale(STRONG_PERIODS, text, lo, loIndex)
+    ?? closestPlausibleScale(WEAK_PERIODS, text, lo, loIndex)
+    ?? 1;                             // no plausible period marker found — already annual
+
   const salary_min = lo ? lo * scale : undefined;
-  let salary_max = (hi ?? lo) * scale;
+  const candidateMax = (hi ?? lo) * scale;
+  let salary_max = candidateMax;
+  // C29b round 7 finding: this must be a CLAMP, not a conditional gate — an
+  // earlier version only rewrote salary_max when `hi >= MIN_PLAUSIBLE_ANNUAL`,
+  // leaving every implausible `candidateMax` with a smaller `hi` (e.g. a
+  // $15,900/$18,550 AU NFP/health salary-packaging cap — statutory figures
+  // common in exactly the hourly-quoted roles this scales) to pass through
+  // UNCHECKED. Any implausible candidateMax must be replaced with SOMETHING
+  // safe: `hi` unscaled if it independently looks annual, otherwise fall
+  // back to salary_min (a real min beats a fabricated 8-figure max).
+  if (hi != null && candidateMax > MAX_PLAUSIBLE_ANNUAL) {
+    salary_max = hi >= MIN_PLAUSIBLE_ANNUAL ? hi : (salary_min ?? candidateMax);
+  }
 
   // Sanity guard (same rule as ai/jdFacts.ts's extractTextSalary): a max
   // below the min is a misparse, not a real range.
