@@ -416,6 +416,71 @@ class TestQualifierSuffixStripDoesNotFabricateCredentials:
         assert jd_credential not in gap["present"]
 
 
+class TestQualifierSuffixStopsAtTheFirstStemThatPassesTheSameSafetyGate:
+    """C20b — from C20's round-3 review. The round-1/round-2 fix above pops
+    ALL trailing qualifier words in one shot before testing anything, which
+    can overshoot a valid intermediate stem: "Police Clearance Compliance"
+    (required credential) stripped straight past "Police Clearance" (a
+    REAL, is_noise-recognised credential the CV literally documents —
+    verified: is_noise("police clearance") == "credential") down to bare
+    "Police" (is_noise("police") is None — correctly rejected, but only
+    reached because the single-shot strip never stopped to check the
+    intermediate form first), forcing a false "missing" for a credential
+    the candidate genuinely holds.
+
+    Fixed by testing every progressively-shorter stem against the EXACT
+    SAME is_noise + literal-match safety gate round 2 already established,
+    accepting the first (longest, most specific) stem that passes — never
+    weakening the gate itself, only giving it more chances to fire before
+    giving up. The round-2 fabrication-prevention tests above are
+    unaffected (verified): their JD credentials' intermediate stems either
+    fail is_noise too (e.g. "ndis worker clearance" -> is_noise="noise",
+    not "credential"/"eligibility") or don't literally appear in the CV,
+    so they still correctly land on "missing" — same outcome, more chances
+    tried, still zero fabrication risk."""
+
+    def test_REGRESSION_stops_at_the_longest_valid_intermediate_stem(self):
+        jd = {"credentials": {
+            "required": ["Police Clearance Compliance"], "preferred": [], "eligibility": [],
+        }}
+        gap = _build_credentials_gap(
+            jd, {"required": {}, "preferred": {}},
+            cv_text="Holds a current Police Clearance, renewed annually.",
+            contact_details=None,
+        )
+        assert "Police Clearance Compliance" in gap["present"]
+        assert "Police Clearance Compliance" not in gap["missing"]
+
+    def test_a_stem_too_generic_to_pass_is_noise_still_correctly_falls_through(self):
+        # Same JD credential, but the CV never mentions "Police Clearance"
+        # at all (only the bare, too-generic word "police") — must stay
+        # missing. Confirms the fix doesn't weaken the gate, only tries
+        # more candidates against the unchanged gate.
+        jd = {"credentials": {
+            "required": ["Police Clearance Compliance"], "preferred": [], "eligibility": [],
+        }}
+        gap = _build_credentials_gap(
+            jd, {"required": {}, "preferred": {}},
+            cv_text="Liaised with police and ambulance services during emergencies.",
+            contact_details=None,
+        )
+        assert "Police Clearance Compliance" in gap["missing"]
+
+    def test_round_2_fabrication_prevention_cases_are_unaffected_by_the_extra_stems(self):
+        # Re-run 2 of round 2's own parametrized cases directly here (not
+        # just relying on the class above staying green) to make the
+        # "unaffected" claim explicit and self-contained.
+        jd = {"credentials": {
+            "required": ["NDIS Worker Clearance Compliance"], "preferred": [], "eligibility": [],
+        }}
+        gap = _build_credentials_gap(
+            jd, {"required": {}, "preferred": {}},
+            cv_text="Worked as an NDIS worker since 2020 across several disability services.",
+            contact_details=None,
+        )
+        assert "NDIS Worker Clearance Compliance" in gap["missing"]
+
+
 class TestComputeCountsCredentialSidecar:
     """Finding #2 (chunk C18) — _extract_credential_sidecar strips
     credential-shaped keywords out of matched/missed (cv_jd_matching.py:102)
