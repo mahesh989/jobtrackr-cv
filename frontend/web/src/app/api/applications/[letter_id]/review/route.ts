@@ -39,12 +39,20 @@ export const POST = withUser(async (
   const admin = createAdminClient();
 
   // Ownership gate + has-it-been-sent guard.
-  const { data: existing } = await admin
+  const { data: existing, error: existingErr } = await admin
     .from("cover_letters")
     .select("user_id, email_sent_at")
     .eq("id", letter_id)
     .maybeSingle();
 
+  // A discarded error here previously returned the same 404 as "letter
+  // doesn't exist" for a transient read failure on a resource the user
+  // owns — fails closed (no data exposed, no wrong write), but the 404 is
+  // misleading and non-retryable. Distinguish it.
+  if (existingErr) {
+    console.error("[applications/[letter_id]/review] ownership probe failed:", existingErr.message);
+    return jsonError("Could not load letter, try again", 500);
+  }
   if (!existing || existing.user_id !== user.id) {
     return jsonError("Letter not found", 404);
   }

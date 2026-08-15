@@ -56,7 +56,10 @@ export const GET = withUser(async (
 
   query = query.limit(1000);
 
-  const { data: jobs } = await query;
+  const { data: jobs, error } = await query;
+  // A discarded error here previously produced a silently-empty CSV that
+  // looked like a successful export of zero matching jobs.
+  if (error) return jsonError(error.message, 500);
   type JobRow = { title: string; company: string; location: string; source: string; source_tier: number; posted_at: string | null; visa_likelihood: number | null; keywords_matched: string[]; url: string; applied_at: string | null; dismissed_at: string | null; created_at: string };
   let jobList = (jobs ?? []) as JobRow[];
 

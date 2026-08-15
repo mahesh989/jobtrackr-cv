@@ -58,11 +58,16 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
   }
 
   const admin = createAdminClient();
-  const { data: sub } = await admin
+  const { data: sub, error } = await admin
     .from("subscriptions")
     .select("stripe_subscription_id")
     .eq("user_id", user.id)
     .maybeSingle();
+
+  // Mitigated by the getEntitlement("full") gate above — a transient read
+  // failure here can only 500/422, never bypass a check. Still surface it
+  // as a retryable 500 rather than the misleading "no subscription" 422.
+  if (error) return jsonError(error.message, 500);
 
   const subscriptionId = (sub as { stripe_subscription_id?: string } | null)?.stripe_subscription_id;
   if (!subscriptionId) {

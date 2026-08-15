@@ -88,12 +88,19 @@ export const PATCH = withUser(async (
   const admin = createAdminClient();
 
   // ── 3. Ownership check — service-role bypasses RLS ───────────────────────────
-  const { data: existing } = await admin
+  const { data: existing, error: existingErr } = await admin
     .from("stories")
     .select("id, user_id")
     .eq("id", storyId)
     .maybeSingle();
 
+  // Fails closed either way (no data exposed, no wrong write) — but a
+  // transient read failure previously returned the same 404 as "doesn't
+  // exist", which is misleading and non-retryable. Distinguish it.
+  if (existingErr) {
+    console.error("[user/stories/[id]] ownership probe failed:", existingErr.message);
+    return jsonError("Could not load story, try again", 500);
+  }
   if (!existing || existing.user_id !== user.id) {
     return jsonError("Story not found", 404);
   }

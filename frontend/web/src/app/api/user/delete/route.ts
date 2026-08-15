@@ -24,13 +24,31 @@ export const DELETE = withUser(async (_req, _ctx, { user }) => {
   const admin = createAdminClient();
 
   // ── 1. Gather Storage object paths before the rows cascade away ───────────
-  const [{ data: cvs }, { data: runs }, { data: letters }] = await Promise.all([
+  const [
+    { data: cvs, error: cvsErr },
+    { data: runs, error: runsErr },
+    { data: letters, error: lettersErr },
+  ] = await Promise.all([
     admin.from("cv_versions").select("pdf_storage_path").eq("user_id", user.id),
     admin.from("analysis_runs")
       .select("tailored_pdf_storage_path, tailored_cv_storage_path")
       .eq("user_id", user.id),
     admin.from("cover_letters").select("pdf_storage_path").eq("user_id", user.id),
   ]);
+
+  // A discarded error on any of these three reads previously proceeded to
+  // delete the auth user anyway — permanently orphaning that user's
+  // Storage objects (no row left to ever list their paths again) on an
+  // AU Privacy Act deletion request. Deleting the row that indexes the
+  // path is not recoverable; failing the request and letting the user
+  // retry is.
+  if (cvsErr || runsErr || lettersErr) {
+    console.error(
+      "[user/delete] path-gathering read failed:",
+      (cvsErr ?? runsErr ?? lettersErr)?.message,
+    );
+    return jsonError("Account deletion could not be completed. Please try again.", 500);
+  }
 
   const cvPaths = (cvs ?? [])
     .map((r: { pdf_storage_path: string | null }) => r.pdf_storage_path)

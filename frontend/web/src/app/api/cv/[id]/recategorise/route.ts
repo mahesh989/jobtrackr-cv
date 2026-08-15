@@ -34,13 +34,19 @@ export const POST = withUser(async (
   const admin = createAdminClient();
 
   // Fetch the CV (verify ownership + get cv_text)
-  const { data: cv } = await admin
+  const { data: cv, error: cvErr } = await admin
     .from("cv_versions")
     .select("id, cv_text")
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle();
 
+  // Fails closed either way — but a transient read failure previously
+  // returned the same 404 as "doesn't exist", misleading and non-retryable.
+  if (cvErr) {
+    console.error("[cv/[id]/recategorise] ownership probe failed:", cvErr.message);
+    return jsonError("Could not load CV, try again", 500);
+  }
   if (!cv) return jsonError("CV not found", 404);
   if (!cv.cv_text || cv.cv_text.trim().length < 50) {
     return jsonError("CV has no extractable text — re-upload the file.", 422);

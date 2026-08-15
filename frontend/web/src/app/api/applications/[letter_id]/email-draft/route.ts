@@ -50,6 +50,12 @@ export const GET = withUser(async (
       .maybeSingle(),
   ]);
 
+  // Fails closed either way — but a transient read failure previously
+  // returned the same 404 as "doesn't exist", misleading and non-retryable.
+  if (letterRes.error) {
+    console.error("[email-draft] letter read failed:", letterRes.error.message);
+    return jsonError("Could not load letter, try again", 500);
+  }
   const letter = letterRes.data;
   if (!letter || letter.user_id !== user.id) {
     return jsonError("Letter not found", 404);
@@ -106,6 +112,10 @@ export const GET = withUser(async (
       .maybeSingle(),
   ]);
 
+  if (jobRes.error) {
+    console.error("[email-draft] job read failed:", jobRes.error.message);
+    return jsonError("Could not load job, try again", 500);
+  }
   const job = jobRes.data;
   if (!job) {
     return jsonError("Job not found", 404);
