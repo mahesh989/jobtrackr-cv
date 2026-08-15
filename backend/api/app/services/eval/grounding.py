@@ -7,8 +7,12 @@ high-risk fabrication surface (e.g. "Jira", "MS Office", "Planisware") — the
 exact class of failure seen in diagnosis. Free-text rewording is lower risk
 and not checked here (that is Layer B, a focused LLM fact-check, added later).
 
-For now this runs as an EVAL METRIC only — it reports, it does not strip.
-The same function becomes the production guard once the approach is validated.
+Despite the name, this is NOT eval-only — it has been a live production
+strip gate since `apply_w3_gates` started calling it (via
+`strip_ungrounded_bullet_parentheticals` / `strip_ungrounded_skill_entities`
+in enforce_w3.py, both reached from the default `w8_verified` writer path).
+Corrected C53 — this comment previously said the opposite and stayed wrong
+long after the gate went live.
 
 Output:
     {
@@ -174,10 +178,37 @@ def compute_grounding(tailored_markdown: str, original_cv_text: str) -> Dict[str
         # A single short content word that is itself a generic concept is noise.
         if " " not in norm and norm in _STOPCAPS:
             continue
-        # Grounded if the normalised entity appears as a substring of the CV,
-        # OR every alphanumeric word of it appears somewhere in the CV (handles
-        # reordering / punctuation differences).
-        if f" {norm} " in original_blob or norm in original_norm:
+        # Grounded if the normalised entity appears as a whole word/phrase in
+        # the CV (word-boundary padded, not a bare substring — C53:
+        # AUDIT-REPORT.md #? / eval/grounding.py:180), OR every alphanumeric
+        # word of it appears somewhere in the CV (handles reordering /
+        # punctuation differences). The word-boundary check alone already
+        # covers this line's own docstring claim ("appears as a substring of
+        # the CV") for any REAL whole-word match; a bare `norm in
+        # original_norm` unanchored substring test additionally matched
+        # short acronyms like "AI"/"ML" inside ordinary words ("m[ai]ntained"/
+        # "detai[ml]"... "ht[ml]") they have nothing to do with, so a
+        # fabricated "AI, ML" Skills line survived the strip gate on any CV
+        # that happened to contain those letter sequences — which is most
+        # CVs. Removed rather than narrowed: the two remaining checks already
+        # cover every LEGITIMATE case the removed clause's own comment
+        # described (single whole-word match, multi-word/reordered match).
+        #
+        # Known accepted residual (independent review, not fixed here):
+        # a skill whose ONLY CV evidence is a fused compound token — "SQL"
+        # held only via "PostgreSQL"/"MySQL", "Git" only via "GitHub" — can
+        # now be wrongly stripped as ungrounded, where the old bare-substring
+        # clause used to (accidentally) ground it. Partially mitigated today
+        # by apply_w3_gates's separate keep_skills exemption
+        # (_inject_keyword_set, "honest child->parent inferences") when the
+        # JD's feasibility plan marked the keyword inject_directly — but not
+        # universally. A real fix needs a genuine compound-boundary signal
+        # (e.g. an internal capital in the ORIGINAL, case-preserved CV text:
+        # "PostgreSQL" has one before "SQL", "html" does not before "ml") —
+        # a naive suffix/prefix-of-any-CV-token check does NOT work here,
+        # since "html" ends in "ml" and would reopen the exact ML/html
+        # collision this chunk exists to close. Deferred as its own chunk.
+        if f" {norm} " in original_blob:
             continue
         parts = [p for p in norm.split(" ") if len(p) >= 2]
         if parts and all(f" {p} " in original_blob for p in parts):
