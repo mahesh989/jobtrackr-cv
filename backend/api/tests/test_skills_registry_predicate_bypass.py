@@ -42,7 +42,7 @@ most common source of this leak class) sailed straight through it.
 """
 from __future__ import annotations
 
-from app.services.eval.enforce import _ROLE_CATEGORY_LABELS
+from app.services.eval.enforce import _ROLE_CATEGORY_LABELS, _split_compound_skills
 from app.services.eval.writers.injection import (
     _inject_approved_skills,
     _surface_matched_skills,
@@ -237,3 +237,56 @@ class TestStripNonSkillPhrasesNoLongerLeaksSectorLabels:
         skills_block = out.split("## Skills")[1].split("## Awards")[0]
         assert "Home Care" not in skills_block
         assert "Personal Care" in skills_block
+
+
+class TestSplitCompoundSkillsMustRunBeforeStripNonSkillPhrases:
+    """C27b — from C27's round-2 review: `_split_compound_skills`
+    (enforce.py, called at the top of `enforce_skills_section`) runs BEFORE
+    `_strip_non_skill_phrases` (skills_section.py) at every real call site
+    in writers/_impl.py (the first `enforce_skills_section(...)` call at
+    line ~457 happens before the `_strip_non_skill_phrases(md)` call at
+    line ~482). The reviewer found this order is load-bearing, not
+    incidental: `_strip_non_skill_phrases` matches each physical line
+    against `_SKILLS_LINE_RE`, which expects exactly ONE bold category
+    marker per line — an AI-authored line merging two categories onto one
+    physical line ("**Other Skills:** Cooking **Care Skills:** Home Care,
+    Meal Prep") fails that regex entirely, so the whole line — gap term
+    included — passes through `_strip_non_skill_phrases` completely
+    unfiltered. `_split_compound_skills` normalises exactly this shape
+    into separate single-marker lines FIRST, which is what lets
+    `_strip_non_skill_phrases` see "Home Care" as an isolated item on its
+    own "**Care Skills:**" line and strip it.
+
+    This test exists because the invariant had no regression coverage —
+    a future refactor swapping the call order in writers/_impl.py would
+    silently reopen finding #28's exact leak class for any AI output that
+    happens to merge two categories onto one line, and nothing would fail
+    until it was found live again.
+    """
+
+    _MERGED_MARKER_MD = (
+        "## Skills\n"
+        "**Other Skills:** Cooking **Care Skills:** Home Care, Meal Preparation\n\n"
+        "## Experience\n"
+    )
+
+    def test_split_then_strip_removes_the_gap_term(self):
+        """The real production order (split first, strip second) correctly
+        isolates and removes the sector-label gap term."""
+        split_first = _split_compound_skills(self._MERGED_MARKER_MD)
+        out = _strip_non_skill_phrases(split_first)
+        assert "Home Care" not in out
+        assert "Cooking" in out
+        assert "Meal Preparation" in out
+
+    def test_strip_then_split_lets_the_gap_term_survive(self):
+        """REGRESSION GUARD, proven by construction: the reverse order (the
+        exact mistake a future refactor could make) fails to catch the gap
+        term, because _strip_non_skill_phrases never recognises the merged
+        line as a skills line in the first place. This test's job is to
+        fail loudly if a future change makes both orders behave the same —
+        that would mean this invariant stopped being load-bearing and the
+        comment/test above is stale, not that the bug is fixed."""
+        strip_first = _strip_non_skill_phrases(self._MERGED_MARKER_MD)
+        out = _split_compound_skills(strip_first)
+        assert "Home Care" in out
