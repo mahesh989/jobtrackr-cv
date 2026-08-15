@@ -73,7 +73,7 @@ frontend/web/src/
     integrations/   # Third-party integrations (ApifyCard, EmailIntegrationCard)
   lib/              # Shared utilities, types, helpers
     types.ts        # Canonical shared types (ContactDetails, SkillCategory, etc.)
-    api-utils.ts    # requireUser(), requireAdmin(), parseJsonBody(), jsonError()
+    api-utils.ts    # withUser(), withAdmin() (canonical route wrappers), requireUser(), requireAdmin(), parseJsonBody(), jsonError()
     constants.ts    # RunStatus, StepState, ADMIN_ROLES, VisaStatus, JOB_SOURCES, TIER_DEFAULTS
     supabase/       # Supabase client creation (browser + server)
     cv/             # CV-specific helpers (skillLabels, etc.)
@@ -96,10 +96,9 @@ backend/api/app/
 ## Key Patterns
 
 ### Auth Flow
-- Middleware (`middleware.ts`) protects all `/dashboard/*` routes
-- API routes in `app/api/` use `requireUser()` from `lib/api-utils.ts` — returns `{ userId, supabase }`
-- Admin routes use `requireAdmin()` — same pattern, adds role check
-- Auth pages (`/auth/*`) are public, no theme class on `<html>` — intentionally hardcoded Aurora Light palette
+- `proxy.ts` (Next's middleware, renamed `proxy` in this Next version — see its own header comment for why it must never be deleted) protects all `/dashboard/*` routes
+- Canonical pattern is `withUser()` / `withAdmin()` from `lib/api-utils.ts` — a route handler wrapper that denies with 401/403 *before* the handler runs. `requireUser()`/`requireAdmin()` still exist as the lower-level primitives these call internally, used directly only by routes that need a redirect-on-fail flow instead of a 401 JSON response.
+- Auth pages (`/auth/*`) are public. `<html>` DOES carry the user's theme class (the FOUC script lives in the root layout) — auth screens instead sit inside a `.auth-shell` scope (globals.css) that pins surface/text/border/brand regardless of the active theme, by construction rather than by hardcoding one palette.
 
 ### Data Flow
 - Frontend → Next.js API routes (BFF) → backend/api (HMAC-signed) → Supabase
@@ -127,8 +126,8 @@ backend/api/app/
 ## Things to Know
 
 - **Tailwind 4** — uses CSS-native config (`@theme` in globals.css), not `tailwind.config.js`
-- **Theme system** — 6 themes (aurora-light is default). CSS variables under `:root.theme-*` in globals.css. Auth pages hardcode Aurora Light palette intentionally (no theme class pre-login).
-- **Deploy** — `main` branch → Vercel preview (not production). Production JobTrackr is a separate repo.
+- **Theme system** — 7 themes (aurora-dark, aurora-light, default, classic, gilded-noir, notion, clay); `classic` is the default. CSS variables under `:root.theme-*` in globals.css. Auth pages use the `.auth-shell` scoped token block, not a hardcoded palette.
+- **Deploy** — `main` branch → **live production** (Vercel git integration, direct, no promotion step). The legacy JobTrackr app is a genuinely separate Vercel project — see `CLAUDE.md`'s "Production Safety" section.
 - **Platform-wide AI provider** — BYOK removed 2026-06-16; single admin-managed key in `platform_ai_settings` (`/dashboard/admin/ai-settings`), not per-user. Encrypted with AES-256-GCM.
 - **One CV active per user** — partial unique index on `(user_id) WHERE is_active = true`
 - **Additive DB changes only** — Never ALTER existing tables. Only INSERT new tables and extend value sets.
@@ -169,7 +168,7 @@ mark deliberate shortcuts. Keep them; don't "fix" what isn't broken.
 - RLS policies on every new table
 - Ownership checks on every API route
 - Rate limiting on state-changing endpoints
-- `requireUser()` / `requireAdmin()` guards
+- `withUser()` / `withAdmin()` guards
 - Supabase client choice (server vs browser vs admin)
 - Migration safety (additive only, never ALTER)
 

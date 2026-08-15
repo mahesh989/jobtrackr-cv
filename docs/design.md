@@ -2,6 +2,12 @@
 
 > The full architectural plan for integrating the cv-magic CV-tailoring pipeline into JobTrackr. This document is the source of truth for **what** we are building. `.claude/graph.json` tracks **how far** we have got.
 
+> **Corrected 2026-08-16 — two original design decisions on this page have since changed; `CLAUDE.md` is the live source of truth for both.**
+> 1. **BYOK was removed 2026-06-16** (graph.json D20) — the "AI keys" rows below describe the *original* per-user Anthropic/OpenAI key design, superseded by a single platform-wide admin-managed provider in `platform_ai_settings`. See `CLAUDE.md`'s "Non-Negotiable Decisions" #4.
+> 2. **`main` deploys straight to production**, not a Vercel preview — this doc's architecture diagram and service table below describe the original pre-launch state. See `CLAUDE.md`'s "Production Safety" section (corrected there 2026-08-09).
+>
+> The rest of this document (bridge contract shape, data model, phased rollout) remains accurate historical/architectural context.
+
 ## 1. Summary
 
 JobTrackr v2 absorbs the cv-magic CV-tailoring pipeline as an **internal feature module**. Users only ever see one domain, one product, one sign-in. The Python pipeline service is invisible plumbing on Fly.io with no public-facing URL.
