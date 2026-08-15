@@ -40,9 +40,9 @@ Output:
 from __future__ import annotations
 
 import logging
-import re
 from typing import Any, Dict, List, Set, Tuple
 
+from app.services.pipeline.steps._keyword_match import literal_match as _literal_match
 from app.services.pipeline.steps.ats_scoring import (
     _FORMATTING_MAX,
     _to_pct,
@@ -550,16 +550,6 @@ def _kw_present(keyword: str, text_lower: str) -> bool:
             break  # only try the first separator that's present
 
     return False
-
-
-def _literal_match(kw: str, text_lower: str) -> bool:
-    """Word-boundary regex match for word-only keywords; substring for the rest."""
-    if not kw:
-        return False
-    if re.fullmatch(r"[\w\s\-]+", kw):
-        pattern = r"\b" + re.escape(kw) + r"\b"
-        return re.search(pattern, text_lower) is not None
-    return kw in text_lower
 
 
 def _promote_injections(
