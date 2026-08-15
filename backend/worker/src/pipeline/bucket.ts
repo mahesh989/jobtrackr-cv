@@ -362,13 +362,12 @@ function projectDescription(row: BucketRow, tier: string): string {
 export async function serveProfileFromBucket(
   profile: SearchProfile,
   slices: CoverageSlice[],
-  opts: { tier: string; homeOrigin: LatLng | null; serveWindowDays?: number },
+  opts: { tier: string; homeOrigin: LatLng | null },
 ): Promise<NormalisedJob[] | null> {
   if (!bucketEnabled()) return null;
   try {
     if (slices.length === 0) return null;
-    const windowDays = Math.min(opts.serveWindowDays ?? BUCKET_RETENTION_DAYS, BUCKET_RETENTION_DAYS);
-    const floor = new Date(Date.now() - windowDays * 86_400_000).toISOString();
+    const floor = new Date(Date.now() - BUCKET_RETENTION_DAYS * 86_400_000).toISOString();
 
     // Geographic bound = the same radius the scrape used (distance from the
     // SEARCH location), via stored coords — NOT the coarse location_cell, which
@@ -653,7 +652,7 @@ export async function serveProfileFromBucket(
       kept = out;
     }
 
-    console.log(`[bucket] served ${kept.length}/${rows.length} from bucket (tier=${opts.tier}, window ${windowDays}d)`);
+    console.log(`[bucket] served ${kept.length}/${rows.length} from bucket (tier=${opts.tier}, window ${BUCKET_RETENTION_DAYS}d)`);
     return kept;
   } catch (err) {
     console.warn(`[bucket] serveProfileFromBucket threw — ${err instanceof Error ? err.message : err}`);
