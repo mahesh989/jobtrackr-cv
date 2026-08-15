@@ -282,16 +282,56 @@ _AGED_CARE_QUAL_TERMS = (
     "home care", "home and community care", "disability",
 )
 _ROMAN_LEVEL = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5}
-_CERT_RE = re.compile(r"certificate\s+([ivx]+)\b(?:\s+(?:in|of)\s+([a-z ,&/+-]+))?")
+_ARABIC_LEVEL = {"1": 1, "2": 2, "3": 3, "4": 4, "5": 5}
+# C63: "certificate" only, Roman numerals only, defeated the common
+# abbreviated forms real CVs/JDs use ("Cert IV", "Cert. IV", "Cert 4",
+# "Certificate 3") — every one of those silently returned 0/None from the
+# two lookup functions below, breaking the subsumption rule for any CV/JD
+# phrased that way. \bcert(?:ificate)?\.? matches both "cert"/"cert." and
+# "certificate" without matching into unrelated words ("certain", "certify")
+# — the \b boundary before "cert" and the requirement of "." or whitespace
+# immediately after prevent a mid-word match.
+#
+# The stream-descriptor group deliberately does NOT include a comma
+# (independent review caught this: with a comma allowed, the widened
+# abbreviated-form match turned a pre-existing quirk into a live
+# false-positive — "Cert IV in Business, Aged Care Assistant at Sunrise
+# Lodge" swept the unrelated "Aged Care Assistant" text into the stream
+# capture and wrongly counted an unrelated Business cert as aged-care-
+# family). Real AQF stream names in this codebase's own usage
+# (_AGED_CARE_QUAL_TERMS) are all short, comma-free phrases, so stopping at
+# the first comma costs no coverage for the common phrasing this list
+# targets — and it also fixes, as a side effect, the same root cause's
+# other direction: two mentions in one sentence separated by a comma no
+# longer get merged into a single match that swallows the second one.
+# Round-2 review found one residual, accepted (same safe false-MISSING
+# direction as the original C63 bug, not the false-match direction the
+# comma bound exists to close): a stream whose only aged-care term sits
+# AFTER a comma ("Cert IV in Community Services, Aged Care") now misses,
+# where it used to be a coincidental hit. A stream allowlist would close
+# this properly; not done here to avoid re-opening the false-positive path.
+_CERT_RE = re.compile(
+    r"\bcert(?:ificate)?\.?\s+(?:([ivx]+)|([1-5]))\b(?:\s+(?:in|of)\s+([a-z &/+-]+))?"
+)
+
+
+def _cert_match_level(m: "re.Match[str]") -> int | None:
+    roman, arabic = m.group(1), m.group(2)
+    if roman:
+        return _ROMAN_LEVEL.get(roman)
+    if arabic:
+        return _ARABIC_LEVEL.get(arabic)
+    return None
 
 
 def _aged_care_cert_level(text: str) -> int:
     """Highest aged-care-family certificate level present in `text` (0 if none).
-    'Certificate IV in Ageing Support' → 4."""
+    'Certificate IV in Ageing Support' → 4. Also recognises 'Cert IV',
+    'Cert. IV', and Arabic-numeral forms ('Cert 4', 'Certificate 3')."""
     best = 0
     for m in _CERT_RE.finditer(text.lower()):
-        lvl = _ROMAN_LEVEL.get(m.group(1))
-        stream = m.group(2) or ""
+        lvl = _cert_match_level(m)
+        stream = m.group(3) or ""
         if lvl and any(t in stream for t in _AGED_CARE_QUAL_TERMS):
             best = max(best, lvl)
     return best
@@ -299,12 +339,13 @@ def _aged_care_cert_level(text: str) -> int:
 
 def _required_aged_care_cert_level(keyword: str) -> int | None:
     """AQF level of an aged-care-family certificate requirement, else None.
-    'certificate iii in individual support' → 3."""
+    'certificate iii in individual support' → 3. Also recognises 'cert iii',
+    'cert. iii', and Arabic-numeral forms ('cert 3')."""
     m = _CERT_RE.search(keyword.lower())
     if not m:
         return None
-    lvl = _ROMAN_LEVEL.get(m.group(1))
-    stream = m.group(2) or ""
+    lvl = _cert_match_level(m)
+    stream = m.group(3) or ""
     if lvl and any(t in stream for t in _AGED_CARE_QUAL_TERMS):
         return lvl
     return None
