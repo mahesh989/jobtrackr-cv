@@ -657,6 +657,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
             const flags = (letter.quality_flags ?? {}) as {
               unsupported_claims?: string[];
               honesty_inconclusive?: boolean;
+              honesty_degraded?: boolean;
               honesty_retried?: boolean;
               honesty_passed_after_retry?: boolean;
               low_quality_company_research?: boolean;
@@ -694,6 +695,12 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
                 {claims.length === 0 && flags.honesty_inconclusive && (
                   <p className="text-caption text-text-3">
                     Note: honesty check was inconclusive — give the letter a quick read before sending.
+                  </p>
+                )}
+                {claims.length === 0 && !flags.honesty_inconclusive && flags.honesty_degraded && (
+                  <p className="text-caption text-text-3">
+                    Note: the honesty check couldn&apos;t run (a temporary issue on our end) — this
+                    letter&apos;s claims were not verified against your CV. Give it a careful read before sending.
                   </p>
                 )}
               </>
