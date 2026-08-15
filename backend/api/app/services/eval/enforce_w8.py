@@ -98,7 +98,14 @@ def _rename_headings(markdown: str, mapping: Dict[str, str]) -> str:
     lines = markdown.split("\n")
     for i, ln in enumerate(lines):
         if ln.startswith("## "):
-            name = ln[3:].strip()
+            # C22b: strip a trailing colon the AI writer sometimes emits —
+            # the highest-impact instance of this pattern in this file. A
+            # colon'd heading previously skipped the rename to canonical
+            # names entirely, which means it also skipped the ENTIRE frozen
+            # production contract these renamed sections feed (structure.py
+            # role/bullet caps, summary.py's word-count enforcement) — not
+            # just a display-ordering miss like the other two sites below.
+            name = ln[3:].strip().rstrip(":")
             if name in mapping:
                 lines[i] = "## " + mapping[name]
     return "\n".join(lines)
@@ -130,7 +137,12 @@ def _reorder_sections(markdown: str, section_order: List[str]) -> str:
         if ln.startswith("## "):
             if cur_name is not None:
                 blocks.append((cur_name, cur))
-            cur_name = ln[3:].strip()
+            # C22b: strip a trailing colon the AI writer sometimes emits —
+            # the `name == want` exact match below is defeated by it,
+            # silently dropping that section out of its intended
+            # section_order position into the unordered append-afterward
+            # bucket. The raw heading line (colon intact) stays in `cur`.
+            cur_name = ln[3:].strip().rstrip(":")
             cur = [ln]
         else:
             cur.append(ln)
@@ -171,7 +183,15 @@ def _split_blocks(markdown: str) -> tuple[List[str], List[tuple[str, List[str]]]
         if ln.startswith("## "):
             if cur_name is not None:
                 blocks.append((cur_name, cur))
-            cur_name = ln[3:].strip()
+            # C22b: strip a trailing colon the AI writer sometimes emits
+            # ("## Registration & Licences:") — _relabel_registration's own
+            # exact-match `name == "Registration & Licences"` (and every
+            # other _split_blocks caller doing name-based lookup) is
+            # defeated by an unstripped colon. The raw heading LINE (with
+            # colon intact) is still preserved separately as blk[0]/cur[0],
+            # so this only affects name COMPARISON, never the re-serialized
+            # output text.
+            cur_name = ln[3:].strip().rstrip(":")
             cur = [ln]
         else:
             cur.append(ln)
@@ -390,8 +410,10 @@ def ensure_bachelor(markdown: str, original_cv_text: str) -> str:
     present or none can be reliably extracted.
     """
     lines = markdown.split("\n")
+    # C22b: .rstrip(":") — a colon'd "## Education:" heading previously
+    # made this whole Bachelor-recovery pass a silent no-op.
     edu_start = next(
-        (i for i, l in enumerate(lines) if l.strip().lower() == "## education"), None
+        (i for i, l in enumerate(lines) if l.strip().lower().rstrip(":") == "## education"), None
     )
     if edu_start is None:
         return markdown

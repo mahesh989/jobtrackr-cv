@@ -54,7 +54,14 @@ def _parse_markdown(md: str) -> Tuple[Optional[str], Optional[str], List[Tuple[s
         if stripped.startswith("## "):
             if cur_title is not None:
                 sections.append((cur_title, cur_items))
-            cur_title = stripped[3:].strip()
+            # C22b: strip a trailing colon the AI writer sometimes emits
+            # ("## Registration & Licences:") — _SECTION_ALIASES.get() below
+            # is an exact match against colon-free keys, so an unstripped
+            # colon defeated EVERY alias, not just the role-pack ones C22
+            # added. Matches the convention already used at contact_line.py
+            # / awards.py's own heading-key extraction (eval/enforce_w8.py's
+            # _split_blocks had the identical gap — fixed in the same chunk).
+            cur_title = stripped[3:].strip().rstrip(":")
             cur_items = []
             i += 1
             continue
