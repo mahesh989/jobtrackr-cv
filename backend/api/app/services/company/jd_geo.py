@@ -31,9 +31,21 @@ from typing import Optional, Tuple
 _COUNTRY_MARKERS: dict[str, tuple[str, ...]] = {
     "AU": (
         "australia", "australian",
-        "nsw", "vic", "qld", "wa", "tas", "act", "nt",
+        "nsw", "vic", "qld", "wa", "tas", "act", "nt", "sa",  # C28b: "sa" was
+        # the only AU state abbreviation missing (same collision-risk class
+        # as the pre-existing "wa" — a bare 2-letter marker can coincide with
+        # a state/country abbreviation elsewhere: "wa" vs. US Washington
+        # state, "sa" vs. South Africa — accepted here for consistency with
+        # every other bare abbreviation already in this tuple, not a new
+        # risk this addition introduces).
         "new south wales", "western australia",
         "tasmania", "australian capital territory", "northern territory",
+        # C28b: "south australia" was ALREADY incidentally covered before
+        # this addition (it contains the "australia" marker above as a
+        # word-bounded substring) — listed explicitly anyway for the same
+        # self-documenting reason the other 6 full state names are, not
+        # because it was a functional gap like the "sa" abbreviation above.
+        "south australia",
         "sydney", "melbourne", "brisbane", "perth", "adelaide", "hobart",
         "canberra", "darwin", "gold coast", "newcastle", "wollongong",
     ),

@@ -65,6 +65,35 @@ def test_detect_country_au_every_full_state_and_territory_name():
     assert detect_country("Some Town, Tasmania") == "AU"
     assert detect_country("Some Town, Australian Capital Territory") == "AU"
     assert detect_country("Some Town, Northern Territory") == "AU"
+    assert detect_country("Some Town, South Australia") == "AU"
+
+
+def test_REGRESSION_detect_country_south_australia_abbreviation_C28b():
+    """C28b — from C28's own review: "sa" was the only AU state/territory
+    ABBREVIATION missing from the marker set. ("South Australia" the full
+    name was, on investigation, already incidentally covered — it contains
+    the generic "australia" marker as a word-bounded substring — so the
+    real, genuine gap was narrower than originally described: only the bare
+    "SA" abbreviation, for a regional SA town not already on the AU city
+    shortlist and a JD that abbreviates the state.)"""
+    assert detect_country("Mount Gambier, SA") == "AU"
+    assert detect_country("Whyalla, SA") == "AU"
+
+
+def test_detect_country_south_australia_full_name_already_worked_before_C28b():
+    # Confirmed via a temporary revert: this passed even pre-fix, because
+    # "south australia" contains the pre-existing generic "australia"
+    # marker as a word-bounded substring. C28b adds "south australia" to
+    # the marker list explicitly anyway (self-documenting, matches the
+    # other 6 full state names' own explicit listing), but it was never
+    # the functional gap the original finding described.
+    assert detect_country("Mount Gambier, South Australia") == "AU"
+
+
+def test_detect_country_adelaide_already_worked_before_C28b():
+    # Adelaide (a listed AU city marker) already resolved AU before this
+    # chunk — confirms C28b's addition doesn't change already-correct cases.
+    assert detect_country("Adelaide, South Australia") == "AU"
 
 
 def test_detect_country_genuine_uk_wales_still_resolves_uk():
