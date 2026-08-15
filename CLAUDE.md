@@ -149,7 +149,7 @@ backend/worker/src/
 ## Key Patterns
 
 ### Auth Flow
-- Middleware (`middleware.ts`) protects all `/dashboard/*` routes
+- `proxy.ts` (Next's middleware, renamed `proxy` in this Next version — see its own header comment for why it must never be deleted) protects all `/dashboard/*` routes
 - Canonical pattern (since 2026-07-23) is `withUser()` / `withAdmin()` from `lib/api-utils.ts` — a route handler wrapper that acquires the session via `getClaims()` and denies with 401/403 *before* the handler runs, so a wrapped route is structurally incapable of skipping auth. `scripts/check-route-auth.mjs` treats these as the canonical guard in CI. `requireUser()`/`requireAdmin()` still exist as the lower-level primitives `withUser`/`withAdmin` call internally, and are used directly only by the handful of routes that need a redirect-on-fail flow instead of a 401 JSON response (e.g. `admin/view-as`) — see the allowlist in `check-route-auth.mjs`.
 - Auth pages (`/auth/*`) are public. The FOUC script lives in the ROOT layout, so `<html>` DOES carry the user's theme class there — the old claim that it doesn't was wrong and caused a real bug (Aurora Dark users saw white labels on a white card, because the shared `Input`/`FieldLabel` read `.field`/`text-text`). Since 2026-08-07 the auth screens sit inside a `.auth-shell` scope (globals.css) that pins surface/text/border/brand plus the raw hue families, so they render the same regardless of the active theme — by construction, not by a route check.
 
