@@ -189,11 +189,19 @@ async def _run_honesty_gate(
     client: AIClient,
     letter_text: str,
     cv_text: str,
-) -> tuple[bool, List[str]]:
+) -> tuple[bool, List[str], bool]:
     """
     Verify every factual claim in the letter against the CV.
-    Returns (passed, unsupported_claims). On AI failure, returns (True, [])
-    so a transient gate problem does not block the user from seeing output.
+    Returns (passed, unsupported_claims, gate_ran). On AI failure, returns
+    (True, [], False) so a transient gate problem does not block the user
+    from seeing output — but `gate_ran=False` lets the caller record that
+    the letter was NEVER ACTUALLY VERIFIED, distinct from a genuine pass
+    (C54, AUDIT-REPORT.md: the comparable CV-path verifier in eval/verify.py
+    deliberately sets `degraded=True` on the same failure shape, with the
+    comment "honesty gate did not run — surface it, don't claim verified";
+    this gate previously had no equivalent signal, so a letter whose gate
+    call hit a transient 529/overload shipped indistinguishable from one
+    that was genuinely verified clean).
     """
     user = GATE_1_USER_TEMPLATE.format(
         letter_text=letter_text,
@@ -214,7 +222,7 @@ async def _run_honesty_gate(
             if isinstance(raw_unsupported, list)
             else []
         )
-        return passed, unsupported
+        return passed, unsupported, True
     except Exception as exc:  # noqa: BLE001 — gate must NEVER crash a generated letter
         # Broadened from AIClientError: a raw transient (e.g. an h2
         # ConnectionTerminated the client didn't classify) was escaping to the
@@ -222,7 +230,7 @@ async def _run_honesty_gate(
         # 'failed' — the exact ATS-Above-vs-pool gap. The honesty gate is pure
         # verification; on ANY failure treat as pass so the letter still ships.
         logger.warning("honesty gate call failed (%s) — treating as pass", exc)
-        return True, []
+        return True, [], False
 
 
 # ── Main generation call ──────────────────────────────────────────────────────
@@ -420,9 +428,11 @@ async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None
             "generation_status": {"generate": CoverLetterStatus.COMPLETED, "honesty": CoverLetterStatus.RUNNING},
         })
 
-        passed, unsupported = await _run_honesty_gate(client, body, payload.cv_text)
+        passed, unsupported, gate_ran = await _run_honesty_gate(client, body, payload.cv_text)
         quality_flags: Dict[str, Any] = {}
         honesty_ok = passed
+        if not gate_ran:
+            quality_flags["honesty_degraded"] = True
 
         if not passed and unsupported:
             # One retry with the unsupported claims fed back into the prompt.
@@ -452,12 +462,14 @@ async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None
                 body = normalise_company_in_body(body, payload.company_name)
                 body = strip_vet_codes_from_cover_letter(body)
                 await supabase_update(COVER_LETTERS, letter_id, {"pass_3_final": body})
-                passed_2, unsupported_2 = await _run_honesty_gate(
+                passed_2, unsupported_2, gate_ran_2 = await _run_honesty_gate(
                     client, body, payload.cv_text,
                 )
                 quality_flags["honesty_retried"] = True
                 quality_flags["honesty_passed_after_retry"] = passed_2
                 honesty_ok = passed_2
+                if not gate_ran_2:
+                    quality_flags["honesty_degraded"] = True
                 if not passed_2 and unsupported_2:
                     # Decision (b): accept output, surface warning in flags.
                     quality_flags["unsupported_claims"] = unsupported_2
