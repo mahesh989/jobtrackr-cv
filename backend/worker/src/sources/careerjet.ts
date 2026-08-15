@@ -6,19 +6,11 @@
 // can't solve an interactive challenge → 0 jobs). The v4 API is NOT behind
 // Cloudflare and works from Fly, so we reverted to it.
 //
-//   Phase 1 — Listings (fetchJobs)
+//   Listings (fetchJobs)
 //     • GET https://search.api.careerjet.net/v4/query  (IP-whitelisted, JSON)
 //     • Description = the API's excerpt (FRAGMENT_SIZE chars). This is the
 //       PRIMARY JD text — there is no Fly-viable full-JD path without
-//       residential egress (see Phase 2).
-//
-//   Phase 2 — Full JDs (enrichWithCareerjetJDs) — BEST-EFFORT, usually a no-op
-//     • The API returns jobviewtrack.com tracking URLs. Resolving them →
-//       careerjet.com.au/jobad/<hash> needs residential egress: jobviewtrack
-//       404s from datacenter IPs, and the /jobad page is Turnstile-gated.
-//     • So from Fly *without* an Apify residential proxy this degrades to a
-//       no-op and the Phase-1 fragment stays as the JD. If APIFY_PROXY_PASSWORD
-//       is later set, URL resolution + full-JD scraping light up automatically.
+//       residential egress.
 //
 // Auth model:
 //   • API key in CAREERJET_API_KEY (Basic auth, password = "")
@@ -31,7 +23,6 @@
 import { gotScraping } from "got-scraping";
 import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
 import type { NormalisedJob } from "../pipeline/types.js";
-import { getApifyProxyUrl } from "../lib/proxy.js";
 import { curlFetch } from "../lib/curlfetch.js";
 import { sleep } from "./agedCareRoles.js";
 
@@ -46,8 +37,6 @@ const MAX_PAGES       = 6;              // → up to 300 jobs per keyword (incre
 const FIRST_RUN_MAX_PAGES = 10;         // → up to 500 jobs per keyword (cold start)
 const REQUEST_TIMEOUT = 15_000;
 const KEYWORD_DELAY   = 800;            // gentle pacing between keywords
-const JD_DELAY        = 600;            // pacing between /jobad/ fetches
-const JD_FETCH_CAP    = 20;             // matches seek.ts SEEK_JD_FETCH_CAP
 
 // Public IP cache — Careerjet wants a real IP in `user_ip`. We fetch ours
 // once per worker process and reuse it (Fly outbound IP is stable per region).
@@ -435,93 +424,4 @@ export const careerjetAdapter: SourceAdapter = {
     }
   },
 };
-
-// ── Phase 2: Full JD enrichment ───────────────────────────────────────────────
-//
-// The Careerjet API returns jobviewtrack.com/v2/<hash> tracking URLs.
-// jobviewtrack.com is a separate tracking domain that:
-//   1. Logs the click for Careerjet analytics
-//   2. 302 redirects to the actual job page (careerjet.com.au/jobad/<hash>
-//      for native Careerjet listings, or the employer's site otherwise)
-//
-// From Fly's datacenter IP, jobviewtrack.com returns 404 (its own bot
-// protection, separate from Cloudflare). The strategy is:
-//   - First fetch the tracking URL with curl_cffi; if it 404s, skip.
-//   - If it redirects to careerjet.com.au, extract the description there.
-//   - If it redirects elsewhere (employer site), skip (structure unknown).
-//
-// curl_cffi is used because careerjet.com.au /jobad/ pages are Cloudflare-
-// protected (Chrome 124 TLS impersonation bypasses the fingerprint check).
-
-const CAREERJET_HOST = "www.careerjet.com.au";
-
-/**
- * Fetch the full HTML of a Careerjet job page.
- *
- * By Phase 2 (Stage 7c), tracking URLs have already been resolved to real URLs
- * in Phase 1 (`resolveTrackingUrls`). So `url` here should be either:
- *   • careerjet.com.au/jobad/<hash>  → Cloudflare-protected, curl_cffi handles it
- *   • An employer's own website       → skip (unknown page structure)
- *   • A fallback jobviewtrack.com URL → skip (expired, can't enrich)
- *
- * Returns null for non-Careerjet pages and tracking URLs.
- */
-async function fetchJobadHtml(
-  url: string,
-): Promise<{ status: number; body: string; finalUrl: string } | null> {
-  // Only fetch careerjet.com.au pages — we have an extractor for those.
-  // Employer sites and expired tracking URLs are skipped silently.
-  try {
-    const { hostname } = new URL(url);
-    if (hostname === "jobviewtrack.com") {
-      // Phase 1 resolution failed — URL never got resolved, skip it
-      return null;
-    }
-    if (hostname !== CAREERJET_HOST) {
-      // Resolved to an employer site — we don't know its page structure
-      return null;
-    }
-  } catch {
-    return null;
-  }
-
-  const proxyUrl = getApifyProxyUrl({ group: "RESIDENTIAL", country: "AU" });
-  const result = await curlFetch(url, proxyUrl);
-  if (result.status !== 200) return null;
-  return { status: result.status, body: result.body, finalUrl: url };
-}
-
-/**
- * Careerjet's /jobad/ page wraps the full description in `<div class="container">`
- * before a `<div class="links">|<div class="off">|<div class="footer">` block.
- */
-function extractJobadDescription(html: string): string {
-  const m = html.match(
-    /<div[^>]+class="container"[^>]*>([\s\S]+?)<\/div>\s*<div[^>]+class="(?:links|off|footer)/,
-  );
-  if (!m) return "";
-
-  const text = m[1]
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi,   " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g,  "&")
-    .replace(/&lt;/g,   "<")
-    .replace(/&gt;/g,   ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g,  "'")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  // Strip the page header (title/company/location/date repeated above the body).
-  // Heuristic: drop everything before the first "Job Description" marker if
-  // present; otherwise drop the first ~150 chars of nav prefix.
-  const jobDescMatch = text.match(/job description[:\s]*/i);
-  if (jobDescMatch && jobDescMatch.index !== undefined) {
-    return text.slice(jobDescMatch.index + jobDescMatch[0].length).trim();
-  }
-  return text;
-}
-
 

@@ -4,7 +4,7 @@ import { applyKeywordFilter } from "../keywordFilter.js";
 import { dedup } from "../dedup.js";
 import { saveJobs } from "../save.js";
 import { resolveSlices, recordCoverage, releaseSliceLocks } from "../coverage.js";
-import { bucketEnabled, upsertGlobalJobs, serveProfileFromBucket, BUCKET_RETENTION_DAYS } from "../bucket.js";
+import { bucketEnabled, upsertGlobalJobs, serveProfileFromBucket } from "../bucket.js";
 import { postFetchFilter, formatExcludeBreakdown } from "../postFetchFilter.js";
 import { startRunLog, finishRunLog, setStage } from "../runLog.js";
 import { runLogContext } from "../logContext.js";
@@ -45,8 +45,6 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     console.warn(`[pipeline] profile ${profileId} is a manual "Saved Jobs" container — refusing to fetch`);
     return;
   }
-
-  profile.is_manual_run = trigger === "manual";
 
   // User-level visa status + work types (My CV → user_preferences
   // .contact_details.visa_status / .credentials.availability — same
@@ -363,7 +361,6 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       const served = await serveProfileFromBucket(profile, bucketSlices, {
         tier,
         homeOrigin,
-        serveWindowDays: BUCKET_RETENTION_DAYS,
       });
       // Trust a successful bucket serve even when it legitimately returns
       // zero — that's serveProfileFromBucket's geo-radius + filter replay

@@ -19,7 +19,6 @@ vi.mock("got-scraping", () => ({
     return { statusCode: apiStatus, body: apiBody };
   }),
 }));
-vi.mock("../lib/proxy.js",     () => ({ getApifyProxyUrl: () => undefined }));
 vi.mock("../lib/curlfetch.js", () => ({ curlFetch: vi.fn() }));
 
 const profile = {
