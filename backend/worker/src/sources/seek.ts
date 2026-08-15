@@ -43,17 +43,41 @@ interface SeekItem {
 
 // ── Salary parsing ─────────────────────────────────────────────────────────────
 // Shared with seekDirect.ts (identical SEEK salary-label format on both paths).
+// Period alternation matches careerjet.ts's own H/D/W/M scaling, plus the AU
+// abbreviated forms ("p.h.", "p.d." etc) that this free-text label commonly uses.
+const HOURLY_RE  = /per\s*hour|hourly|\/hr|p\.?h\.?/i;
+const DAILY_RE   = /per\s*day|daily|p\.?d\.?/i;
+const WEEKLY_RE  = /per\s*week|weekly|p\.?w\.?/i;
+const MONTHLY_RE = /per\s*month|monthly|p\.?m\.?/i;
+
 export function parseSalary(text: string | undefined | null): { salary_min?: number; salary_max?: number } {
   if (!text) return {};
-  const nums = text.replace(/,/g, "").match(/\d+(?:\.\d+)?/g)?.map(Number) ?? [];
+
+  // A number immediately followed by "%" is a super/loading rate, not a
+  // dollar figure (e.g. "$120,000 + 11.5% Super") — exclude it from the
+  // candidate pool entirely so it's never mistaken for salary_max, rather
+  // than blindly taking the first two numbers in the label.
+  const nums = (text.match(/\d[\d,]*(?:\.\d+)?%?/g) ?? [])
+    .filter((m) => !m.endsWith("%"))
+    .map((m) => Number(m.replace(/,/g, "")));
   if (nums.length === 0) return {};
-  const isHourly = /per hour|hourly|\/hr/i.test(text);
+
+  const scale =
+    HOURLY_RE.test(text)  ? 2080 :  // annualise hourly (2080 working hours/year)
+    DAILY_RE.test(text)   ? 260  :  // annualise daily (5 days × 52 weeks)
+    WEEKLY_RE.test(text)  ? 52   :  // annualise weekly
+    MONTHLY_RE.test(text) ? 12   :  // annualise monthly
+    1;                               // already annual (default)
+
   const [lo, hi] = nums;
-  const scale = isHourly ? 2080 : 1;  // annualise hourly (2080 working hours/year)
-  return {
-    salary_min: lo ? lo * scale : undefined,
-    salary_max: (hi ?? lo) * scale,
-  };
+  const salary_min = lo ? lo * scale : undefined;
+  let salary_max = (hi ?? lo) * scale;
+
+  // Sanity guard (same rule as ai/jdFacts.ts's extractTextSalary): a max
+  // below the min is a misparse, not a real range.
+  if (salary_min != null && salary_max < salary_min) salary_max = salary_min;
+
+  return { salary_min, salary_max };
 }
 
 // ── Result returned to orchestrator (includes cost for quota tracking) ─────────
