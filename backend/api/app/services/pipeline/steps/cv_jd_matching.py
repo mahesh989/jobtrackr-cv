@@ -48,6 +48,7 @@ from app.services.ai.prompts import (
     CV_JD_MATCHING_SYSTEM,
     CV_JD_MATCHING_USER_TEMPLATE,
 )
+from app.services.pipeline.steps._keyword_match import literal_match as _literal_match
 from app.services.skills.classifier import is_noise
 
 logger = logging.getLogger(__name__)
@@ -308,17 +309,31 @@ def _promote_literal_matches(
 
 
 def _literal_match_in_text(keyword: str, cv_text: str) -> bool:
-    """Word-boundary case-insensitive search for keyword in cv_text.
+    """Case-insensitive search for keyword in cv_text: word-boundary regex
+    for word-only keywords, plain substring for the rest (e.g. "c#",
+    "c++", ".net", "excel (advanced)" — none of these can ever match a
+    \\b...\\b pattern, since their trailing character is non-word with
+    nothing for \\b to anchor against).
 
-    Word boundaries prevent false positives like "ai" matching "fair".
-    Punctuation in keyword (e.g. "ci/cd", "c++") is escaped.
-    Accepts raw (mixed-case) or pre-lowered cv_text — always lowercases both.
+    C49 (AUDIT-REPORT.md #11): this function used to ALWAYS wrap the
+    keyword in \\b...\\b, unlike tailored_rescoring's sibling matcher —
+    the drift meant a JD keyword like "C#" the CV genuinely held could
+    never be promoted from missed to matched HERE (understating the
+    original ATS score), while the same keyword, carried through
+    unchanged into the tailored CV, WAS credited by the tailored-side
+    matcher — reported to the user as something tailoring "injected" and
+    inflating ats_lift with a gain tailoring never produced. Now delegates
+    to the single shared implementation both matchers use.
+
+    Accepts raw (mixed-case) or pre-lowered cv_text — always lowercases
+    both (this function's own established contract; the shared helper
+    itself requires pre-lowered text, matching tailored_rescoring's
+    convention).
     """
     kw = (keyword or "").strip().lower()
     if not kw:
         return False
-    pattern = r"\b" + _re.escape(kw) + r"\b"
-    return _re.search(pattern, cv_text.lower()) is not None
+    return _literal_match(kw, cv_text.lower())
 
 
 # Trailing JD-obligation qualifier words that decorate a credential's NAME
