@@ -37,7 +37,7 @@ interface AdzunaResponse {
 // multi-word state name like "Western Australia" alone would reduce to
 // "Australia" — but that same start-of-string match ALSO fired for every
 // other bare state token (`"NSW"`, `"Victoria"`, `"New South Wales"`, all
-// 15 of them), discarding a real, useful location down to a bare country
+// 16 of them), discarding a real, useful location down to a bare country
 // fallback. Combined with `distance` also being sent as a search radius
 // (buildBaseParams), a bare "NSW" input silently became a radius search
 // centred on "Australia" — a materially broken query, not just a wider
