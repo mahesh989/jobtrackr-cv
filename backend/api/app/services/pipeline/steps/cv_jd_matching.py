@@ -348,21 +348,34 @@ _CREDENTIAL_QUALIFIER_SUFFIXES: Tuple[str, ...] = (
 )
 
 
-def _strip_credential_qualifier_suffix(phrase: str) -> str:
-    """Strip trailing JD-obligation qualifier words from a credential phrase.
+def _credential_qualifier_stems(phrase: str) -> List[str]:
+    """Yield progressively-shorter stems of `phrase`, popping ONE trailing
+    JD-obligation qualifier word at a time (longest stem first). The
+    original `phrase` itself is never included — only strictly-shorter
+    stems produced by popping at least one qualifier word.
 
-    'vaccination requirements' -> 'vaccination'
-    'national police check compliance' -> 'national police check'
-    'ndis worker screening clearance' -> 'ndis worker screening'
+    'national police check compliance' -> ['national police check']
+    'ndis worker screening clearance' -> ['ndis worker screening']
+    'police clearance compliance' -> ['police clearance', 'police']
 
-    Idempotent (repeated words like 'clearance compliance' are both
-    stripped). Returns the original phrase when no qualifier suffix matches,
-    or when stripping would leave nothing.
+    C20b: popping ALL trailing qualifier words in one shot before testing
+    anything (the previous single-shot _strip_credential_qualifier_suffix)
+    could overshoot a valid intermediate stem — "police clearance
+    compliance" stripped straight to "police" (too generic to safely
+    credit — see the caller's own is_noise gate) instead of stopping at
+    "police clearance" (a real, recognised credential the CV literally
+    documents). Yielding every intermediate stem, longest first, lets the
+    caller test each one against its existing is_noise + literal-match
+    safety gate and accept the FIRST (longest, most specific) one that
+    passes — never forced to overshoot past a valid stopping point.
     """
     words = phrase.strip().split()
+    stems: List[str] = []
     while words and words[-1].lower().strip(".,;:()") in _CREDENTIAL_QUALIFIER_SUFFIXES:
         words.pop()
-    return " ".join(words) if words else phrase.strip()
+        if words:
+            stems.append(" ".join(words))
+    return stems
 
 
 # Australian VET qualification ladder. A higher AQF level in the same vocational
@@ -587,13 +600,24 @@ def _build_credentials_gap(
         # "National Police Check compliance" -> "National Police Check"
         # (still a real credential, safe) from "Police Clearance" ->
         # "Police" (not a credential on its own, unsafe).
-        stripped = _strip_credential_qualifier_suffix(phrase)
-        if (
-            stripped and stripped != phrase
-            and is_noise(stripped) in ("credential", "eligibility")
-            and _literal_match_in_text(stripped, cv_text)
-        ):
-            return True
+        #
+        # C20b: a single-shot strip-everything-then-check-once approach
+        # could overshoot past a valid intermediate stem — "police
+        # clearance compliance" stripped straight to "police" (fails the
+        # is_noise gate below, forcing a false "missing") instead of
+        # stopping at "police clearance" (passes the SAME gate — a real
+        # credential the CV literally documents). Testing every
+        # progressively-shorter stem and accepting the first (longest,
+        # most specific) one that passes this exact gate fixes the
+        # overshoot without weakening the gate itself in any way — a stem
+        # too generic to be a real credential ("police" alone) still
+        # correctly fails is_noise and is never accepted.
+        for stripped in _credential_qualifier_stems(phrase):
+            if (
+                is_noise(stripped) in ("credential", "eligibility")
+                and _literal_match_in_text(stripped, cv_text)
+            ):
+                return True
         if contact_details and user_has_credential(phrase, contact_details):
             return True
         return False
