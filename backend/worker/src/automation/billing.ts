@@ -28,8 +28,8 @@ const ADMIN_ROLES = new Set(["founder", "admin"]);
 
 // CV caps per plan — typed mirror of PLAN_LIMITS (plans.ts) / migration 051
 // seed. null = unlimited for that dimension. Fallback only; the plans table is
-// authoritative and read first.
-const PLAN_CV_LIMITS: Record<string, { unique: number | null; total: number | null }> = {
+// authoritative and read first. Exported for billing.test.ts's parity guard.
+export const PLAN_CV_LIMITS: Record<string, { unique: number | null; total: number | null }> = {
   trial:     { unique: 3,    total: 3    },
   weekly:    { unique: 50,   total: 75   },
   monthly:   { unique: 250,  total: 375  },
