@@ -259,6 +259,82 @@ class TestMarkdownClinicalExperienceSynonym:
         assert entries[0].primary_vertical == "nursing"
 
 
+class TestMarkdownMultipleExperienceSections:
+    """REGRESSION (C22l, found during C22g's independent review): a CV can
+    legitimately carry more than one markdown heading that matches
+    _EXPERIENCE_HEADING_RE — e.g. "## Clinical Experience" for placements
+    AND a separate "## Work Experience" for paid roles. The old
+    single-section _find_experience_section() `break`s on the FIRST match
+    and only scans to the next `## ` heading, so every entry under a SECOND
+    matching heading was silently dropped — the plaintext/pypdf path
+    (_find_plaintext_experience_sections) already collects ALL matching
+    sections; the markdown path did not."""
+
+    MULTI_SECTION_CV = """\
+# Jane Doe
+
+## Clinical Experience
+
+### General Hospital
+
+*Registered Nurse | Jan 2023 – Present*
+
+- Provided patient care in acute ward.
+
+## Work Experience
+
+### Corner Cafe
+
+*Barista | Jun 2019 – Dec 2019*
+
+- Made coffee and served customers.
+
+## Education
+
+Bachelor of Nursing 2022
+"""
+
+    def test_entries_from_both_sections_are_collected(self):
+        entries = parse_cv_experience(self.MULTI_SECTION_CV)
+        assert len(entries) == 2
+        assert {e.employer for e in entries} == {"General Hospital", "Corner Cafe"}
+
+    def test_source_order_is_preserved_across_sections(self):
+        entries = parse_cv_experience(self.MULTI_SECTION_CV)
+        assert entries[0].employer == "General Hospital"
+        assert entries[1].employer == "Corner Cafe"
+
+
+class TestMarkdownHeadingMatchedButEmptyFallsThroughToPlaintext:
+    """REGRESSION (C22m, found during C22g's independent review): when the
+    markdown path finds an _EXPERIENCE_HEADING_RE match but the section body
+    contains no `### ` entry blocks (e.g. a genuinely hybrid document — a
+    markdown heading over otherwise plaintext/pypdf-shaped content), the old
+    code unconditionally `return`ed the empty markdown-path entries list and
+    never fell through to the plaintext fallback, silently losing entries
+    that path would have found."""
+
+    def test_empty_markdown_section_falls_through_to_plaintext_parsing(self):
+        # A markdown "## Experience" heading with no ### entries under it
+        # (old code returns [] here and stops), PLUS a genuinely separate
+        # all-caps plaintext-style "WORK EXPERIENCE" section elsewhere in
+        # the same document that the plaintext fallback would have found,
+        # had it been reached.
+        cv = (
+            "# Jane Doe\n\n"
+            "## Experience\n\n"
+            "Some intro prose with no ### entries at all.\n\n"
+            "## Education\n\nBachelor of Nursing 2022\n\n"
+            "WORK EXPERIENCE\n"
+            "General Hospital\n"
+            "Registered Nurse | Jan 2023 - Present\n"
+            "- Provided patient care in acute ward.\n"
+        )
+        entries = parse_cv_experience(cv)
+        assert len(entries) == 1
+        assert entries[0].employer == "General Hospital"
+
+
 # ---------------------------------------------------------------------------
 # Edge cases
 # ---------------------------------------------------------------------------
