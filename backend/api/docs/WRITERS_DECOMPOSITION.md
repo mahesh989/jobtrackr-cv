@@ -1,5 +1,13 @@
 # writers.py decomposition — plan & protocol
 
+> **Correction (C62b, 2026-08-16):** the `summary` module this doc lists
+> below (404 lines, `enforce_summary_concreteness` + helpers) was itself
+> deleted 4 days after this doc's completion date, in commit `f720f9b5`
+> (2026-06-16) — "dead summary-enforcement code that only ran in the
+> test suite and never in production," folded into `composition.py`'s
+> prompt rules instead. The module inventory below is a historical
+> snapshot, not the current package layout.
+
 > **STATUS: COMPLETE (2026-06-12).** The 5,145-line monolith is now a package of
 > 8 focused topic modules + a 1,454-line orchestration core (`_impl.py` keeps
 > `WriterResult`, the W1–W8 writer variants, `_targeted_bullet_rewrites`,
