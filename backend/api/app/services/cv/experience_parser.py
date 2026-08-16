@@ -217,20 +217,32 @@ def _parse_role_date_range(role_line: str):
     return (d, d) if d else None
 
 
-def _find_experience_section(lines: List[str]) -> Optional[Tuple[int, int]]:
-    start = None
-    for i, ln in enumerate(lines):
-        if _EXPERIENCE_HEADING_RE.match(ln):
+def _find_experience_sections(lines: List[str]) -> List[Tuple[int, int]]:
+    """Find ALL markdown experience-heading sections, not just the first.
+
+    C22l: a CV can legitimately carry more than one heading matching
+    _EXPERIENCE_HEADING_RE — e.g. a separate "## Clinical Experience" for
+    placements and "## Work Experience" for paid roles. The old
+    single-section version `break`d on the first match, silently dropping
+    every entry under any subsequent matching heading. Mirrors
+    _find_plaintext_experience_sections' multi-section loop below, which
+    already collected all matches on the plaintext path.
+    """
+    sections: List[Tuple[int, int]] = []
+    i = 0
+    while i < len(lines):
+        if _EXPERIENCE_HEADING_RE.match(lines[i]):
             start = i
-            break
-    if start is None:
-        return None
-    end = len(lines)
-    for j in range(start + 1, len(lines)):
-        if lines[j].startswith("## "):
-            end = j
-            break
-    return (start, end)
+            end = len(lines)
+            for j in range(start + 1, len(lines)):
+                if lines[j].startswith("## "):
+                    end = j
+                    break
+            sections.append((start, end))
+            i = end
+        else:
+            i += 1
+    return sections
 
 
 def _split_into_entries(body_lines: List[str]) -> List[List[str]]:
@@ -546,12 +558,11 @@ def parse_cv_experience(cv_text: str) -> List[ExperienceEntry]:
     lines = cv_text.split("\n")
 
     # ── Markdown path ──────────────────────────────────────────────────────
-    section = _find_experience_section(lines)
-    if section:
-        start_i, end_i = section
+    sections = _find_experience_sections(lines)
+    entries: List[ExperienceEntry] = []
+    for start_i, end_i in sections:
         body = lines[start_i + 1: end_i]
         blocks = _split_into_entries(body)
-        entries: List[ExperienceEntry] = []
         for block in blocks:
             if not block:
                 continue
@@ -574,13 +585,19 @@ def parse_cv_experience(cv_text: str) -> List[ExperienceEntry]:
                 bullets=bullets,
                 vertical_hits=hits,
             ))
+    if entries:
         return entries
 
     # ── Plain-text (pypdf) fallback ────────────────────────────────────────
+    # C22m: also reached when a markdown heading matched but its section(s)
+    # yielded zero entries (e.g. a genuinely hybrid document — a markdown
+    # heading with no ### body, but real entries elsewhere in plaintext/
+    # pypdf shape). The old code returned [] unconditionally the moment ANY
+    # markdown heading matched, even an empty one, silently dropping
+    # entries the plaintext path would have found.
     plain_sections = _find_plaintext_experience_sections(lines)
     if not plain_sections:
         return []
-    entries = []
     for start_i, end_i in plain_sections:
         body = lines[start_i + 1: end_i]
         entries.extend(_parse_plaintext_section_entries(body))
