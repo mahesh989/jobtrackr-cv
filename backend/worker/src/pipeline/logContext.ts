@@ -31,10 +31,25 @@ function emit(msg: string): void {
   const ctx = runLogContext.getStore();
   if (!ctx) return;
   const line = { t: new Date().toISOString(), msg };
-  // Fire-and-forget — never block the pipeline on a log write.
-  void db.rpc("append_run_log_line", { rid: ctx.runLogId, line }).then(({ error }) => {
-    if (error) origWarn(`[logContext] append failed: ${error.message}`);
-  });
+  // Fire-and-forget — never block the pipeline on a log write. The
+  // .catch() below is required, not defensive boilerplate: without it, a
+  // REJECTED promise (network exception, timeout — distinct from a
+  // resolved {error} from Postgrest) becomes an unhandled promise
+  // rejection, and index.ts's process.on("unhandledRejection", ...)
+  // handler calls process.exit(1) — a single transient network blip
+  // during a routine log write could otherwise crash the entire worker
+  // process mid-run (C55).
+  // Promise.resolve(...) coerces the Postgrest builder's PromiseLike into
+  // a real Promise first — it only exposes .then(), not .catch(), so a
+  // chained .catch() doesn't typecheck directly off db.rpc(...).
+  void Promise.resolve(db.rpc("append_run_log_line", { rid: ctx.runLogId, line })).then(
+    ({ error }) => {
+      if (error) origWarn(`[logContext] append failed: ${error.message}`);
+    },
+    (err: unknown) => {
+      origWarn(`[logContext] append threw: ${err instanceof Error ? err.message : err}`);
+    },
+  );
 }
 
 console.log   = (...args: unknown[]) => { origLog(...args);   emit(stringify(args)); };
