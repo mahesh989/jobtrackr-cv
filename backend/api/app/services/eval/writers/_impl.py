@@ -521,11 +521,15 @@ async def _writer_w8_integrated(
     #     case (award entry + cert entry under one heading) survives this pass.
     final_md = _relabel_awards_only_certifications(final_md)
     # 4c. Stamp user-supplied credentials into ## Registration & Licences
-    #     (nursing/healthcare/care families only; no-op when role family is
-    #     tech/manual/general or when the user has saved no credentials).
-    #     Replaces any AI-emitted body in that section — the user's profile
-    #     is authoritative for what they actually hold. Run BEFORE the
-    #     awards-split pass so it can dedupe against Registration content.
+    #     (C22o: nursing + manual only — contact_line.py's
+    #     _CREDENTIAL_FAMILIES — a prior version of this comment wrongly
+    #     included manual in the no-op list; manual DOES run this pass, see
+    #     test_credentials_stamp.py's explicit manual-path assertion. No-op
+    #     when role family is tech/general or when the user has saved no
+    #     credentials). Replaces any AI-emitted body in that section — the
+    #     user's profile is authoritative for what they actually hold. Run
+    #     BEFORE the awards-split pass so it can dedupe against
+    #     Registration content.
     final_md = stamp_credentials(final_md, contact_details, role_family.id)
     # 4c-bis. Availability note (opt-in) — italic line at the end of the
     #         Professional Summary, just above the next section.
