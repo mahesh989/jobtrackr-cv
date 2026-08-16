@@ -12,23 +12,11 @@ import { ChevronRight, ExternalLink, Inbox, Star } from "lucide-react";
 import { BoardJob } from "../../lib/jobFilters";
 import { useJobSelection } from "../feedSelection";
 import { relativeDate } from "@/features/jobs/lib/smartFeedUtils";
-import { CardChips, Distance } from "./chips";
+import { Distance } from "./chips";
 import { CardActionsContext } from "./context";
-import { CardActions, CardMeta, CardTitle } from "./parts";
+import { CardMeta, CardTitle } from "./parts";
 import { Gauge } from "./gauge";
 import { CardFooter, CardShell, SalaryLine } from "./shell";
-export function HeroCard({ job, currentTab, refSetter, excludeKeywords }: { job: BoardJob; currentTab: string; refSetter: (el: HTMLDivElement | null) => void; excludeKeywords?: string }) {
-  return (
-    <CardShell job={job} currentTab={currentTab} refSetter={refSetter} hero excludeKeywords={excludeKeywords}>
-      <CardChips job={job} />
-      <CardTitle job={job} />
-      <CardMeta job={job} />
-      <div className="mt-2"><Gauge job={job} /></div>
-      <CardActions job={job} />
-    </CardShell>
-  );
-}
-
 // ── compact card ────────────────────────────────────────────────────────
 
 export function JobCard({ job, currentTab, refSetter, excludeKeywords }: { job: BoardJob; currentTab: string; refSetter: (el: HTMLDivElement | null) => void; excludeKeywords?: string }) {
