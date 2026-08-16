@@ -28,6 +28,18 @@ class TestRegistrationSectionTextRecognisesRelabelledHeadings:
         md = "## Certifications & Checks\n\nFirst Aid Certificate (HLTAID011)\n"
         assert "first aid" in _registration_section_text(md)
 
+    def test_checks_and_clearances_with_the_word_and_is_recognised(self):
+        # C22i: paired with _GROUNDED_SECTION_WORDS, which already lists
+        # BOTH "checks & clearances" and "checks and clearances" — an
+        # "&"->"and" LLM typography normalisation is plausible for this
+        # exact phrase elsewhere in this same file, not a new assumption.
+        md = "## Checks and Clearances\n\nFirst Aid Certificate (HLTAID011)\n"
+        assert "first aid" in _registration_section_text(md)
+
+    def test_certifications_and_checks_with_the_word_and_is_recognised(self):
+        md = "## Certifications and Checks\n\nFirst Aid Certificate (HLTAID011)\n"
+        assert "first aid" in _registration_section_text(md)
+
 
 class TestSplitAwardsDedupesAgainstRelabelledRegistrationSection:
     """REGRESSION (C22e): a credential canonically listed under the
