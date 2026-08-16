@@ -134,6 +134,14 @@ const LENS_META: Record<LensKey, LensMeta> = {
       { label: "Letter ready", color: "var(--chart-info)", href: LETTER_READY_HREF },
       { label: "Not yet",      color: "var(--chart-neutral)" },
     ],
+    // C73: "Not yet" (every tracked-but-unapplied job) dwarfs the other two
+    // slices on real data — it's the total minus a handful of applied/
+    // letter-ready jobs, so it visually swamps the ring and legend with the
+    // one number this lens exists to de-emphasise. visN()/toFracsN() (below)
+    // were already built and wired everywhere a lens's slice count is read
+    // (ring, legend, popup breakdown) specifically for this — this lens was
+    // just never given the visibleSlices value that turns it on.
+    visibleSlices: 2,
   },
 };
 
