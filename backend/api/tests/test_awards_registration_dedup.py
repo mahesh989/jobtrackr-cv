@@ -91,3 +91,57 @@ class TestSplitAwardsDedupesAgainstRelabelledRegistrationSection:
         )
         out = split_awards_and_certifications(md)
         assert "individual support" in out.lower()
+
+
+class TestAdjacentBulletsGroupedAsSeparateEntries:
+    """REGRESSION (C22h, found during C22e's independent review — flagged as
+    the highest-value open item in the whole C22 family, pre-existing under
+    the ORIGINAL "## Registration & Licences" heading too, not caused by any
+    prior C22 fix): the entry-grouping loop in split_awards_and_certifications
+    treated ANY line starting with a bullet marker as a CONTINUATION of the
+    current entry whenever `current` was non-empty — including a second,
+    unrelated bullet with no blank line separating it from the first. Two
+    genuinely distinct certifications listed as adjacent bullets (a very
+    common LLM output shape) were merged into ONE entry before
+    classification, so a SINGLE duplicate-credential match against the
+    merged blob dropped the WHOLE run — silently deleting a real, non-
+    duplicate credential the candidate holds alongside the one that was
+    correctly a duplicate."""
+
+    def test_a_duplicate_bullet_no_longer_drops_the_next_distinct_bullet(self):
+        md = (
+            "## Registration & Licences\n\n"
+            "First Aid Certificate (HLTAID011)\n\n"
+            "## Certifications\n\n"
+            "- First Aid Certificate\n"
+            "- Advanced Cardiac Life Support Certificate\n"
+        )
+        out = split_awards_and_certifications(md)
+        # The duplicate bullet is still correctly dropped...
+        assert out.lower().count("first aid") == 1  # only the Registration copy
+        # ...but the adjacent, genuinely distinct bullet must SURVIVE, not
+        # be silently deleted as collateral damage of the merge.
+        assert "advanced cardiac life support" in out.lower()
+
+    def test_two_non_duplicate_adjacent_bullets_both_survive_as_separate_entries(self):
+        md = (
+            "## Certifications\n\n"
+            "- Advanced Cardiac Life Support Certificate\n"
+            "- Certificate III in Individual Support\n"
+        )
+        out = split_awards_and_certifications(md)
+        assert "advanced cardiac life support" in out.lower()
+        assert "individual support" in out.lower()
+
+    def test_indented_continuation_line_still_merges_into_the_same_bullet_entry(self):
+        # A genuinely wrapped continuation of ONE bullet's own text (indented,
+        # not a new top-level bullet) must still merge — this fix narrows
+        # the bug to top-level bullet-after-bullet only, not all
+        # continuations.
+        md = (
+            "## Certifications\n\n"
+            "- Advanced Cardiac Life Support Certificate\n"
+            "  issued by St John Ambulance\n"
+        )
+        out = split_awards_and_certifications(md)
+        assert "issued by st john ambulance" in out.lower()

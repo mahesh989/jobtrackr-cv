@@ -345,16 +345,34 @@ def split_awards_and_certifications(markdown: str) -> str:
                 flush()
                 current = []
                 continue
-            is_continuation = (
-                bl[:1] in (" ", "\t")            # indented
-                or stripped[:1] in ("-", "*", "•")  # bullet → could be either,
-                # but bullet items lead a NEW entry only when current is empty
-            )
+            is_indented = bl[:1] in (" ", "\t")
+            is_bullet = stripped[:1] in ("-", "*", "•")
+            is_continuation = is_indented or is_bullet
+
             # Special-case: if the line starts with a bullet AND current is
             # empty, treat as a new entry (e.g. "- Award Name").
-            if stripped[:1] in ("-", "*", "•") and not current:
+            if is_bullet and not is_indented and not current:
                 current.append(bl)
                 continue
+
+            # C22h: a non-indented bullet line immediately following ANOTHER
+            # bullet-started entry, with no blank line between them, is a
+            # SEPARATE entry — not a continuation. Each top-level bullet is
+            # its own distinct award/cert (the common LLM output shape); the
+            # old code merged every following bullet into the SAME entry as
+            # the first whenever `current` was non-empty, so one
+            # duplicate-credential match against the merged blob dropped
+            # every bullet in the run, including genuinely distinct ones.
+            # Only a genuinely INDENTED line (a real wrapped continuation of
+            # the entry above it) still merges — see the `is_continuation`
+            # branch below.
+            if is_bullet and not is_indented and current and (
+                current[0].strip()[:1] in ("-", "*", "•")
+            ):
+                flush()
+                current = [bl]
+                continue
+
             if is_continuation and current:
                 current.append(bl)
             else:
