@@ -1,5 +1,6 @@
 // Run log lifecycle — written at start AND end of every pipeline run
 import { db } from "../db/client.js";
+import { flushRunLog } from "./logContext.js";
 
 /**
  * Most recent run_logs row across all profiles, regardless of status.
@@ -65,6 +66,11 @@ export async function finishRunLog(
     error_message?: string;
   }
 ): Promise<void> {
+  // Flush any buffered log lines BEFORE marking the run finished (C55b) —
+  // otherwise trailing console output from the run's final moments could
+  // still be sitting unflushed when the row is updated, with no future
+  // interval tick left to catch it.
+  await flushRunLog(runLogId);
   await db
     .from("run_logs")
     .update({
