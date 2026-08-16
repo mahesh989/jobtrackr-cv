@@ -235,7 +235,14 @@ def _registration_section_text(markdown: str) -> str:
         # manual role family's own restored heading name (C23), which this
         # function's caller, split_awards_and_certifications, has no family
         # gate against.
-        "checks & clearances", "certifications & checks",
+        #
+        # C22i: paired with the "&" forms above, matching this file's own
+        # _GROUNDED_SECTION_WORDS (below), which already lists BOTH
+        # "checks & clearances" and "checks and clearances" — evidence an
+        # "&"->"and" LLM typography normalisation is plausible for this
+        # exact phrase elsewhere in this same file, not a new assumption.
+        "checks & clearances", "checks and clearances",
+        "certifications & checks", "certifications and checks",
     }
     lines = markdown.split("\n")
     out: list[str] = []
