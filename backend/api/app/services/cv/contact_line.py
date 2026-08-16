@@ -180,6 +180,20 @@ _CREDENTIALS_HEADING_ALIASES = frozenset({
     "registration & licences",
     "checks & clearances",
     "certifications & checks",
+    # C22k: this file's own heading search never got C22c's corroborated
+    # bare/plural forms (added to the PDF-render layer's _SECTION_ALIASES,
+    # pdf_generator/parsing.py) — a writer emitting one of these was
+    # invisible to the exact-match lookup below, so a fresh "## Registration
+    # & Licences" section got APPENDED instead of the existing one being
+    # replaced in place. Same corroborated set as C22c (twice-independently
+    # evidenced — see that chunk's own investigation notes); the two
+    # zero-corroboration variants it deliberately left out stay left out
+    # here too.
+    "registration and licences",
+    "registration",
+    "registrations",
+    "licences",
+    "licenses",
 })
 
 # Role families that surface credentials. Each picks a different subset of
