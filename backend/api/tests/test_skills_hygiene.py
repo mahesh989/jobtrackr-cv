@@ -619,6 +619,42 @@ def test_strip_ungrounded_drops_fabricated_check():
     assert "## Skills" in out
 
 
+def test_strip_ungrounded_drops_fabricated_check_under_manual_familys_certifications_and_checks_heading():
+    # REGRESSION (C22j): restore_and_order renames "## Certifications" back
+    # to "## Certifications & Checks" for the manual role family
+    # (_TO_CANONICAL["manual"]'s reverse mapping — a real, prescribed
+    # section_order heading, not hypothetical) BEFORE this gate runs.
+    # Without "certifications & checks" in _GROUNDED_SECTION_WORDS, this
+    # heading never entered the grounding check at all, so a fabricated
+    # credential entry survived unchecked.
+    cv = "Maheshwor Tiwari\nNSW\n\nExperience\nDid care.\n"
+    md = (
+        "# Name\n\n"
+        "## Certifications & Checks\n"
+        "- Advanced First Aid Instructor Certification\n\n"
+        "## Skills\n**Care Skills:** Personal care\n"
+    )
+    out = _strip_ungrounded_credentials(md, cv)
+    assert "Advanced First Aid Instructor Certification" not in out
+    assert "## Certifications & Checks" not in out
+    assert "## Skills" in out
+
+
+def test_strip_ungrounded_keeps_grounded_entry_under_certifications_and_checks_heading():
+    cv = "Maheshwor Tiwari\nNSW\n\n## Certifications & Checks\n- Police Check\n"
+    md = (
+        "# Name\n\n"
+        "## Certifications & Checks\n"
+        "- Police Check\n"
+        "- Advanced First Aid Instructor Certification\n\n"
+        "## Skills\n**Care Skills:** Personal care\n"
+    )
+    out = _strip_ungrounded_credentials(md, cv)
+    assert "Police Check" in out
+    assert "Advanced First Aid Instructor Certification" not in out
+    assert "## Certifications & Checks" in out
+
+
 def test_strip_ungrounded_keeps_grounded_entry():
     cv = (
         "Certifications\n- Certificate IV in Ageing Support\n"

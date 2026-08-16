@@ -618,6 +618,17 @@ _GROUNDED_SECTION_WORDS = {
     "checks and clearances", "clearances", "checks", "licences", "licenses",
     "registration", "registrations", "registration & licences",
     "professional development",
+    # C22j: restore_and_order (_impl.py step 4) runs BEFORE this gate
+    # (step 4a) and, for the manual role family, its _rename_headings pass
+    # renames "## Certifications" back to "## Certifications & Checks"
+    # (_TO_CANONICAL["manual"]'s reverse mapping — a real, prescribed
+    # section_order heading for that family, not hypothetical). Without
+    # this alias, the exact-match heading lookup below never entered this
+    # branch for exactly the CVs this relabel targets, so a fabricated
+    # credential entry under that heading was never checked against the
+    # original CV at all and always survived — confirmed via an actual
+    # executed repro, not just reasoning.
+    "certifications & checks", "certifications and checks",
 }
 _PLACEHOLDER_RE = re.compile(
     r"\[[^\]]*\]|not\s+specified|not\s+provided|tbc|to\s+be\s+confirmed",
