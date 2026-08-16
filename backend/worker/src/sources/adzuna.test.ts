@@ -108,4 +108,15 @@ describe("normalizeLocation", () => {
   it("the cascade guard holds under a layered input (state-shaped city word + real state + country, all three at once)", () => {
     expect(normalizeLocation("Mount Victoria, QLD, Australia")).toBe("Mount Victoria");
   });
+
+  it.each(["All Australia", "all australia", "ALL AUSTRALIA"])(
+    "normalizes the AU-wide sentinel %s to a valid Adzuna location, not a truncated fragment (C28d) — the country-suffix strip would otherwise reduce it to the bare word \"All\", same failure class as finding #20/C28 for city names",
+    (input) => {
+      expect(normalizeLocation(input)).toBe("Australia");
+    },
+  );
+
+  it("a bare 'Australia' input already resolved correctly before this fix — must stay unchanged", () => {
+    expect(normalizeLocation("Australia")).toBe("Australia");
+  });
 });

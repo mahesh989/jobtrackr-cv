@@ -96,6 +96,20 @@ const AU_COUNTRY_SUFFIX_RE = /,?\s*(?<!\bwestern\s)(?<!\bsouth\s)australia$/i;
 export function normalizeLocation(location: string): string {
   let s = location.trim();
   if (!s) return "Australia";
+
+  // AU-wide sentinel — checked on the ORIGINAL string, before any
+  // stripping, same guard seekDirect.ts uses and for the same reason:
+  // checking after the strips below would be too late, since the
+  // country-suffix strip already reduces "All Australia" to the bare
+  // word "All" on its own (verified) — checking post-strip would just
+  // re-hide this bug the same way finding #21/C28 describes for
+  // seekDirect.ts. Unlike careerjet.ts/seekDirect.ts, adzuna has no
+  // "omit the param" option — buildBaseParams always sends `where=`, so
+  // the AU-wide case here normalizes to "Australia" (not ""), which is
+  // exactly what a bare "Australia" input already resolves to below.
+  const low = s.toLowerCase();
+  if (low === "australia" || low === "all australia") return "Australia";
+
   s = s.replace(AU_STATE_SUFFIX_RE, "").trim();
   const beforeCountryStrip = s;
   s = s.replace(AU_COUNTRY_SUFFIX_RE, "").trim();
