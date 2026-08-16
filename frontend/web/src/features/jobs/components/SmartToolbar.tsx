@@ -5,7 +5,6 @@ import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { X, ChevronDown, Search, Star } from "lucide-react";
 import type { FunnelCounts } from "./PipelineFunnel";
 import type { AtsBand } from "../lib/jobFilters";
-import { FILTER_LABELS } from "../lib/jobFilters";
 import { BOARD_VIEWS, isViewActive, paramsForView, VIEW_PARAM_KEYS } from "../lib/boardViews";
 import { shallowSetParams } from "../lib/shallowNav";
 
@@ -38,14 +37,23 @@ const SHALLOW_KEYS = new Set([
   "min_keywords", "max_distance", "min_distance", "employment", "eligible",
 ]);
 
+// DATE segment (handoff §2.3): single-select posted-window. Values are DAYS —
+// the `posted_within` param the server's dataset query already understands
+// (getDashboardData: posted_at >= now − N days).
+const DATE_OPTIONS = [
+  { value: "", label: "Any" },
+  { value: "1", label: "24h" },
+  { value: "3", label: "3d" },
+  { value: "7", label: "7d" },
+] as const;
+
 /* ── popover (Sort only) ───────────────────────────────────────────────── */
 
 function Popover({
-  label, value, active, children, align = "left",
+  label, value, children, align = "left",
 }: {
   label:    string;
   value?:   string | null;
-  active:   boolean;
   children: (close: () => void) => React.ReactNode;
   align?:   "left" | "right";
 }) {
@@ -102,15 +110,12 @@ function Popover({
         aria-haspopup="menu"
         aria-controls={panelId}
         className={
-          "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-label font-medium transition-colors whitespace-nowrap " +
-          (active
-            ? "border-[var(--brand)] bg-[var(--brand)]/10 text-[var(--brand)]"
-            : "border-border bg-surface text-text-2 hover:bg-[var(--surface-2)]")
+          "inline-flex items-center gap-1.5 rounded-full border border-border bg-[var(--surface-2)] px-3 py-[7px] text-[12.5px] font-medium text-text-2 hover:text-text hover:border-[var(--brand)]/35 transition-colors whitespace-nowrap"
         }
       >
         {label}
         {value && <b className="font-semibold text-text">{value}</b>}
-        <ChevronDown className={`w-3 h-3 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown className={`w-3 h-3 text-text-3 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
@@ -173,31 +178,51 @@ function PopRow({
   );
 }
 
-/* ── inline filter chip ────────────────────────────────────────────────── */
+/* ── segmented facet (handoff §2.3) ─────────────────────────────────────
+   One `.fseg` group pill: surface-2 background, joined buttons separated by
+   1px inner borders, active = brand-tinted + bold. Live counts per segment.
+   Demo numbers: buttons `padding: 5px 12px`, 12px text, label `--t-micro`
+   (10px) 600 uppercase, letter-spacing 0.09em. */
 
-function FilterChip({
-  active, onClick, dot, children, count,
+function Facet({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-micro font-semibold uppercase tracking-[0.09em] text-text-3">
+        {label}
+      </span>
+      <div className="inline-flex border border-border rounded-full overflow-hidden bg-[var(--surface-2)]">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Fseg({
+  active, onClick, children, count,
 }: {
   active: boolean;
   onClick: () => void;
-  dot?: string;
   children: React.ReactNode;
   count?: number;
 }) {
   return (
     <button
       type="button"
+      aria-pressed={active}
       onClick={onClick}
       className={
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-label font-medium transition-colors whitespace-nowrap " +
+        "inline-flex items-center gap-1 border-r border-border last:border-r-0 px-3 py-[5px] text-label font-medium transition-colors whitespace-nowrap " +
         (active
-          ? "border-[var(--brand)] bg-[var(--brand)]/10 text-[var(--brand)]"
-          : "border-border text-text-2 hover:bg-[var(--surface-2)]")
+          ? "bg-[var(--brand)]/10 text-[var(--brand)] font-semibold"
+          : "text-text-2 hover:text-text")
       }
     >
-      {dot && <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />}
       {children}
-      {count != null && <span className="tabular-nums text-caption text-text-3">{count}</span>}
+      {count != null && (
+        <span className={"tabular-nums text-caption " + (active ? "text-[var(--brand)]" : "text-text-3")}>
+          {count}
+        </span>
+      )}
     </button>
   );
 }
@@ -208,10 +233,12 @@ export function SmartToolbar({
   counts,
   atsCounts,
   viewCounts = {},
+  postedWithinCounts = {},
 }: {
   counts:    FunnelCounts;
   atsCounts: Record<AtsBand, number>;
   viewCounts?:     Record<string, number>;
+  postedWithinCounts?: Record<string, number>;
 }) {
   const router   = useRouter();
   const pathname = usePathname();
@@ -223,6 +250,9 @@ export function SmartToolbar({
   const currentJdRaw  = sp.get("jd")       || "";
   const currentSort   = sp.get("sort")     || "posted_at";
   const currentLocation = sp.get("location") || "";
+  // `posted_within` is a dataset filter (server refetch), so "any" means the
+  // param absent — a stale "any" in the URL would just no-op server-side.
+  const currentDate   = sp.get("posted_within") || "";
 
   const atsSet = new Set(currentAtsRaw.split(",").filter(Boolean));
   const jdSet  = new Set(currentJdRaw.split(",").filter(Boolean));
@@ -238,10 +268,15 @@ export function SmartToolbar({
     commit(next, key);
   }
 
-  function toggleMulti(key: "ats" | "jd", value: string) {
-    const cur = new Set((sp.get(key) || "").split(",").filter(Boolean));
-    if (cur.has(value)) cur.delete(value); else cur.add(value);
-    setOne(key, Array.from(cur).join(","));
+  /** Single-select facet semantics (demo `applyAts`/`applyJd`): clicking the
+   *  active segment clears it back to "Any"; clicking another moves it. The
+   *  URL still stores a bare value (or comma-list from legacy links), which
+   *  filterJobs already parses either way. */
+  function selectOne(key: "ats" | "jd", value: string) {
+    const cur = sp.get(key) || "";
+    const next = new URLSearchParams(Array.from(sp.entries()));
+    if (cur === value) next.delete(key); else next.set(key, value);
+    commit(next, key);
   }
 
   function selectTab(tab: FunnelTab | null) {
@@ -283,55 +318,39 @@ export function SmartToolbar({
   function clearAll() {
     const next = new URLSearchParams(Array.from(sp.entries()));
     for (const k of VIEW_PARAM_KEYS) next.delete(k);
+    // Dataset filters are dataset filters: the date window clears with the
+    // rest (it's part of "what am I looking at"), while `location` stays —
+    // it narrows the fetch rather than the view, same rule as boardViews.
+    next.delete("posted_within");
     commit(next, "stage");
   }
 
-  const atsBands: { id: AtsBand; label: string; dot: string }[] = [
-    { id: "above_final",   label: "Above", dot: "bg-[var(--chart-pos)]" },
-    { id: "below_final",   label: "Fair",  dot: "bg-[var(--chart-amber)]" },
-    { id: "below_initial", label: "Below", dot: "bg-[var(--chart-danger)]" },
+  // ATS range labels reflect the app's real gates (MIN_INITIAL_ATS 60,
+  // MIN_FINAL_ATS 70 — atsThresholds.ts). The demo painted 50–69/<50 for its
+  // mock banding (initial gate 50); 60–69/<60 is the same shape with the
+  // app's actual threshold.
+  const atsBands: { id: AtsBand; label: string }[] = [
+    { id: "above_final",   label: "70+" },
+    { id: "below_final",   label: "60–69" },
+    { id: "below_initial", label: "<60" },
   ];
 
-  /* ── active-filter tokens ───────────────────────────────────────────── */
-  interface Token { key: string; label: string; onClear: () => void }
-  const tokens: Token[] = [];
-
-  if (currentStage) {
-    tokens.push({
-      key: "stage",
-      label: FILTER_LABELS[currentStage] ?? currentStage,
-      onClear: () => setOne("stage", ""),
-    });
-  }
-  if (sp.get("triage")) {
-    const t = sp.get("triage")!;
-    tokens.push({ key: "triage", label: FILTER_LABELS[t] ?? t, onClear: () => setOne("triage", "") });
-  }
-  for (const band of atsSet) {
-    if (band === "no_ats" && atsSet.size === 1) continue;
-    tokens.push({
-      key: `ats:${band}`,
-      label: `ATS ${FILTER_LABELS[band]?.replace(/^ATS /, "") ?? band}`,
-      onClear: () => toggleMulti("ats", band),
-    });
-  }
-  for (const q of jdSet) {
-    tokens.push({ key: `jd:${q}`, label: FILTER_LABELS[q] ?? q, onClear: () => toggleMulti("jd", q) });
-  }
-  if (sp.get("not_applied") === "1") {
-    tokens.push({ key: "notApplied", label: "Not yet applied", onClear: () => setOne("not_applied", "") });
-  }
-  if (currentLocation) {
-    tokens.push({ key: "loc", label: `\u201c${currentLocation}\u201d`, onClear: () => setOne("location", "") });
-  }
-
-  const atsAllSelected = atsBands.every((b) => atsSet.has(b.id));
-  const jdBothSelected = jdSet.has("full") && jdSet.has("thin");
+  // Demo's Clear-filters visibility rule: any active view/facet — tab,
+  // saved view, date window, ATS or JD segment. Sort and search don't count
+  // (the demo's `hasFilters`; location stays out on purpose — it narrows
+  // the fetch, and clearAll below deliberately keeps it).
+  const hasFacets = !!currentStage
+    || !!sp.get("triage")
+    || !!currentDate
+    || atsSet.size > 0
+    || jdSet.size > 0
+    || !!sp.get("not_applied");
 
   return (
-    <div className="rounded-md border border-border bg-surface overflow-visible">
-      {/* Row 1 — funnel tabs (left) + saved views (right, after divider) */}
-      <div className="flex items-center flex-wrap px-2.5 border-b border-border">
+    <div>
+      {/* Row 1 — funnel tabs (left) + saved views (right, after divider).
+          Own full-width row with a bottom border — the demo's `.tabs-row`. */}
+      <div className="flex items-center flex-wrap border-b border-border">
         <div className="flex items-center gap-0.5" role="group" aria-label="Filter by status">
           <TabButton active={allTabActive} onClick={() => selectTab(null)} count={counts.discovered}>
             All
@@ -355,7 +374,7 @@ export function SmartToolbar({
           })}
         </div>
 
-        <span aria-hidden className="mx-2 h-5 w-px bg-border" />
+        <span aria-hidden className="mx-1.5 h-5 w-px bg-border" />
 
         <div className="flex items-center gap-1">
           {BOARD_VIEWS.map((v) => {
@@ -383,150 +402,136 @@ export function SmartToolbar({
         </div>
       </div>
 
-      {/* Row 2 — search + sort */}
-      <div className="flex items-center gap-2 px-2.5 py-2 border-b border-border">
-        <div className="relative flex-1 min-w-0">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-3" />
-          <input
-            key={currentLocation}
-            type="text"
-            defaultValue={currentLocation}
-            onBlur={(e) => {
-              const v = e.target.value.trim();
-              if (v !== currentLocation) setOne("location", v);
-            }}
-            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-            placeholder="Location or company…"
-            className="field w-full text-label py-1.5"
-            // `.field`'s own `padding: 8px 10px` shorthand (globals.css) lives
-            // outside Tailwind's layer and wins the cascade over `pl-8`/`pr-8`
-            // at equal specificity — without the inline override here, the
-            // search icon and the text/placeholder both sat at the same 10px
-            // offset instead of the icon making room for the text.
-            style={{ paddingLeft: 32, paddingRight: 32 }}
-          />
-          {currentLocation && (
+      {/* Filter card (handoff §2.3) — demo `.filter-bar` numbers: surface
+          card, radius +2px (14px), padding 12px 14px, column gap 10px,
+          margin-top 12px. */}
+      <div className="mt-3 rounded-[14px] border border-border bg-surface p-3 px-3.5 flex flex-col gap-2.5">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-3" />
+            <input
+              key={currentLocation}
+              type="text"
+              defaultValue={currentLocation}
+              onBlur={(e) => {
+                const v = e.target.value.trim();
+                if (v !== currentLocation) setOne("location", v);
+              }}
+              onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+              placeholder="Location or company…"
+              className="field w-full text-body py-[10px] rounded-[12px]"
+              // `.field`'s own `padding: 8px 10px` shorthand (globals.css) lives
+              // outside Tailwind's layer and wins the cascade over `pl-8`/`pr-8`
+              // at equal specificity — without the inline override here, the
+              // search icon and the text/placeholder both sat at the same 10px
+              // offset instead of the icon making room for the text.
+              style={{ paddingLeft: 36, paddingRight: 36 }}
+            />
+            {currentLocation && (
+              <button
+                onClick={() => setOne("location", "")}
+                disabled={pending}
+                aria-label="Clear location filter"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-3 hover:text-text"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Sort pill — demo `.sort-btn`: 12.5px, surface-2, 999px,
+              padding 7px 12px. */}
+          <div className="shrink-0">
+            <Popover
+              label="Sort:"
+              value={SORT_OPTIONS.find((o) => o.value === currentSort)?.label ?? "Date posted"}
+              align="right"
+            >
+              {(close) => (
+                <>
+                  <PopHeading>Sort by</PopHeading>
+                  {SORT_OPTIONS.filter((o) => o.group === "main").map((o) => (
+                    <PopRow
+                      key={o.value}
+                      kind="radio"
+                      selected={currentSort === o.value}
+                      onClick={() => { setOne("sort", o.value); close(); }}
+                    >
+                      {o.label}
+                    </PopRow>
+                  ))}
+                  <div className="border-t border-border my-1" />
+                  <PopHeading>Activity</PopHeading>
+                  {SORT_OPTIONS.filter((o) => o.group === "activity").map((o) => (
+                    <PopRow
+                      key={o.value}
+                      kind="radio"
+                      selected={currentSort === o.value}
+                      onClick={() => { setOne("sort", o.value); close(); }}
+                    >
+                      {o.label}
+                    </PopRow>
+                  ))}
+                </>
+              )}
+            </Popover>
+          </div>
+
+          {/* ✕ Clear filters — demo `.clear-filters`: caption (11px) 600,
+              brand, padding 7px 8px, top row, shown only when something is
+              actually active (see hasFacets). */}
+          {hasFacets && (
             <button
-              onClick={() => setOne("location", "")}
-              disabled={pending}
-              aria-label="Clear location filter"
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-text-3 hover:text-text"
+              type="button"
+              onClick={clearAll}
+              title="Clear all filters"
+              className="inline-flex items-center gap-1.5 text-caption font-semibold text-[var(--brand)] px-2 py-[7px] rounded-lg hover:bg-[var(--brand)]/8 transition-colors whitespace-nowrap"
             >
               <X className="w-3.5 h-3.5" />
+              Clear filters
             </button>
           )}
         </div>
 
-        <div className="shrink-0">
-          <Popover
-            label="Sort:"
-            value={SORT_OPTIONS.find((o) => o.value === currentSort)?.label ?? "Date posted"}
-            active={false}
-            align="right"
-          >
-            {(close) => (
-              <>
-                <PopHeading>Sort by</PopHeading>
-                {SORT_OPTIONS.filter((o) => o.group === "main").map((o) => (
-                  <PopRow
-                    key={o.value}
-                    kind="radio"
-                    selected={currentSort === o.value}
-                    onClick={() => { setOne("sort", o.value); close(); }}
-                  >
-                    {o.label}
-                  </PopRow>
-                ))}
-                <div className="border-t border-border my-1" />
-                <PopHeading>Activity</PopHeading>
-                {SORT_OPTIONS.filter((o) => o.group === "activity").map((o) => (
-                  <PopRow
-                    key={o.value}
-                    kind="radio"
-                    selected={currentSort === o.value}
-                    onClick={() => { setOne("sort", o.value); close(); }}
-                  >
-                    {o.label}
-                  </PopRow>
-                ))}
-              </>
-            )}
-          </Popover>
-        </div>
-      </div>
-
-      {/* Row 3 — ATS band (left) + JD quality (right) */}
-      <div className="flex items-center gap-2 flex-wrap px-2.5 py-2">
-        <span className="text-label font-medium text-text-2 shrink-0">ATS Band</span>
-        {atsBands.map((b) => (
-          <FilterChip
-            key={b.id}
-            active={atsSet.has(b.id)}
-            onClick={() => toggleMulti("ats", b.id)}
-            dot={b.dot}
-            count={atsCounts[b.id] ?? 0}
-          >
-            {b.label}
-          </FilterChip>
-        ))}
-        {atsSet.size > 0 && !atsAllSelected && (
-          <button
-            type="button"
-            onClick={() => setOne("ats", "")}
-            className="text-caption text-[var(--brand)] hover:underline shrink-0"
-          >
-            Clear
-          </button>
-        )}
-
-        <span className="ml-auto" />
-
-        <span className="text-label font-medium text-text-2 shrink-0">Job Description</span>
-        <FilterChip active={jdSet.has("full")} onClick={() => toggleMulti("jd", "full")} count={counts.richJd}>
-          Full JD
-        </FilterChip>
-        <FilterChip active={jdSet.has("thin")} onClick={() => toggleMulti("jd", "thin")} count={counts.thinJd}>
-          Thin JD
-        </FilterChip>
-        {jdSet.size > 0 && !jdBothSelected && (
-          <button
-            type="button"
-            onClick={() => setOne("jd", "")}
-            className="text-caption text-[var(--brand)] hover:underline shrink-0"
-          >
-            Clear
-          </button>
-        )}
-      </div>
-
-      {/* Row 4 — tokens */}
-      {tokens.length > 0 && (
-        <div className="flex items-center gap-1.5 flex-wrap border-t border-border px-2.5 py-1.5">
-          {tokens.map((t) => (
-            <span
-              key={t.key}
-              className="inline-flex items-center gap-1 rounded-full border border-border bg-[var(--surface-2)] px-2 py-0.5 text-caption text-text-2"
-            >
-              {t.label}
-              <button
-                type="button"
-                onClick={t.onClear}
-                aria-label={`Remove ${t.label} filter`}
-                className="text-text-3 hover:text-text"
+        {/* Facet segments — demo `.facet-row`: 22px gaps, each facet a label
+            (uppercase 10px) + one joined pill group with live counts. */}
+        <div className="flex items-center gap-[22px] flex-wrap">
+          <Facet label="Date">
+            {DATE_OPTIONS.map((o) => (
+              <Fseg
+                key={o.value}
+                active={currentDate === o.value}
+                onClick={() => setOne("posted_within", o.value)}
+                count={o.value ? (postedWithinCounts[o.value] ?? 0) : undefined}
               >
-                <X className="w-3 h-3" />
-              </button>
-            </span>
-          ))}
-          <button
-            type="button"
-            onClick={clearAll}
-            className="ml-1 text-caption font-medium text-[var(--brand)] hover:underline"
-          >
-            Clear all
-          </button>
+                {o.label}
+              </Fseg>
+            ))}
+          </Facet>
+
+          <Facet label="ATS">
+            {atsBands.map((b) => (
+              <Fseg
+                key={b.id}
+                active={atsSet.has(b.id)}
+                onClick={() => selectOne("ats", b.id)}
+                count={atsCounts[b.id] ?? 0}
+              >
+                {b.label}
+              </Fseg>
+            ))}
+          </Facet>
+
+          <Facet label="JD">
+            <Fseg active={jdSet.has("full")} onClick={() => selectOne("jd", "full")} count={counts.richJd}>
+              Full
+            </Fseg>
+            <Fseg active={jdSet.has("thin")} onClick={() => selectOne("jd", "thin")} count={counts.thinJd}>
+              Thin
+            </Fseg>
+          </Facet>
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -547,7 +552,7 @@ function TabButton({
       onClick={onClick}
       disabled={disabled}
       className={
-        "inline-flex items-center gap-1.5 border-b-2 px-2.5 py-2 text-label transition-colors whitespace-nowrap " +
+        "inline-flex items-center gap-1.5 border-b-2 px-3.5 py-2.5 text-label transition-colors whitespace-nowrap " +
         (active
           ? "border-[var(--brand)] text-[var(--brand)] font-semibold"
           : disabled

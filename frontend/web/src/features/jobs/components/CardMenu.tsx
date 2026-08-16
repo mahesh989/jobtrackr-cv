@@ -50,7 +50,7 @@ export function CardMenu({
         disabled={pending}
         aria-label="More actions"
         size="sm"
-        icon={<MoreHorizontal className="w-3.5 h-3.5" />}
+        icon={<MoreHorizontal className="w-[15px] h-[15px]" />}
       />
       {open && pos && typeof document !== "undefined" && createPortal(
         <div

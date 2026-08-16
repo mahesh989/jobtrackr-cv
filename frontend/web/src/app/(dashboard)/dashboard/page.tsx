@@ -90,7 +90,10 @@ export default async function DashboardPage({
 
   return (
     <div className="min-h-full">
-      <div className="px-4 sm:px-6 py-5 space-y-6">
+      {/* Demo `.page` column: 24px gutters (px-4/sm:px-6) + a centred
+          max-width 922px so the board keeps a deliberate gap from the
+          sidebar and the right edge, exactly like the demo. */}
+      <div className="px-4 sm:px-6 py-5 space-y-6 w-full max-w-[922px] mx-auto">
         {!isFocusedStage && (
           <>
             {/* ── Summary row: facts left, actions right ──
@@ -99,7 +102,7 @@ export default async function DashboardPage({
                 to DO — including "N new to review", which is an action and so
                 belongs with the others rather than beside the stats.
                 Wraps to two stacked rows on narrow screens. */}
-            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
               <Suspense>
                 <ProgressLine
                   totalJobs={totalJobs}

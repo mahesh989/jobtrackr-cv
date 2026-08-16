@@ -10,7 +10,7 @@
  */
 import { BarChart3, CheckCircle2, FileText, Mail } from "lucide-react";
 import { BoardJob } from "../../lib/jobFilters";
-import { EMPLOYMENT_CHIP_LABEL, VISA_COLOR, VISA_LABEL, daysUntilClose, getAtsMeta, relativeDate, sourcePillTone, visaKey } from "@/features/jobs/lib/smartFeedUtils";
+import { EMPLOYMENT_CHIP_LABEL, VISA_COLOR, VISA_LABEL, daysUntilClose, getAtsMeta, relativeDate, visaKey } from "@/features/jobs/lib/smartFeedUtils";
 import { Badge } from "@/components/ui";
 // ── card sub-pieces ─────────────────────────────────────────────────────
 
@@ -89,13 +89,8 @@ export function FactsChips({ job }: { job: BoardJob }) {
 export function CardChips({ job }: { job: BoardJob }) {
   return (
     <div className="flex items-center gap-2 mb-2 flex-wrap">
-      <span
-        className={`inline-block w-2.5 h-2.5 rounded-full ${getAtsMeta(job).dot}`}
-        title={`ATS ${getAtsMeta(job).label} — ${getAtsMeta(job).tip}`}
-      />
       <SourcePill source={job.source} />
       {job.profile_name && <ProfileChip name={job.profile_name} />}
-      {job.atsBand !== "no_ats" && <AtsChip job={job} />}
       <FactsChips job={job} />
       <SponsorshipBadge job={job} />
       <span className="text-micro text-text-3">{relativeDate(job.posted_at || job.created_at) ?? "—"}</span>
@@ -142,7 +137,7 @@ export function ProgressDots({ progress }: { progress: BoardJob["progress"] }) {
       {items.map(({ on, Icon, cls, label }, i) => (
         <Icon
           key={i}
-          className={`w-3.5 h-3.5 ${on ? cls : "text-text-3 opacity-30"}`}
+          className={`w-[15px] h-[15px] ${on ? cls : "text-text-3 opacity-30"}`}
           strokeWidth={on ? 2.5 : 1.5}
           aria-label={label}
         />
@@ -162,13 +157,23 @@ export function ProfileChip({ name }: { name: string }) {
   );
 }
 
+const SOURCE_DOT: Record<string, string> = {
+  adzuna: "var(--brand)", seek: "var(--brand)", careerjet: "var(--teal)",
+  greenhouse: "var(--purple)", lever: "var(--purple)", indeed: "var(--amber)",
+};
+
 export function SourcePill({ source }: { source: string }) {
   return (
     <span
-      className={`shrink-0 rounded-[5px] px-[7px] py-[3px] ${sourcePillTone(source)}`}
-      style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".03em" }}
+      // Demo `.source-pill`: neutral pill (surface-2 + border, 999px) with a
+      // source-coloured dot — 12px/500, padding 2px 9px, gap 5px, dot 8px.
+      className="inline-flex items-center gap-[5px] shrink-0 rounded-full border border-border bg-[var(--surface-2)] px-[9px] py-0.5 text-[12px] font-medium text-text-2"
       title={`Source: ${source}`}
     >
+      <span
+        className="w-2 h-2 rounded-full shrink-0"
+        style={{ background: SOURCE_DOT[source.toLowerCase()] ?? "#94a3b8" }}
+      />
       {source}
     </span>
   );

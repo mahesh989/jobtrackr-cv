@@ -105,8 +105,9 @@ export function JobBoard({
 
   // Every badge in the toolbar equals what clicking it will actually show —
   // see useToolbarCounts for the rule.
-  const { atsCounts, viewCounts } = useToolbarCounts(jobs, {
+  const { atsCounts, viewCounts, postedWithinCounts } = useToolbarCounts(jobs, {
     stage, triage, jd, notApplied, minKeywords, maxDistance, minDistance, sortCol,
+    postedWithin: sp.get("posted_within") || "",
   });
 
   // Active view-filter labels for the heading (dismissed = a server tab, not a
@@ -230,6 +231,7 @@ export function JobBoard({
         counts={counts}
         atsCounts={atsCounts}
         viewCounts={viewCounts}
+        postedWithinCounts={postedWithinCounts}
         excludeKeywords={excludeKeywords}
       />
     </>

@@ -63,18 +63,6 @@ export function visaKey(j: BoardJob): keyof typeof VISA_COLOR {
   return "unknown";
 }
 
-export function sourcePillTone(source: string): string {
-  const m: Record<string, string> = {
-    adzuna:     "bg-[var(--brand)]/12 text-[var(--brand)] border border-[var(--brand)]/25",
-    seek:       "bg-[var(--brand)]/12 text-[var(--brand)] border border-[var(--brand)]/25",
-    careerjet:  "bg-[var(--teal)]/14 text-[var(--teal)] border border-[var(--teal)]/25",
-    greenhouse: "bg-[var(--purple)]/12 text-[var(--purple)] border border-[var(--purple)]/25",
-    lever:      "bg-[var(--purple)]/12 text-[var(--purple)] border border-[var(--purple)]/25",
-    indeed:     "bg-[var(--amber)]/12 text-[var(--amber)] border border-[var(--amber)]/25",
-  };
-  return m[source.toLowerCase()] ?? "bg-[var(--surface-2)] text-text-2 border border-border";
-}
-
 export function byDistanceAsc(a: BoardJob, b: BoardJob): number {
   const aNull = a.distance_km == null;
   const bNull = b.distance_km == null;

@@ -73,6 +73,10 @@ export interface ViewFilters {
   /** "1" → hide not_eligible jobs (eligibility derived in page.tsx from the
    *  user's My CV visa status). Unclear jobs stay visible. */
   eligibleOnly?: string;
+  /** Date-posted window in days ("1"/"3"/"7") — mirrors the server's dataset
+   *  narrowing (getDashboardData: posted_at >= now − N days) so badge counts
+   *  stay honest with the query that actually fetched the rows. */
+  postedWithin?: string;
 }
 
 /** Minimum manual-JD length (chars) that counts as "the user supplied a usable
@@ -256,6 +260,22 @@ export function filterJobs(jobs: BoardJob[], f: ViewFilters): BoardJob[] {
     const minKm = parseFloat(f.minDistance);
     if (!isNaN(minKm) && minKm > 0) {
       out = out.filter((x) => x.distance_km == null || x.distance_km >= minKm);
+    }
+  }
+
+  // Date-posted window. In-memory mirror of the server's dataset narrowing —
+  // jobs without a posted_at are treated as outside the window (the server
+  // query could not have matched them either).
+  if (f.postedWithin) {
+    const days = parseInt(f.postedWithin, 10);
+    if (!isNaN(days)) {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+      const t = cutoff.getTime();
+      out = out.filter((x) => {
+        const p = x.posted_at ? Date.parse(x.posted_at) : NaN;
+        return !Number.isNaN(p) && p >= t;
+      });
     }
   }
 
@@ -586,6 +606,8 @@ export const FILTER_LABELS: Record<string, string> = {
   // lowercase param ("favourite") instead of a label.
   favourite: "Favourite",
   full: "Full JD", thin: "Thin JD",
+  // posted_within dataset-window labels (toolbar DATE segment + tokens)
+  "1": "Last 24h", "3": "Last 3 days", "7": "Last 7 days",
 };
 
 /**

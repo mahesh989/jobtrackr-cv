@@ -75,6 +75,10 @@ interface Props {
   cvLabel?:           string | null;
   cvCharLen?:         number;
   cvCategorisedSkills?: CategorisedSkills | null;
+  /** Omits the tailored-CV score card and the tailored CV itself — used by
+   *  the board's "Full analysis" popup, which is scoped to the JD/matching
+   *  analysis only; the CV and cover letter stay in their own board tabs. */
+  hideTailored?: boolean;
 }
 
 // Step labels match cv-magic's AnalysisProgress wording verbatim, plus the
@@ -208,7 +212,7 @@ export function isRunPollSettled(
   return coverLetterRowStatus === "completed" || coverLetterRowStatus === "failed";
 }
 
-export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCategorisedSkills }: Props) {
+export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCategorisedSkills, hideTailored = false }: Props) {
   const [run, setRun] = useState<AnalysisRunRow>(initial);
   const [coverLetter, setCoverLetter] = useState<CoverLetterRow | null>(null);
   const [showInput, setShowInput] = useState(false);
@@ -580,7 +584,7 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
         <RecommendationsCard markdown={run.ai_recommendations} />
       )}
       {run.quality_flags && <QualityFlagsCard flags={run.quality_flags} />}
-      {(run.match_score != null || run.tailored_match_score != null) && (
+      {!hideTailored && (run.match_score != null || run.tailored_match_score != null) && (
         <TailoredScoreCard
           beforeScore={run.match_score}
           afterScore={run.tailored_match_score}
@@ -595,7 +599,7 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
           }
         />
       )}
-      {run.tailored_cv_storage_path && (
+      {!hideTailored && run.tailored_cv_storage_path && (
         <TailoredCvCard
           storagePath={run.tailored_cv_storage_path}
           pdfStoragePath={run.tailored_pdf_storage_path}

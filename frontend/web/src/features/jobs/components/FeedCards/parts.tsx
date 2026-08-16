@@ -29,7 +29,7 @@ export function CardTitle({ job, inline }: { job: BoardJob; inline?: boolean }) 
       // to the words themselves — everywhere else on the card selects the job
       // into the detail pane instead.
       className="inline font-semibold text-text hover:text-[var(--brand)] leading-snug break-words"
-      style={!inline ? { fontSize: 15, lineHeight: 1.4 } : undefined}
+      style={!inline ? { fontSize: 16, lineHeight: 1.4 } : undefined}
     >
       {job.title}
     </a>
@@ -43,7 +43,7 @@ export function CardMeta({ job, compact }: { job: BoardJob; compact?: boolean })
   const postedRel = relativeDate(job.posted_at);
   const addedRel  = relativeDate(job.created_at);
   return (
-    <p className={`${compact ? "mt-1 text-label" : "text-caption"} text-text-2`}>
+    <p className={`${compact ? "mt-[3px]" : ""} text-[13px] text-text-2`}>
       {job.company && <span className="font-medium">{job.company}</span>}
       {job.company && job.location && <span className="text-text-3"> · </span>}
       {job.location && <span>{job.location}</span>}
@@ -104,7 +104,7 @@ export function CardActions({ job, compact }: { job: BoardJob; compact?: boolean
           className="p-1 rounded hover:bg-[var(--surface-2)] transition-colors"
         >
           <Star
-            className={`w-3.5 h-3.5 transition-colors ${starred ? "text-warning fill-warning" : "text-text-3"}`}
+            className={`w-[15px] h-[15px] transition-colors ${starred ? "text-warning fill-warning" : "text-text-3"}`}
             strokeWidth={starred ? 0 : 1.5}
           />
         </button>

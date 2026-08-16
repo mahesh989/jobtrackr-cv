@@ -31,8 +31,12 @@ import { useApplyFilter } from "./useApplyFilter";
 import { LETTER_READY_HREF } from "@/features/jobs/lib/boardViews";
 import type { PipelineLensData } from "./PipelineDonut";
 
+// Demo `.action`: border-radius: var(--radius) — a semi-rounded chip, not a
+// full stadium pill. `rounded-xl` (12px, fixed) made these read as much more
+// rounded than the demo's boxier chip shape; the token varies 6-18px by
+// theme, so it has to stay a CSS-var reference rather than a fixed px value.
 const BASE =
-  "inline-flex shrink-0 items-center gap-1.5 rounded-md font-medium " +
+  "inline-flex shrink-0 items-center gap-1.5 rounded-[var(--radius)] font-medium " +
   "transition-colors focus:outline-none focus-visible:ring-2";
 
 export function NextActions({ callouts, totalNew }: {

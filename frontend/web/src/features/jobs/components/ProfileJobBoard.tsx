@@ -94,9 +94,10 @@ export function ProfileJobBoard({
 
   // Same fix as JobBoard: compute from the stage/triage/distance-filtered set
   // (ATS excluded) so badge counts match what clicking the chip will actually show.
-  const { atsCounts, viewCounts } = useToolbarCounts(jobs, {
+  const { atsCounts, viewCounts, postedWithinCounts } = useToolbarCounts(jobs, {
     stage, triage, jd, notApplied, minKeywords, maxDistance, minDistance, sortCol,
     employment, eligibleOnly,
+    postedWithin: sp.get("posted_within") || "",
   });
 
   // Scroll to the feed whenever the stage changes (carries over from the
@@ -198,6 +199,7 @@ export function ProfileJobBoard({
         counts={counts}
         atsCounts={atsCounts}
         viewCounts={viewCounts}
+        postedWithinCounts={postedWithinCounts}
         excludeKeywords={excludeKeywords}
       />
     </>

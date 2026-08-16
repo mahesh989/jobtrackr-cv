@@ -11,10 +11,11 @@
 import { ChevronRight, ExternalLink, Inbox, Star } from "lucide-react";
 import { BoardJob } from "../../lib/jobFilters";
 import { useJobSelection } from "../feedSelection";
-import { getAtsMeta, relativeDate } from "@/features/jobs/lib/smartFeedUtils";
-import { CardChips, Distance, MatchBar } from "./chips";
+import { relativeDate } from "@/features/jobs/lib/smartFeedUtils";
+import { CardChips, Distance } from "./chips";
 import { CardActionsContext } from "./context";
 import { CardActions, CardMeta, CardTitle } from "./parts";
+import { Gauge } from "./gauge";
 import { CardFooter, CardShell, SalaryLine } from "./shell";
 export function HeroCard({ job, currentTab, refSetter, excludeKeywords }: { job: BoardJob; currentTab: string; refSetter: (el: HTMLDivElement | null) => void; excludeKeywords?: string }) {
   return (
@@ -22,7 +23,7 @@ export function HeroCard({ job, currentTab, refSetter, excludeKeywords }: { job:
       <CardChips job={job} />
       <CardTitle job={job} />
       <CardMeta job={job} />
-      <div className="mt-2"><MatchBar job={job} /></div>
+      <div className="mt-2"><Gauge job={job} /></div>
       <CardActions job={job} />
     </CardShell>
   );
@@ -33,30 +34,41 @@ export function HeroCard({ job, currentTab, refSetter, excludeKeywords }: { job:
 export function JobCard({ job, currentTab, refSetter, excludeKeywords }: { job: BoardJob; currentTab: string; refSetter: (el: HTMLDivElement | null) => void; excludeKeywords?: string }) {
   return (
     <CardShell job={job} currentTab={currentTab} refSetter={refSetter} excludeKeywords={excludeKeywords}>
-      <div className="flex flex-col" style={{ gap: 9 }}>
-        <div className="flex items-start gap-2.5">
-          <CardTitle job={job} />
-          <CardActionsContext.Consumer>
-            {({ onToggleStar, starred }) => (
-              <button
-                type="button"
-                onClick={onToggleStar}
-                title={starred ? "Remove from favourites" : "Add to favourites"}
-                aria-label={starred ? "Remove from favourites" : "Add to favourites"}
-                className="shrink-0 hover:opacity-80 transition-opacity mt-0.5"
-                style={{ background: "none", border: "none", cursor: "pointer", color: starred ? "var(--warning)" : "var(--text-3)", fontSize: 17, lineHeight: 1, padding: 0 }}
-              >
-                <Star
-                  style={{ width: 17, height: 17 }}
-                  fill={starred ? "currentColor" : "none"}
-                  strokeWidth={starred ? 0 : 1.5}
-                />
-              </button>
-            )}
-          </CardActionsContext.Consumer>
+      {/* Demo `.spot-top`: title/meta/salary share one column (`.spot-main`)
+          beside the gauge, so the row's height comes from that whole stacked
+          block — not from the gauge alone. Putting the gauge next to the
+          title line ONLY (its previous shape here) made the row as tall as
+          the 74px gauge while the title text filled a fraction of that,
+          leaving a dead gap above the meta line that isn't in the demo. */}
+      <div className="flex flex-col">
+        <div className="flex items-start gap-[14px]">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start gap-[10px]">
+              <CardTitle job={job} />
+              <CardActionsContext.Consumer>
+                {({ onToggleStar, starred }) => (
+                  <button
+                    type="button"
+                    onClick={onToggleStar}
+                    title={starred ? "Remove from favourites" : "Add to favourites"}
+                    aria-label={starred ? "Remove from favourites" : "Add to favourites"}
+                    className="shrink-0 hover:opacity-80 transition-opacity mt-0.5"
+                    style={{ background: "none", border: "none", cursor: "pointer", color: starred ? "var(--warning)" : "var(--text-3)", fontSize: 18, lineHeight: 1, padding: 0 }}
+                  >
+                    <Star
+                      style={{ width: 18, height: 18 }}
+                      fill={starred ? "currentColor" : "none"}
+                      strokeWidth={starred ? 0 : 1.5}
+                    />
+                  </button>
+                )}
+              </CardActionsContext.Consumer>
+            </div>
+            <CardMeta job={job} compact />
+            <SalaryLine job={job} />
+          </div>
+          <Gauge job={job} />
         </div>
-        <CardMeta job={job} compact />
-        <SalaryLine job={job} />
         <CardFooter job={job} />
       </div>
     </CardShell>
@@ -72,8 +84,6 @@ export function JobCard({ job, currentTab, refSetter, excludeKeywords }: { job: 
 // may not be applied, so the date would be misleading noise there.
 export function AppliedRow({ job, showAppliedDate }: { job: BoardJob; showAppliedDate?: boolean }) {
   const selection = useJobSelection();
-  const score = job.tailored_match_score ?? job.initial_ats_score ?? null;
-  const meta = getAtsMeta(job);
   const postedRel  = relativeDate(job.posted_at || job.created_at);
   const appliedRel = job.applied_at ? relativeDate(job.applied_at) : null;
 
@@ -106,27 +116,19 @@ export function AppliedRow({ job, showAppliedDate }: { job: BoardJob; showApplie
           {showAppliedDate && appliedRel && <> · Applied {appliedRel.toLowerCase()}</>}
         </p>
       </div>
-      {score != null && (
-        <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-          <div className="text-right leading-none">
-            <p className="text-micro font-semibold text-text-3 uppercase tracking-wide">Tailored</p>
-            <p className="mt-1 tabular-nums">
-              <span className={`text-[20px] font-bold ${meta.chipText}`}>{score}</span>
-              <span className="text-label font-medium text-text-3">/100</span>
-            </p>
-          </div>
-          <a
-            href={job.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            title="View job posting"
-            aria-label="View job posting"
-            className="p-1.5 rounded hover:bg-[var(--surface-2)] text-text-3 hover:text-text transition-colors"
-          >
-            <ExternalLink className="w-4 h-4" />
-          </a>
-        </div>
-      )}
+      <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+        <Gauge job={job} compact />
+        <a
+          href={job.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="View job posting"
+          aria-label="View job posting"
+          className="p-1.5 rounded hover:bg-[var(--surface-2)] text-text-3 hover:text-text transition-colors"
+        >
+          <ExternalLink className="w-4 h-4" />
+        </a>
+      </div>
     </div>
   );
 }

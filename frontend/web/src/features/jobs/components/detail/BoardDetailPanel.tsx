@@ -1,9 +1,12 @@
 "use client";
 
 /**
- * Right-hand (or mobile full-screen) detail pane for the job board's
- * master-detail layout. Fetches the lean per-job payload on selection and
- * renders only the tabs that have real content for THIS job's state:
+ * Detail pane body for the job board (handoff §2.1). Rendered inside the
+ * slide-over shell (DetailSlideOver) on the main board; `inline` mode is the
+ * flat Applied/Favourite list's accordion "expand in place" row.
+ *
+ * Fetches the lean per-job payload on selection and renders only the tabs
+ * that have real content for THIS job's state:
  *
  *   always            → Job description
  *   has a run w/ score → Match & score
@@ -18,13 +21,16 @@
  * job, not something you read) and the draft moved into the Cover letter tab
  * next to the letter it belongs with — that copy was also the one that threw
  * the user's edits away on send.
+ *
+ * Content staggers up in waves (head, then body ~60ms later) — the slide-over
+ * choreography's second act, keyed naturally by the `key={job.id}` remount at
+ * the call site.
  */
 
 import { useEffect, useRef, useState } from "react";
 import { Loader2, X, ChevronUp } from "lucide-react";
 import { Tabs } from "@/components/ui";
 import { useBoardDetail } from "../../lib/useBoardDetail";
-import { useIsDesktop } from "../../lib/useIsDesktop";
 import { deriveProgress } from "../../lib/progressFlags";
 import { derivePipelineState, recomputeGates } from "../../lib/pipelineState";
 import type { BoardJob } from "../../lib/jobFilters";
@@ -35,13 +41,16 @@ import { MatchScoreTab } from "./MatchScoreTab";
 import { TailoredCvTab } from "./TailoredCvTab";
 import { CoverLetterTab } from "./CoverLetterTab";
 
+const STAGGER_BASE = "transition-all duration-[240ms] ease-out";
+const STAGGER_HIDDEN = "opacity-0 translate-y-2";
+
 /**
  * Keyed by job.id at the call site below — remounting on job change is what
  * resets the "jd" tab default (rather than a setState-in-effect, which the
  * lint config flags as a cascading-render smell).
  */
 function BoardDetailPanelInner({
-  job, onClose, onPatchJob, mobile, inline,
+  job, onClose, onPatchJob, inline,
 }: {
   job: BoardJob;
   onClose: () => void;
@@ -50,20 +59,18 @@ function BoardDetailPanelInner({
    *  board's scroll), so without this the card on the left keeps showing
    *  "Ready to apply" after the popup has just confirmed the application. */
   onPatchJob?: (id: string, patch: Partial<BoardJob>) => void;
-  mobile: boolean;
   /** Accordion mode: the flat Applied/Favourite list expands a job in place
    *  (full width, natural height, no internal scroll) instead of opening a
-   *  split-pane detail — the page itself scrolls, so the other rows stay
-   *  reachable above and below. A small "Collapse" bar replaces the mobile
-   *  drawer's "Back to list". */
+   *  slide-over — the page itself scrolls, so the other rows stay reachable
+   *  above and below. A small "Collapse" bar replaces the drawer's
+   *  "Back to list". */
   inline?: boolean;
 }) {
-  // Only the pane the viewport actually shows does the data work; its
-  // off-screen twin stays inert (see useIsDesktop). `inline` mounts a single
-  // instance per expanded row rather than a desktop+mobile pair, so it's
-  // always the active one.
-  const isDesktop = useIsDesktop();
-  const active = inline ? true : (mobile ? !isDesktop : isDesktop);
+  // Single live instance: the slide-over only mounts when a job is selected,
+  // so there is no desktop/mobile twin pair to gate on width anymore — this
+  // pane is always the one the user is looking at, and its data work always
+  // runs.
+
   // Re-pull this pane's own payload so a finished run's new score, tabs and
   // tailored CV appear straight away. router.refresh() is deliberately NOT
   // called: re-rendering the whole dashboard is what reset the board's scroll
@@ -74,7 +81,7 @@ function BoardDetailPanelInner({
     setReloadToken((n) => n + 1);
   }
 
-  const { data, loading, error } = useBoardDetail(job.id, active, reloadToken);
+  const { data, loading, error } = useBoardDetail(job.id, true, reloadToken);
   const [tab, setTab] = useState("jd");
 
   const run = data?.run ?? null;
@@ -223,16 +230,32 @@ function BoardDetailPanelInner({
       onClosed={onClose}
       onChanged={refresh}
       onAppliedChanged={(appliedAt) => onPatchJob?.(job.id, { applied_at: appliedAt })}
-      mobile={mobile}
     />
   );
 
+  // Entrance choreography (handoff §2.1): head first, then the body ~60ms
+  // later. The rAF flip runs on every `key={job.id}` remount, so switching
+  // jobs replays it.
+  const [entered, setEntered] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setEntered(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
   return (
-    <div className={mobile ? "fixed inset-0 z-40 bg-surface flex flex-col" : inline ? "flex flex-col" : "flex flex-col h-full overflow-hidden"}>
-      {(mobile || inline) && (
+    <div className={inline ? "flex flex-col" : "flex flex-col h-full overflow-hidden"}>
+      {inline ? (
         <div className="flex items-center justify-between px-4 py-2 border-b border-border shrink-0">
           <button type="button" onClick={onClose} className="inline-flex items-center gap-1.5 text-label text-text-2 hover:text-text">
-            {mobile ? <><X className="w-4 h-4" /> Back to list</> : <><ChevronUp className="w-4 h-4" /> Collapse</>}
+            <ChevronUp className="w-4 h-4" /> Collapse
+          </button>
+        </div>
+      ) : (
+        // The drawer is full-screen below lg, so the back bar shows only
+        // there — the desktop slide-over has the scrim and Esc instead.
+        <div className="lg:hidden flex items-center justify-between px-4 py-2 border-b border-border shrink-0">
+          <button type="button" onClick={onClose} className="inline-flex items-center gap-1.5 text-label text-text-2 hover:text-text">
+            <X className="w-4 h-4" /> Back to list
           </button>
         </div>
       )}
@@ -254,7 +277,14 @@ function BoardDetailPanelInner({
               naturally once the box scrolls past (native sticky behaviour,
               no JS needed). `bg-surface` so the scrolling description doesn't
               show through underneath. */}
-          <div className={inline ? "sticky top-0 z-10 bg-surface" : ""}>
+          {/* Demo `.fa-head` (flex-shrink:0) + `.detail-tabs` (sticky top:0,
+              solid bg, z-index:5): both pinned to the very top of the pane,
+              never inside the content's own scroll — `sticky top-0` here is
+              belt-and-braces so this block can never end up stuck below the
+              header instead of flush with the pane's top edge, and the solid
+              `bg-surface` stops the scrolling content from showing through
+              underneath it. */}
+          <div className={`shrink-0 sticky top-0 z-10 bg-surface ${inline ? "" : `${STAGGER_BASE} ${entered ? "opacity-100 translate-y-0" : STAGGER_HIDDEN}`}`}>
             {header}
             <Tabs.List className="flex items-center gap-1 border-b border-border px-8 shrink-0 mt-3.5 bg-[var(--surface-2)]">
               <Tabs.Trigger value="jd" className="text-[13.5px] font-semibold px-[14px] py-[10px]">Job description</Tabs.Trigger>
@@ -265,8 +295,8 @@ function BoardDetailPanelInner({
           </div>
 
           <div
-            className={`px-8 py-5 pb-9 text-[14.5px] leading-relaxed ${inline ? "" : "flex-1 min-h-0 overflow-y-auto"}`}
-            style={inline ? undefined : { maxWidth: 860 }}
+            className={`px-8 py-5 pb-9 text-[14.5px] leading-relaxed ${inline ? "" : `flex-1 min-h-0 overflow-y-auto ${STAGGER_BASE} ${entered ? "opacity-100 translate-y-0" : STAGGER_HIDDEN}`}`}
+            style={inline ? undefined : { maxWidth: 860, transitionDelay: "60ms" }}
           >
             {/* keepMounted on the two tabs that own fetched state (the CV
                 preview downloads and renders a PDF; the letter loads its own
@@ -314,13 +344,11 @@ function BoardDetailPanelInner({
 }
 
 export function BoardDetailPanel({
-  job, onClose, onPatchJob, mobile = false, inline = false,
+  job, onClose, onPatchJob, inline = false,
 }: {
   job: BoardJob;
   onClose: () => void;
   onPatchJob?: (id: string, patch: Partial<BoardJob>) => void;
-  /** Renders as a full-screen overlay with a back button (mobile drawer). */
-  mobile?: boolean;
   /** Renders full-width, natural height, no internal scroll — the flat
    *  Applied/Favourite list's accordion-style "expand in place" row. */
   inline?: boolean;
@@ -331,17 +359,7 @@ export function BoardDetailPanel({
       job={job}
       onClose={onClose}
       onPatchJob={onPatchJob}
-      mobile={mobile}
       inline={inline}
     />
-  );
-}
-
-export function EmptyDetail() {
-  return (
-    <div className="hidden lg:flex flex-col items-center justify-center h-full text-center px-6">
-      <p className="text-title font-semibold text-text mb-1">Select a job</p>
-      <p className="text-label text-text-3">Click a job on the left to see its details here.</p>
-    </div>
   );
 }
