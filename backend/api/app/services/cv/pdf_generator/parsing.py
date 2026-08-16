@@ -285,6 +285,24 @@ _SECTION_ALIASES: Dict[str, str] = {
     # last regardless of where the vertical intended them (finding #25 / C22).
     "registration & licences":      "registration",
     "registration & licenses":      "registration",
+    # C22c: eval/writers/awards.py's own defensive alias list (and,
+    # independently, pipeline/steps/tailored_structural_validation/
+    # gates_prose.py's ghost-reference gate — a second, unrelated
+    # production module written independently and using the identical
+    # exact-match mechanism) both defend against these bare/plural/
+    # "and"-joined variants, which is real engineering judgment (twice
+    # over) that raw LLM writer output plausibly reproduces them, not
+    # just paranoia. Two other awards.py variants ("licences and
+    # registrations" reversed, "credentials & checks") have zero
+    # corroboration anywhere else in the codebase and no plausible
+    # generation mechanism — deliberately left out, matching this
+    # session's C28c precedent of not adding zero-evidence defensive
+    # entries.
+    "registration and licences":    "registration",
+    "registration":                 "registration",
+    "registrations":                "registration",
+    "licences":                     "registration",
+    "licenses":                     "registration",
     # eval/enforce_w8.py::_relabel_registration relabels the Registration &
     # Licences heading to this when the CV holds only clearances (police
     # check, NDIS, WWCC, first aid…) with no genuine AHPRA/RN/EN
