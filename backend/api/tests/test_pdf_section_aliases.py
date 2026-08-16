@@ -46,6 +46,28 @@ class TestAliasMapCoversRolePackHeadings:
         # it as an experience-heading synonym, but this alias map didn't.
         assert parsing._SECTION_ALIASES.get("clinical experience") == "experience"
 
+    def test_registration_with_the_word_and_instead_of_ampersand_has_an_alias(self):
+        # C22c: a plausible LLM "&" -> "and" typography normalisation of
+        # the prompt's literal "Registration & Licences" section_order
+        # heading — single-module evidence (awards.py's own defensive
+        # list) but well-grounded in generic drift risk.
+        assert parsing._SECTION_ALIASES.get("registration and licences") == "registration"
+
+    def test_registration_bare_has_an_alias(self):
+        # C22c: doubly corroborated — awards.py's own defensive list AND
+        # tailored_structural_validation/gates_prose.py's independently-
+        # written ghost-reference gate both defend against this.
+        assert parsing._SECTION_ALIASES.get("registration") == "registration"
+
+    def test_registrations_plural_has_an_alias(self):
+        assert parsing._SECTION_ALIASES.get("registrations") == "registration"
+
+    def test_licences_bare_has_an_alias(self):
+        assert parsing._SECTION_ALIASES.get("licences") == "registration"
+
+    def test_licenses_bare_has_an_alias(self):
+        assert parsing._SECTION_ALIASES.get("licenses") == "registration"
+
     def test_every_alias_target_is_a_real_canonical_bucket(self):
         for heading, key in parsing._SECTION_ALIASES.items():
             assert key in parsing._SECTION_ORDER, (
