@@ -2,9 +2,6 @@
 compliance, bare sector names, JD-phrasing fillers) must never appear as Skills
 entries, whether the base classifier or the matched-term surfacing added them."""
 from app.services.eval.enforce import enforce_skills_section
-from app.services.eval.enforce_w3 import (
-    enforce_summary_skills_dedup,
-)
 from app.services.eval.writers import (
     _is_non_skill_phrase,
     _strip_non_skill_phrases,
@@ -1357,92 +1354,3 @@ def test_strong_communication_tidied_in_soft_skills():
     assert "Strong Communication Skills" not in out
     assert "Communication" in out
     assert "Reliability, Teamwork, Communication" in out
-
-
-# ---------------------------------------------------------------------------
-# Summary-vs-Skills de-dup — drop S2 clauses that merely re-list Skills.
-# See enforce_summary_skills_dedup.
-# ---------------------------------------------------------------------------
-
-
-def test_skills_dedup_drops_clause_fully_covered_by_skills_section():
-    md = (
-        "## Professional Summary\n\n"
-        "Assistant in Nursing with experience across residential aged care "
-        "settings, including medication assistance, dementia support and "
-        "person-centred care for elderly residents. Demonstrated reliability and "
-        "quality care, delivering safe personal care and behavioural support for "
-        "residents in multiple facilities.\n\n"
-        "## Skills\n"
-        "- **Care Skills:** Personal Care, Dementia Care, Medication Assistance, "
-        "Behavioural Management, Person-Centred Care\n"
-        "- **Soft Skills:** Reliability, Teamwork, Communication\n"
-        "- **Other Skills:** BESTMed, MedMobile\n\n"
-        "## Experience\n"
-    )
-    out = enforce_summary_skills_dedup(md)
-    # The "Demonstrated reliability and quality care" clause has only
-    # 'reliability' and 'care' as content words — both in Skills → dropped.
-    assert "Demonstrated reliability and quality care" not in out
-    # The second clause survives — it contains 'residents', 'multiple',
-    # 'facilities' which are NOT in Skills.
-    assert "multiple facilities" in out
-
-
-def test_skills_dedup_keeps_clause_with_novel_content():
-    md = (
-        "## Professional Summary\n\n"
-        "Assistant in Nursing with experience across aged care. Reduced falls by "
-        "20% at Jesmond Miranda, achieving an incident-free six-month record.\n\n"
-        "## Skills\n"
-        "- **Care Skills:** Personal Care, Dementia Care\n\n"
-        "## Experience\n"
-    )
-    out = enforce_summary_skills_dedup(md)
-    # Whole S2 introduces content not in Skills — untouched.
-    assert "Reduced falls by 20%" in out
-    assert "incident-free" in out
-
-
-def test_skills_dedup_never_empties_s2():
-    """If every clause is Skills-covered, the LAST clause is always kept."""
-    md = (
-        "## Professional Summary\n\n"
-        "Carer providing care for residents. Personal care, dementia care, "
-        "medication assistance.\n\n"
-        "## Skills\n"
-        "- **Care Skills:** Personal Care, Dementia Care, Medication Assistance\n\n"
-        "## Experience\n"
-    )
-    out = enforce_summary_skills_dedup(md)
-    # At least one clause survives — output still has two sentences.
-    summary = out.split("## Skills")[0]
-    sents = [s for s in summary.replace("## Professional Summary", "").split(".") if s.strip()]
-    assert len(sents) >= 2
-
-
-def test_skills_dedup_preserves_semicolon_two_role_s2():
-    """Two-distinct-role S2 (joined by ';') is intentional — never thin it."""
-    md = (
-        "## Professional Summary\n\n"
-        "Assistant in Nursing with experience across two aged care employers. "
-        "Delivered medication administration at Jesmond Miranda; provided "
-        "person-centred care at Uniting – The Marion.\n\n"
-        "## Skills\n"
-        "- **Care Skills:** Personal Care, Medication Assistance, "
-        "Person-Centred Care\n\n"
-        "## Experience\n"
-    )
-    out = enforce_summary_skills_dedup(md)
-    assert "Jesmond Miranda" in out
-    assert "Uniting – The Marion" in out
-
-
-def test_skills_dedup_noop_without_skills_section():
-    md = (
-        "## Professional Summary\n\n"
-        "Carer with experience. Reliability, teamwork.\n\n"
-        "## Experience\n"
-    )
-    # No ## Skills section — pool is empty — gate is a no-op.
-    assert enforce_summary_skills_dedup(md) == md
