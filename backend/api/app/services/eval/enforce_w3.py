@@ -89,7 +89,18 @@ _TITLE_AI_SUFFIX_RE = re.compile(
 
 
 def _section_bounds(lines: List[str], heading_pred) -> tuple[int, int] | None:
-    start = next((i for i, ln in enumerate(lines) if heading_pred(ln.strip())), None)
+    # C22f: strip a trailing colon the AI writer sometimes emits on a
+    # heading line ("## Skills:") before handing it to `heading_pred` —
+    # every current callback does an exact/membership match on the heading
+    # text and is defeated by an unstripped colon (same pattern as C22b's
+    # fix one layer up, in enforce_w8.py). Fixed ONCE here at the shared
+    # entry point, covering every caller (_strip_ai_skills, _strip_ai_projects,
+    # clamp_two_sentences, strip_off_vertical_preamble) instead of patching
+    # each predicate separately.
+    def _norm(ln: str) -> str:
+        s = ln.strip()
+        return s.rstrip(":") if s.startswith("## ") else s
+    start = next((i for i, ln in enumerate(lines) if heading_pred(_norm(ln))), None)
     if start is None:
         return None
     end = len(lines)

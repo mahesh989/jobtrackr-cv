@@ -402,7 +402,10 @@ def _apply_setting_bridge(md: str, setting: str, *, cv_text: str = "") -> str:
     out = []
     for line in lines:
         s = line.strip()
-        if s.startswith("## ") and s[3:].strip().lower() in _HIGHLIGHT_HEADINGS_SET:
+        # C22f: strip a trailing colon the AI writer sometimes emits — a
+        # colon'd "## Career Highlights:" previously defeated this check
+        # entirely, so the setting bridge silently never applied.
+        if s.startswith("## ") and s[3:].strip().lower().rstrip(":") in _HIGHLIGHT_HEADINGS_SET:
             in_section = True
             out.append(line)
             continue
