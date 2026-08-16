@@ -254,6 +254,15 @@ _SECTION_ALIASES: Dict[str, str] = {
     "professional experience":      "experience",
     "experience":                   "experience",
     "work experience":              "experience",
+    # "Clinical Experience" was nursing's own section_order heading until
+    # commit e4a20824 (2026-05-30) renamed it to plain "Experience" (suits
+    # care/hospital/home-care settings alike). enforce_w8.py, verify.py,
+    # bridges.py, and awards.py all still recognise the old phrase as an
+    # experience-heading synonym (never cleaned up after the rename) — this
+    # map didn't, so a composition-prompt slip back to the old phrase (a
+    # domain-idiomatic phrase with real production precedent, not an
+    # arbitrary invention) would land in extras and render dead last (C22d).
+    "clinical experience":          "experience",
     "education":                    "education",
     "skills":                       "skills",
     "technical skills":             "skills",

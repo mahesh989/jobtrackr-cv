@@ -39,6 +39,13 @@ class TestAliasMapCoversRolePackHeadings:
     def test_availability_has_an_alias(self):
         assert parsing._SECTION_ALIASES.get("availability") is not None
 
+    def test_clinical_experience_has_an_alias(self):
+        # C22d: nursing's own section_order used this exact phrase until
+        # commit e4a20824 (2026-05-30) renamed it to plain "Experience" —
+        # enforce_w8.py/verify.py/bridges.py/awards.py all still recognise
+        # it as an experience-heading synonym, but this alias map didn't.
+        assert parsing._SECTION_ALIASES.get("clinical experience") == "experience"
+
     def test_every_alias_target_is_a_real_canonical_bucket(self):
         for heading, key in parsing._SECTION_ALIASES.items():
             assert key in parsing._SECTION_ORDER, (
@@ -111,6 +118,27 @@ class TestManualRolePackRendersInVerticalOrder:
         sections) rather than a named canonical bucket — this asserts it
         is now recognised, not just coincidentally rendered."""
         assert parsing._SECTION_ALIASES["availability"] in parsing._SECTION_ORDER
+
+
+class TestClinicalExperienceRendersInCanonicalOrder:
+    """C22d: "Clinical Experience" was nursing's own section_order heading
+    until commit e4a20824 (2026-05-30) renamed it to plain "Experience".
+    enforce_w8.py/verify.py/bridges.py/awards.py never stopped recognising
+    the old phrase as an experience-heading synonym, but the PDF alias map
+    did — a composition-prompt slip back to this domain-idiomatic phrase
+    (real production precedent, not an arbitrary invention) would render
+    dead last in extras instead of in the experience slot."""
+
+    def test_clinical_experience_renders_before_references(self, monkeypatch):
+        order = _story_header_order(monkeypatch, [
+            ("Professional Summary", [{"type": "paragraph", "text": "x"}]),
+            ("Clinical Experience", [{"type": "bullet", "text": "Did clinical things"}]),
+            ("References", [{"type": "paragraph", "text": "x"}]),
+        ])
+        assert order.index("Clinical Experience") < order.index("References")
+
+    def test_clinical_experience_is_bucketed_as_experience_not_extras(self):
+        assert parsing._SECTION_ALIASES["clinical experience"] == "experience"
 
 
 class TestChecksAndClearancesRendersInVerticalOrder:
