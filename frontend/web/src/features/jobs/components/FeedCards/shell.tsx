@@ -9,9 +9,10 @@
  * 
  */
 import { useContext, useState } from "react";
-import { CheckCircle2, Loader2, StopCircle } from "lucide-react";
+import { CheckCircle2, ExternalLink, Loader2, StopCircle } from "lucide-react";
 import { markJobDismissed, toggleStarJob } from "@/lib/actions/jobs";
 import { cancelAnalysisRun } from "@/lib/actions/runs";
+import { IconButton } from "@/components/ui";
 import { JobEditModal } from "../JobEditModal";
 import { BoardJob, MANUAL_JD_MIN_CHARS } from "../../lib/jobFilters";
 import { useJobSelection } from "../feedSelection";
@@ -20,13 +21,12 @@ import { PIPELINE_STATE_META } from "@/features/jobs/lib/pipelineState";
 import { useJobRunStatus } from "../../lib/useJobRunStatus";
 import { SourcePill } from "./chips";
 import { CardActionsContext } from "./context";
+import { CardMenu } from "../CardMenu";
 export function CardFooter({ job }: { job: BoardJob }) {
   const ctx = useContext(CardActionsContext);
   const selection = useJobSelection();
   const state = job.pipelineState ?? "discovered";
   const meta = PIPELINE_STATE_META[state];
-  const score = job.tailored_match_score ?? job.initial_ats_score;
-  const bothScores = job.initial_ats_score != null && job.tailored_match_score != null && job.initial_ats_score !== job.tailored_match_score;
   // `submitting` covers only the enqueue POST; whether the pipeline is
   // actually running comes from Realtime (mirrors DetailHeader's own
   // useJobRunStatus). Without this the card's Analyse button fired the
@@ -67,18 +67,10 @@ export function CardFooter({ job }: { job: BoardJob }) {
     neutral: "bg-text-3",
   };
 
-  let chipDisplay: string;
-  if (state === "applied" || state === "ready_to_apply" || state === "ready_to_send") {
-    chipDisplay = score != null ? `${score} · ${meta.label}` : meta.label;
-  } else if ((state === "below_final" || state === "below_initial") && bothScores) {
-    chipDisplay = `${job.initial_ats_score} → ${job.tailored_match_score}`;
-  } else if (score != null) {
-    chipDisplay = `${score}`;
-  } else if (state === "discovered" && job.progress.has_analysis) {
-    chipDisplay = "Analysed";
-  } else {
-    chipDisplay = meta.label;
-  }
+  // The chip carries the pipeline-state label only (handoff §2.4): the score
+  // lives exclusively in the card's gauge, so printing numbers here too would
+  // duplicate it (and the gauge's "from {initial}" reads the lift story).
+  const chipDisplay = meta.label;
 
   /** Hands off to the detail pane's Apply popup instead of applying here.
    *  This used to open the listing and call markJobApplied in the same click —
@@ -144,7 +136,7 @@ export function CardFooter({ job }: { job: BoardJob }) {
           type="button"
           onClick={(e) => { e.stopPropagation(); selection?.onOpenDetail?.(job.id); }}
           title="Show analysis progress"
-          className="inline-flex items-center gap-1.5 px-[13px] py-[6px] text-[12.5px] font-semibold text-[var(--brand)] hover:bg-[var(--brand)]/15 transition-colors"
+          className="inline-flex items-center gap-1.5 px-[14px] py-[6px] text-[13.5px] font-semibold text-[var(--brand)] hover:bg-[var(--brand)]/15 transition-colors"
         >
           <Loader2 className="w-3 h-3 animate-spin" /> Analysing…
         </button>
@@ -154,7 +146,7 @@ export function CardFooter({ job }: { job: BoardJob }) {
           disabled={cancelling || !runId}
           title="Stop this analysis — steps already finished are kept, the remaining ones won't run"
           aria-label="Stop analysis"
-          className="inline-flex items-center gap-1 border-l border-[var(--brand)]/30 px-[10px] py-[6px] text-[12.5px] font-semibold text-danger hover:bg-danger-subtle transition-colors disabled:opacity-50"
+          className="inline-flex items-center gap-1 border-l border-[var(--brand)]/30 px-[10px] py-[6px] text-[13.5px] font-semibold text-danger hover:bg-danger-subtle transition-colors disabled:opacity-50"
         >
           {cancelling
             ? <Loader2 className="w-3 h-3 animate-spin" />
@@ -164,11 +156,13 @@ export function CardFooter({ job }: { job: BoardJob }) {
       </span>
     );
   } else if (state === "applied") {
-    actionButton = <span className="badge badge-green text-micro font-semibold">✓ Applied</span>;
+    // No stale action button and no duplicate "✓ Applied" badge — the state
+    // chip up the row already says "Applied" (handoff §2.4/§2.7).
+    actionButton = null;
   } else if (state === "ready_to_apply" || state === "ready_to_send") {
     actionButton = (
       <button type="button" onClick={onApply}
-        className="text-[12.5px] font-semibold px-[13px] py-[6px] rounded-[8px] bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90 transition-opacity"
+        className="text-[13.5px] font-semibold px-[14px] py-[6px] rounded-[8px] bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90 transition-opacity"
       >
         Apply
       </button>
@@ -176,7 +170,7 @@ export function CardFooter({ job }: { job: BoardJob }) {
   } else if (state === "needs_jd") {
     actionButton = (
       <button type="button" onClick={(e) => { e.stopPropagation(); ctx.onEdit(); }}
-        className="text-[12.5px] font-semibold px-[13px] py-[6px] rounded-[8px] border border-[var(--brand)]/30 text-[var(--brand)] bg-transparent hover:bg-[var(--brand)]/5 transition-colors"
+        className="text-[13.5px] font-semibold px-[14px] py-[6px] rounded-[8px] border border-[var(--brand)]/30 text-[var(--brand)] bg-transparent hover:bg-[var(--brand)]/5 transition-colors"
       >
         Add JD
       </button>
@@ -184,7 +178,7 @@ export function CardFooter({ job }: { job: BoardJob }) {
   } else if (state === "discovered" && !job.progress.has_analysis) {
     actionButton = (
       <button type="button" onClick={onAnalyse}
-        className="text-[12.5px] font-semibold px-[13px] py-[6px] rounded-[8px] bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90 transition-opacity"
+        className="text-[13.5px] font-semibold px-[14px] py-[6px] rounded-[8px] bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90 transition-opacity"
       >
         Analyse
       </button>
@@ -192,7 +186,7 @@ export function CardFooter({ job }: { job: BoardJob }) {
   } else if (job.progress.latest_run_status === "failed") {
     actionButton = (
       <button type="button" onClick={onAnalyse}
-        className="text-[12.5px] font-semibold px-[13px] py-[6px] rounded-[8px] border border-[var(--brand)]/30 text-[var(--brand)] bg-transparent hover:bg-[var(--brand)]/5 transition-colors"
+        className="text-[13.5px] font-semibold px-[14px] py-[6px] rounded-[8px] border border-[var(--brand)]/30 text-[var(--brand)] bg-transparent hover:bg-[var(--brand)]/5 transition-colors"
       >
         Retry
       </button>
@@ -201,14 +195,27 @@ export function CardFooter({ job }: { job: BoardJob }) {
 
   return (
     <div onClick={(e) => e.stopPropagation()}>
-      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+      <div className="flex items-center gap-2 mt-[10px] flex-wrap">
         <SourcePill source={job.source} />
-        <span className={`inline-flex items-center gap-[5px] text-[12px] font-semibold px-[10px] py-[3px] rounded-full border ${toneColors[meta.tone] ?? toneColors.neutral}`}>
-          <span className={`inline-block w-[6px] h-[6px] rounded-full ${dotColors[meta.tone] ?? dotColors.neutral}`} />
+          <span className={`inline-flex items-center gap-[5px] text-[13px] font-semibold px-[11px] py-[3px] rounded-full border ${toneColors[meta.tone] ?? toneColors.neutral}`}>
+          <span className={`inline-block w-[7px] h-[7px] rounded-full ${dotColors[meta.tone] ?? dotColors.neutral}`} />
           {chipDisplay}
         </span>
         <div className="flex-1" />
         {actionButton}
+        {/* Demo footer's icon row (handoff §2.7/§3): open listing + the ⋯
+            menu. This was the card's only dismiss path and was missing
+            entirely from JobCard — CardMenu existed but was wired only into
+            the unused HeroCard. */}
+        <IconButton
+          size="sm"
+          variant="ghost"
+          aria-label="Open listing"
+          title="Open listing"
+          icon={<ExternalLink className="w-[15px] h-[15px]" />}
+          onClick={(e) => { e.stopPropagation(); window.open(job.url, "_blank", "noopener,noreferrer"); }}
+        />
+        <CardMenu job={job} onDismiss={ctx.onDismiss} onEdit={ctx.onEdit} pending={ctx.pending} />
       </div>
       {analyseError && <p className="text-micro text-danger mt-1">{analyseError}</p>}
     </div>
@@ -221,7 +228,7 @@ export function SalaryLine({ job }: { job: BoardJob }) {
   if (!salary && types.length === 0) return null;
   const parts = [salary, ...types].filter(Boolean);
   if (parts.length === 0) return null;
-  return <p className="text-[13px] text-text-2">{parts.join(" · ")}</p>;
+  return <p className="text-[14px] text-text-2 mt-[6px]">{parts.join(" · ")}</p>;
 }
 
 // ── card shell ──────────────────────────────────────────────────────────
@@ -262,6 +269,11 @@ export function CardShell({
   const selectable = selection?.selectMode ?? false;
   const checked    = selection?.isSelected(job.id) ?? false;
   const isActive   = selection?.activeJobId === job.id;
+  // Focus dimming (handoff §2.1): with the detail pane open, every card but
+  // the selected one recedes to 35% — the selected card keeps its brand ring
+  // and reads as the only live surface. `paneOpen` comes from the same
+  // selection context, so card and pane can never disagree about it.
+  const paneOpen   = selection?.paneOpen ?? false;
 
   // Master-detail: clicking the card body opens this job in the detail pane
   // (or, in bulk-select mode, toggles selection instead — selection intent
@@ -322,7 +334,9 @@ export function CardShell({
               onCardClick();
             }
           }}
-          className={`transition-all cursor-pointer bg-surface rounded-xl px-[18px] py-4 hover:shadow-[var(--shadow-card-hover)] ${
+          className={`transition-all cursor-pointer bg-surface rounded-xl px-[18px] py-[27px] hover:shadow-[var(--shadow-card-hover)] ${
+            paneOpen && !isActive ? "opacity-35" : ""
+          } ${
             hero ? "border-2 border-[var(--brand)]/30 p-4" : ""
           } ${selectable ? "pl-10" : ""} ${
             isFlash ? "bg-success-subtle" : ""

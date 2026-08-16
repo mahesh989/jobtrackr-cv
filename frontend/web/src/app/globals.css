@@ -543,12 +543,16 @@ html[data-density="spacious"] { --ui-scale: 1.09; }
   font-family: var(--font-sans-active), system-ui, sans-serif;
 }
 
-/* ─── Scrollbar — uses brand colour so each theme gets its own tint ─ */
+/* ─── Scrollbar — invisible at rest, brand-tinted only while the pointer
+   is over the scrollable area. Scrolling itself is unaffected either way —
+   this only controls whether the thumb is drawn when idle. A permanently
+   visible tinted pill (the old default here) read as a floating UI symbol
+   sitting on top of content that had nothing to do with it. ─ */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb {
+::-webkit-scrollbar-thumb { background: transparent; border-radius: 3px; }
+*:hover::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--brand) 35%, transparent);
-  border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: color-mix(in srgb, var(--brand) 65%, transparent);
@@ -566,7 +570,18 @@ html[data-density="spacious"] { --ui-scale: 1.09; }
 /* Entry */
 @keyframes slideInUp {
   from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
+  /* `transform: none` (not `translateY(0)`) on purpose: with
+     `animation-fill-mode: both` below, whatever this end-state transform
+     is stays applied to the element forever after the animation settles.
+     Any non-`none` transform — even an identity translateY(0) — opens a
+     new containing block for `position: fixed` descendants per spec, so
+     an `.anim-in` ancestor (e.g. #jobs-board) was silently turning the
+     board detail pane's `fixed inset-y-0 right-0` into something
+     positioned relative to that scrolling ancestor instead of the
+     viewport — the pane scrolled with the page instead of staying
+     pinned to the screen. `none` never establishes that containing
+     block, so descendants stay truly fixed to the viewport. */
+  to   { opacity: 1; transform: none; }
 }
 .anim-in {
   animation: slideInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -587,6 +602,24 @@ html[data-density="spacious"] { --ui-scale: 1.09; }
   background: var(--pipeline-grad);
   background-size: 200% 100%;
   animation: pipelineFlow 2s linear infinite;
+}
+
+/* Demo `.pulse-dot`: a status dot with its own expanding ring, independent
+   of `.dot-ping` above (that one scales the dot itself; this one keeps the
+   dot solid and animates a separate ::after ring around it). */
+@keyframes pulseRing {
+  0%   { transform: scale(0.5); opacity: 0.5; }
+  70%  { transform: scale(1.8); opacity: 0; }
+  100% { opacity: 0; }
+}
+.pulse-dot { position: relative; }
+.pulse-dot::after {
+  content: "";
+  position: absolute; inset: -3px;
+  border-radius: 9999px;
+  background: currentColor;
+  opacity: 0.5;
+  animation: pulseRing 1.6s ease-out infinite;
 }
 
 /* Status dot ping */

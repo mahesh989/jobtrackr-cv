@@ -23,6 +23,10 @@ export interface JobSelectionCtx {
   /** id of the job currently shown in the detail pane, for the card's
    *  "active" highlight ring. */
   activeJobId?: string | null;
+  /** True while the detail pane is open (non-flat stages only). Cards use it
+   *  for the handoff's focus dimming — every card but the selected one
+   *  recedes to 35% so the pane reads as the only live surface. */
+  paneOpen?: boolean;
 }
 export const JobSelectionContext = createContext<JobSelectionCtx | null>(null);
 

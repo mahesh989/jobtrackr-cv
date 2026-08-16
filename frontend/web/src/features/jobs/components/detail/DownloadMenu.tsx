@@ -24,7 +24,7 @@ import { useTailoredCvPdfAction } from "./useTailoredCvPdfAction";
 type Busy = "zip" | "cv" | null;
 
 export function DownloadMenu({
-  jobId, company, hiringManager, cvStoragePath, letterId, loaded,
+  jobId, company, hiringManager, cvStoragePath, letterId, loaded, fullWidth = false,
 }: {
   jobId:          string;
   company:        string | null;
@@ -35,6 +35,9 @@ export function DownloadMenu({
   /** False while the per-job payload is in flight — items stay disabled rather
    *  than firing against paths we don't have yet. */
   loaded:         boolean;
+  /** Demo `.detail-btn.outline`: full-width, centred trigger for the header's
+   *  stacked action row, instead of the default compact inline pill. */
+  fullWidth?:     boolean;
 }) {
   const [open, setOpen]   = useState(false);
   const [busy, setBusy]   = useState<Busy>(null);
@@ -97,13 +100,17 @@ export function DownloadMenu({
   const working = busy !== null || cvPending !== null;
 
   return (
-    <div className="relative" ref={wrapRef}>
+    <div className={`relative ${fullWidth ? "w-full" : ""}`} ref={wrapRef}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="inline-flex items-center gap-1.5 px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap border border-border bg-surface text-text-2 hover:border-[var(--brand)] hover:text-[var(--brand)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)]"
+        className={
+          fullWidth
+            ? "inline-flex items-center justify-center gap-1.5 w-full px-[14px] py-[10px] rounded-[8px] text-[13px] font-semibold border border-[var(--brand)]/35 text-[var(--brand)] bg-transparent hover:bg-[var(--brand)]/6 transition-colors"
+            : "inline-flex items-center gap-1.5 px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap border border-border bg-surface text-text-2 hover:border-[var(--brand)] hover:text-[var(--brand)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)]"
+        }
       >
         {working ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
         Download
@@ -111,7 +118,7 @@ export function DownloadMenu({
       </button>
 
       {open && (
-        <div role="menu" className="absolute right-0 top-full mt-1.5 z-30 w-[264px] rounded-[10px] border border-border bg-surface shadow-lg overflow-hidden">
+        <div role="menu" className={`absolute top-full mt-1.5 z-30 w-[264px] rounded-[10px] border border-border bg-surface shadow-lg overflow-hidden ${fullWidth ? "left-0" : "right-0"}`}>
           <MenuRow
             icon={<Package className="w-4 h-4" />}
             label="Download both"
