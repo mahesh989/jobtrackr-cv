@@ -675,7 +675,6 @@ def _strip_ungrounded_credentials(markdown: str, original_cv_text: str) -> str:
             body = lines[i + 1:j]
             kept: list[str] = []
             dropped = 0
-            kept_bullet = False
             for bl in body:
                 stripped = bl.strip()
                 is_bullet = stripped[:1] in ("-", "*", "•")
@@ -689,16 +688,24 @@ def _strip_ungrounded_credentials(markdown: str, original_cv_text: str) -> str:
                     dropped += 1
                     continue
                 kept.append(bl)
-                kept_bullet = True
             if dropped:
                 logger.info(
                     "w8: dropped %d ungrounded credential entr(ies) from %s",
                     dropped, line[3:].strip(),
                 )
-            if kept_bullet:
+            # C22n: survival must be judged on ANY real kept content, not
+            # just a surviving BULLET — a section written as plain prose (no
+            # bullet markers) is never individually grounding-checked above
+            # (prose lines are always unconditionally kept), so a
+            # `kept_bullet`-only flag was permanently False for a
+            # 100%-legitimate prose-only section, wrongly deleting it in
+            # its entirety. A section with only blank lines, or one where
+            # every bullet was dropped as ungrounded, still correctly drops
+            # (`kept` then contains nothing but blank/whitespace strings).
+            if any(k.strip() for k in kept):
                 out.append(line)
                 out.extend(kept)
-            # else: section had no grounded bullets → drop heading + body.
+            # else: nothing survived → drop heading + body.
             i = j
             continue
         out.append(line)

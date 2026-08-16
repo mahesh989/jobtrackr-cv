@@ -661,6 +661,15 @@ async def _writer_w8_verified(
         keep_skills=_inject_keyword_set(result.feasibility),
         jd_vertical=vertical,
     )
+    # Re-run the grounding gate (C22p, filed from C22j's independent review):
+    # verify_claims is an AI step that can rewrite/reintroduce a fabricated
+    # credential entry into a Certifications/Checks section — the FIRST
+    # grounding pass (step 4a, above, inside _writer_w8_integrated) already
+    # ran BEFORE verify_claims saw the document, so anything verify_claims
+    # fabricates here was never checked against the source CV at all. This
+    # closed the "runs after and is never re-checked" gap that capped C22j's
+    # own fix's real-world effectiveness. Idempotent — safe to re-run.
+    verified_md = _strip_ungrounded_credentials(verified_md, cv_text)
     # Re-run the awards/section normalisers — verify_claims is an AI step that
     # can rewrite the Awards/Certifications section into a messy shape (e.g.
     # description promoted to ###). These deterministic passes are idempotent
