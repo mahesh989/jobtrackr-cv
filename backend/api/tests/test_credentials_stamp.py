@@ -343,6 +343,39 @@ def test_REGRESSION_manual_family_replaces_certifications_and_checks_in_place():
     assert "White Card · National Police Check" in out
 
 
+def test_REGRESSION_C22k_stamp_replaces_bare_registration_heading_in_place():
+    """
+    Regression, execution chunk C22k (found during C22c's independent
+    review of the PDF-render alias map): C22c added bare/plural forms
+    ("registration", "registrations", "licences", "licenses", "registration
+    and licences") to the PDF-render layer's _SECTION_ALIASES, but
+    stamp_credentials' OWN heading search (_CREDENTIALS_HEADING_ALIASES,
+    this file) never got the same corroborated set. A writer emitting the
+    bare heading "## Registration" (or "## Licences", or the "and"-joined
+    form) was invisible to this function's exact-match lookup, so it
+    APPENDED a fresh "## Registration & Licences" section instead of
+    replacing the existing one in place — a duplicate credentials section,
+    same root-cause family as #57/C23.
+    """
+    for heading in ("## Registration", "## Registrations", "## Licences",
+                     "## Licenses", "## Registration and Licences"):
+        md = (
+            f"# Name\n\nContact\n\n"
+            f"{heading}\n\nSome AI-emitted noise\n- Bullet 1\n\n"
+            "## Experience\n- Did things.\n"
+        )
+        out = stamp_credentials(md, _CREDS, "nursing")
+        # "## Registration" is a substring of the replacement heading
+        # itself ("## Registration & Licences"), so check the ORIGINAL
+        # heading is gone as an exact line, not merely absent as a
+        # substring — and that there's exactly ONE credentials section,
+        # not two (the original left behind alongside a fresh append).
+        assert heading not in out.splitlines(), heading
+        assert out.count("## Registration & Licences") == 1, heading
+        assert "Some AI-emitted noise" not in out, heading
+        assert "National Police Check" in out, heading
+
+
 def test_stamp_noop_when_credentials_empty():
     out = stamp_credentials(_BASE_MD, {"credentials": {}}, "nursing")
     assert out == _BASE_MD
