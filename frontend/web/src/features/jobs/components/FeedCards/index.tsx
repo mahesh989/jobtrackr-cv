@@ -10,4 +10,4 @@ export { AtsChip, CardChips, ChipWarn, Distance, FactsChips, MatchBar, ProfileCh
 export { CardActions, CardMeta, CardTitle } from "./parts";
 export { CardShell } from "./shell";
 export { Gauge } from "./gauge";
-export { AppliedRow, EmptyState, HeroCard, JobCard } from "./cards";
+export { AppliedRow, EmptyState, JobCard } from "./cards";

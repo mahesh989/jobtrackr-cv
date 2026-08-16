@@ -113,27 +113,3 @@ export function indexLatestByJob<T extends { job_id: string }>(
   }
   return m;
 }
-
-/** Suggest the single next action for a job based on its progress. */
-export function nextAction(
-  job: { id: string; profile_id?: string },
-  p:   JobProgress,
-): { label: string; href: string | null; key: string } {
-  if (p.is_applied) {
-    return { label: "View analysis", key: "view",
-             href: p.latest_run_id ? `/jobs/${job.id}/analyze/${p.latest_run_id}` : null };
-  }
-  if (p.has_cover_letter) {
-    return { label: "Mark applied", key: "apply",
-             href: p.latest_run_id ? `/jobs/${job.id}/analyze/${p.latest_run_id}` : null };
-  }
-  if (p.has_tailored_cv) {
-    return { label: "Generate letter", key: "letter",
-             href: p.latest_run_id ? `/jobs/${job.id}/analyze/${p.latest_run_id}` : null };
-  }
-  if (p.has_analysis) {
-    return { label: "Continue analysis", key: "continue",
-             href: p.latest_run_id ? `/jobs/${job.id}/analyze/${p.latest_run_id}` : null };
-  }
-  return { label: "Analyse now", key: "analyse", href: null };
-}

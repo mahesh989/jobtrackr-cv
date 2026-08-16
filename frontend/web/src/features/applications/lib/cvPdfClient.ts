@@ -5,24 +5,6 @@
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import type { ContactDetails } from "@/lib/types";
 
-export function presentBlob(win: Window | null, blob: Blob, filename: string): "tab" | "download" {
-  const url = URL.createObjectURL(blob);
-  if (win && !win.closed) {
-    win.location.replace(url);
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    return "tab";
-  }
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  return "download";
-}
-
-
 export async function loadCvInputs(
   storagePath: string,
 ): Promise<{ markdown: string; contactDetails: ContactDetails | null }> {

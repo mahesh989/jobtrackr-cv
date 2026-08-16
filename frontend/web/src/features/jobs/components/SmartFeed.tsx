@@ -11,7 +11,7 @@ import type { FunnelCounts } from "./PipelineFunnel";
 import { SmartToolbar } from "./SmartToolbar";
 import { SelectModeButton, SelectAllButton } from "./SelectModeButton";
 import { JobSelectionContext, useJobSelection, type JobSelectionCtx } from "./feedSelection";
-import { HeroCard, JobCard, EmptyState, AppliedRow } from "./FeedCards";
+import { JobCard, EmptyState, AppliedRow } from "./FeedCards";
 import { shallowSetParams } from "../lib/shallowNav";
 import {
   clampInt, isPostedToday, byDistanceAsc } from "@/features/jobs/lib/smartFeedUtils";
@@ -29,7 +29,6 @@ interface FeedSection {
   tone: "brand" | "green" | "amber" | "muted";
   Icon: typeof Sparkles;
   jobs: BoardJob[];
-  hero?: boolean;
 }
 
 /**
@@ -714,23 +713,13 @@ function FeedSectionView({
         </div>
       </div>
 
-      {section.hero ? (
-        <div className="grid gap-[14px] sm:grid-cols-1 lg:grid-cols-3">
-          {section.jobs.map((job) => (
-            <HeroCard key={job.id} job={job} currentTab={currentTab} refSetter={refSetter(job.id)} excludeKeywords={excludeKeywords} />
-          ))}
-        </div>
-      ) : (
-        <div className="grid gap-[14px]">
-          {section.jobs.map((job) => (
-            <JobCard key={job.id} job={job} currentTab={currentTab} refSetter={refSetter(job.id)} excludeKeywords={excludeKeywords} />
-          ))}
-        </div>
-      )}
+      <div className="grid gap-[14px]">
+        {section.jobs.map((job) => (
+          <JobCard key={job.id} job={job} currentTab={currentTab} refSetter={refSetter(job.id)} excludeKeywords={excludeKeywords} />
+        ))}
+      </div>
       </section>
     </JobSelectionContext.Provider>
   );
 }
-
-// ── hero card ───────────────────────────────────────────────────────────
 

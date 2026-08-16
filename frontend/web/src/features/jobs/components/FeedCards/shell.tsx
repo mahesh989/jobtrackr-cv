@@ -204,9 +204,7 @@ export function CardFooter({ job }: { job: BoardJob }) {
         <div className="flex-1" />
         {actionButton}
         {/* Demo footer's icon row (handoff §2.7/§3): open listing + the ⋯
-            menu. This was the card's only dismiss path and was missing
-            entirely from JobCard — CardMenu existed but was wired only into
-            the unused HeroCard. */}
+            menu — the card's dismiss path. */}
         <IconButton
           size="sm"
           variant="ghost"
@@ -236,11 +234,10 @@ export function SalaryLine({ job }: { job: BoardJob }) {
 type ExitPhase = "idle" | "flash" | "fading" | "gone";
 
 export function CardShell({
-  job, refSetter, hero, children, excludeKeywords }: {
+  job, refSetter, children, excludeKeywords }: {
   job: BoardJob;
   currentTab: string;
   refSetter: (el: HTMLDivElement | null) => void;
-  hero?: boolean;
   children: React.ReactNode;
   excludeKeywords?: string;
 }) {
@@ -336,12 +333,10 @@ export function CardShell({
           }}
           className={`transition-all cursor-pointer bg-surface rounded-xl px-[18px] py-[27px] hover:shadow-[var(--shadow-card-hover)] ${
             paneOpen && !isActive ? "opacity-35" : ""
-          } ${
-            hero ? "border-2 border-[var(--brand)]/30 p-4" : ""
           } ${selectable ? "pl-10" : ""} ${
             isFlash ? "bg-success-subtle" : ""
           } ${savedFlicker ? "jd-saved-flicker" : ""}`}
-          style={hero ? undefined : (() => {
+          style={(() => {
             // Never mix a `borderLeft` shorthand with `borderWidth/Style/Color`
             // in one style object — React's style diffing drops the left-side
             // longhands on client re-render (cards lose their left border until
