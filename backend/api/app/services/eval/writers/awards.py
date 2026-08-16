@@ -223,6 +223,19 @@ def _registration_section_text(markdown: str) -> str:
         "registration & licences", "registration and licences",
         "registration", "registrations", "licences", "licenses",
         "licences and registrations", "credentials & checks",
+        # C22e: enforce_w8.py::_relabel_registration renames this section to
+        # "Checks & Clearances" for nursing CVs with only clearances (no
+        # genuine AHPRA/RN/EN registration) and no saved credentials yet to
+        # restore the heading via stamp_credentials (which reverts it back
+        # to "Registration & Licences" once it does). Without this alias,
+        # this function returned "" for exactly those CVs, silently
+        # disabling the dedupe below and letting a credential appear twice
+        # (once under Checks & Clearances, once under a separate
+        # Certifications entry). Also add "certifications & checks" — the
+        # manual role family's own restored heading name (C23), which this
+        # function's caller, split_awards_and_certifications, has no family
+        # gate against.
+        "checks & clearances", "certifications & checks",
     }
     lines = markdown.split("\n")
     out: list[str] = []
