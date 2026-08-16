@@ -90,6 +90,38 @@ MARKDOWN_CV = """\
 Bachelor of Nursing 2022
 """
 
+# C22g: identical to MARKDOWN_CV except the heading — "Clinical Experience"
+# was nursing's own section_order heading until commit e4a20824 (2026-05-30)
+# renamed it to plain "Experience". _EXPERIENCE_HEADING_RE never recognised
+# this synonym (unlike the plain-text/pypdf regex below it, which already
+# does), so parse_cv_experience silently returned [] for a CV headed this
+# way — up to 20/100 ATS points lost (relevant_tenure_months +
+# vertical_alignment_ratio both zeroed) and honesty_guard's fabrication
+# checks silently became no-ops (no source facts to check dates/settings
+# against).
+MARKDOWN_CV_CLINICAL_EXPERIENCE_HEADING = """\
+# Jane Doe
+
+## Clinical Experience
+
+### General Hospital
+
+*Registered Nurse | Jan 2023 – Present*
+
+- Provided patient care in acute ward.
+- Administered medications and wound care.
+
+### City Clinic
+
+*Clinical Placement | Jun 2022 – Dec 2022*
+
+- Supported nursing staff with personal care tasks.
+
+## Education
+
+Bachelor of Nursing 2022
+"""
+
 
 # ---------------------------------------------------------------------------
 # Plain-text parsing — basic structure
@@ -203,6 +235,27 @@ class TestMarkdownPathUnchanged:
 
     def test_markdown_nursing_vertical(self):
         entries = parse_cv_experience(MARKDOWN_CV)
+        assert entries[0].primary_vertical == "nursing"
+
+
+class TestMarkdownClinicalExperienceSynonym:
+    """REGRESSION (C22g): "## Clinical Experience" must parse identically to
+    "## Experience" for identical body content, not silently return []."""
+
+    def test_markdown_cv_parses(self):
+        entries = parse_cv_experience(MARKDOWN_CV_CLINICAL_EXPERIENCE_HEADING)
+        assert len(entries) == 2
+
+    def test_markdown_entry_employer(self):
+        entries = parse_cv_experience(MARKDOWN_CV_CLINICAL_EXPERIENCE_HEADING)
+        assert entries[0].employer == "General Hospital"
+
+    def test_markdown_entry_present_date(self):
+        entries = parse_cv_experience(MARKDOWN_CV_CLINICAL_EXPERIENCE_HEADING)
+        assert entries[0].end == "present"
+
+    def test_markdown_nursing_vertical(self):
+        entries = parse_cv_experience(MARKDOWN_CV_CLINICAL_EXPERIENCE_HEADING)
         assert entries[0].primary_vertical == "nursing"
 
 

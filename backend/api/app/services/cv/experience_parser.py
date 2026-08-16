@@ -55,7 +55,15 @@ from app.services.skills.classifier import (
 # at them so a future refactor can consolidate without surprise.
 
 _EXPERIENCE_HEADING_RE = re.compile(
-    r"^##\s+(Experience|Work Experience|Professional Experience)\s*$", re.IGNORECASE
+    # C22g: "Clinical Experience" was nursing's own section_order heading
+    # until commit e4a20824 (2026-05-30) renamed it to plain "Experience" —
+    # several other modules (see pdf_generator/parsing.py's C22d fix) never
+    # got cleaned up after the rename and still recognise the old phrase;
+    # this regex didn't, so a CV headed this way silently produced an empty
+    # experience list here (ATS tenure/vertical-alignment sub-scores zeroed,
+    # honesty_guard's fabrication checks became no-ops).
+    r"^##\s+(Experience|Work Experience|Professional Experience|Clinical Experience)\s*$",
+    re.IGNORECASE,
 )
 # Plain-text (pypdf) section headers — all-caps variants for experience sections
 _PLAIN_EXPERIENCE_SECTION_RE = re.compile(
