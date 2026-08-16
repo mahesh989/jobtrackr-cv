@@ -2,6 +2,15 @@
 
 Reference for the deterministic post-passes that shape every tailored CV. Built across 9 sprints (A–I+) and 5 hotfixes (commits `8c87f56` → `82080e9`). All passes are idempotent. 304 tests cover this surface.
 
+**Correction (C62b, 2026-08-16):** Sprint E's `enforce_summary_concreteness`
+(referenced below as step `[4j]` and in the Sprint E row) was removed
+2026-06-16 (`f720f9b5`), the day after this doc's sprints were built —
+its whole home file (`writers/summary.py`) and tests were deleted as
+"dead summary-enforcement code that only ran in the test suite and
+never in production," with its intent folded into `composition.py`'s
+prompt rules instead (see `.claude/graph.json`'s decision log). The
+pipeline references to it below are historical, not current.
+
 ## High-level pipeline (orchestrator.py)
 
 ```
