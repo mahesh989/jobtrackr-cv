@@ -694,6 +694,50 @@ def test_strip_ungrounded_noops_non_credential_sections():
     assert _strip_ungrounded_credentials(md, cv) == md
 
 
+def test_REGRESSION_C22n_prose_only_credential_section_survives():
+    """
+    Regression, execution chunk C22n (found during C22j's independent
+    review — newly reachable for manual CVs via C22j's own fix, since that
+    fix made "certifications & checks" enter this gate at all). A
+    credential/checks section written as plain prose (no bullet markers)
+    only ever appended its lines to `kept` unconditionally — prose is never
+    individually grounding-checked — but the section's SURVIVAL decision
+    was gated on `kept_bullet`, a flag only a surviving BULLET could set.
+    So a 100%-legitimate prose-only section was wrongly deleted in its
+    entirety, including the prose lines the loop above had just kept.
+    """
+    cv = "Maheshwor Tiwari\n\nPolice Check current, renewed annually.\n"
+    md = (
+        "# Name\n\n"
+        "## Certifications & Checks\n"
+        "Police Check current, renewed annually.\n\n"
+        "## Skills\n**Care Skills:** Personal care\n"
+    )
+    out = _strip_ungrounded_credentials(md, cv)
+    assert "## Certifications & Checks" in out
+    assert "Police Check current, renewed annually." in out
+    assert "## Skills" in out
+
+
+def test_strip_ungrounded_still_drops_a_section_where_every_bullet_is_ungrounded():
+    """Non-regression guard for the C22n fix: a section made ENTIRELY of
+    bullets, all of which are ungrounded, must still be dropped whole —
+    the fix broadens survival to "any real kept content", not "always
+    keep the heading"."""
+    cv = "Maheshwor Tiwari\n\nExperience\nDid care.\n"
+    md = (
+        "# Name\n\n"
+        "## Checks & Clearances\n"
+        "- Driver Licence (NSW)\n"
+        "- Working with Children Check (VIC)\n\n"
+        "## Skills\n**Care Skills:** Personal care\n"
+    )
+    out = _strip_ungrounded_credentials(md, cv)
+    assert "## Checks & Clearances" not in out
+    assert "Driver Licence" not in out
+    assert "## Skills" in out
+
+
 # ---------------------------------------------------------------------------
 # Skills-line case normalisation
 # ---------------------------------------------------------------------------
@@ -1129,6 +1173,47 @@ def test_post_verify_duplicate_across_lines_removed():
     assert out.count("NDIS") == 1
     assert out.count("Wound Care") == 1
 
+
+def test_REGRESSION_C22p_writer_w8_verified_reruns_the_grounding_gate_after_verify_claims():
+    """
+    Regression, execution chunk C22p (found during C22j's independent
+    review): verify_claims (the AI entailment-verification step) is an AI
+    call that can rewrite ANY section, including reintroducing a
+    fabricated credential into a Certifications/Checks section — but the
+    grounding gate (_strip_ungrounded_credentials, step 4a) only ran ONCE,
+    before verify_claims saw the document. Everything else this exact
+    function re-runs post-verify (awards normalisers, skills hygiene,
+    Sprint A/B/C passes) is because verify_claims can undo it; the
+    grounding gate was the one deterministic pass in that category that
+    never got re-run, capping C22j's own fix's real-world effectiveness.
+
+    Full async integration (mocking the AI client through verify_claims)
+    is disproportionate for a one-line wiring fix — this asserts the
+    actual source of _writer_w8_verified calls _strip_ungrounded_credentials
+    a second time, AFTER verify_claims, and BEFORE the awards-relabel
+    re-run (matching the original pipeline's own relative ordering:
+    ground before relabel/split), the same structural-assertion pattern
+    already used elsewhere in this test suite (see
+    test_cv_jd_matching_fixes.py's inspect.getsource call-site guards).
+    """
+    import inspect
+    import re as _re
+
+    from app.services.eval.writers import _impl
+
+    src = inspect.getsource(_impl._writer_w8_verified)
+    verify_idx = src.index("verify_claims(client")
+    ground_idx = src.index("_strip_ungrounded_credentials(verified_md, cv_text)")
+    relabel_idx = src.index("_relabel_awards_only_certifications(verified_md)")
+    assert verify_idx < ground_idx < relabel_idx, (
+        "expected verify_claims -> _strip_ungrounded_credentials -> "
+        "_relabel_awards_only_certifications, in that order"
+    )
+    # Also confirm it's called on the VERIFIED markdown, not the pre-verify
+    # variable — a copy-paste of the wrong variable name would defeat the
+    # entire point of a "re-run after verify_claims" pass.
+    call_line = _re.search(r"^\s*verified_md = _strip_ungrounded_credentials\(.*\)$", src, _re.MULTILINE)
+    assert call_line is not None
 
 
 # ---------------------------------------------------------------------------
