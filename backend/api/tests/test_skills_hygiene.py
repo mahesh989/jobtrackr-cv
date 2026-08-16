@@ -688,6 +688,34 @@ def test_strip_ungrounded_drops_only_fabricated_keeps_real():
     assert "## Certifications" in out
 
 
+def test_REGRESSION_C22q_middle_dot_separated_entry_extracts_the_correct_lead_phrase():
+    """
+    Regression, execution chunk C22q (found during C22j's independent
+    review — cosmetic/low-priority, "currently harmless" per that review,
+    but a real drift-prevention fix): _strip_ungrounded_credentials' own
+    lead-phrase-split regex didn't recognise the middle-dot (·) separator
+    that ensure_awards' sibling regex already did (matching
+    contact_line.py's build_credentials_line, which joins stamped
+    credential parts with " · "). Without it, a middle-dot-separated
+    bullet entry's "core" was the WHOLE string (no split point found)
+    instead of just the lead phrase — a false NOT-grounded result even
+    when the lead phrase genuinely appears in the source CV, since the
+    full string (including a trailing detail the source CV doesn't
+    verbatim repeat) is far less likely to be a substring match. Now
+    consolidated into one shared _LEAD_PHRASE_SPLIT_RE both functions use.
+    """
+    cv = "Maheshwor Tiwari\n\nHolds a First Aid Certificate.\n"
+    md = (
+        "# Name\n\n"
+        "## Certifications\n"
+        "- First Aid Certificate · HLTAID011 · Renewed 2023\n\n"
+        "## Skills\n**Care Skills:** Personal care\n"
+    )
+    out = _strip_ungrounded_credentials(md, cv)
+    assert "First Aid Certificate" in out
+    assert "## Certifications" in out
+
+
 def test_strip_ungrounded_noops_non_credential_sections():
     cv = "Name\n\nExperience\nDid things\n"
     md = "# Name\n\n## Experience\n- Did something unrelated to the CV\n"

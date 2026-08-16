@@ -19,6 +19,18 @@ from app.services.eval.writers.awards_parsing import (
 
 logger = logging.getLogger(__name__)
 
+# C22q: ensure_awards and _strip_ungrounded_credentials each independently
+# defined their own "extract the lead phrase before any separator" regex —
+# ensure_awards recognised the middle-dot (·) separator (matching
+# contact_line.py's build_credentials_line, which joins stamped credential
+# parts with " · "), _strip_ungrounded_credentials didn't. Currently
+# harmless (found during C22j's independent review — no known live case
+# feeds a ·-separated entry through the grounding gate's own path), but two
+# independently-maintained copies of the same pattern is exactly how this
+# family's C22c/C22e/C22i/C22j alias-gap bugs kept happening — consolidated
+# into one shared constant so they can't drift again.
+_LEAD_PHRASE_SPLIT_RE = re.compile(r"\s[–—·-]\s|\(|,")
+
 def _is_description_only_entry(entry: dict) -> bool:
     """An entry is description-only when:
       - its name starts with description language (Recognised for / Awarded / …)
@@ -593,7 +605,7 @@ def ensure_awards(markdown: str, original_cv_text: str) -> str:
         # Split at any common award-name separator: spaced dash/en-dash, (date),
         # comma, OR the middle-dot (·) style — "Award · Org · Date". Extract the
         # part before the first separator as the canonical core to match against.
-        core = re.split(r"\s[–—·-]\s|\(|,", e)[0].strip().lower()
+        core = _LEAD_PHRASE_SPLIT_RE.split(e)[0].strip().lower()
         if (core and core in awards_text) or e.lower() in awards_text:
             continue
         missing.append(e)
@@ -682,7 +694,7 @@ def _strip_ungrounded_credentials(markdown: str, original_cv_text: str) -> str:
                     kept.append(bl)
                     continue
                 entry = stripped.lstrip("-*•").strip()
-                core = re.split(r"\s[–—-]\s|\(|,", entry)[0].strip().lower()
+                core = _LEAD_PHRASE_SPLIT_RE.split(entry)[0].strip().lower()
                 grounded = bool(core) and core in cv_low
                 if _PLACEHOLDER_RE.search(entry) or not grounded:
                     dropped += 1
