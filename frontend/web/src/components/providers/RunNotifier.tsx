@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { CheckCircle2, AlertTriangle, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useFocusTrap } from "@/components/ui/useFocusTrap";
 
 interface RunSnapshot {
   id:            string;
@@ -61,6 +62,7 @@ export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {
   const seeded   = useRef(false);
   const router   = useRouter();
   const pathname = usePathname();
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -244,6 +246,7 @@ export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {
   }
 
   const active = queue[0];
+  useFocusTrap(!!active, dialogRef);
 
   useEffect(() => {
     if (!active) return;
@@ -321,10 +324,12 @@ export function RunNotifier({ isAdmin = false }: { isAdmin?: boolean }) {
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-text/40 backdrop-blur-sm" onClick={dismiss} />
           <div
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="run-notice-title"
-            className="relative w-full max-w-md rounded-2xl border border-[var(--border)] bg-surface p-6 shadow-xl"
+            tabIndex={-1}
+            className="relative w-full max-w-md rounded-2xl border border-[var(--border)] bg-surface p-6 shadow-xl outline-none"
           >
             <button
               type="button"
