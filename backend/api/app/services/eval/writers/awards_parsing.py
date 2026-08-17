@@ -64,16 +64,35 @@ _LEADING_DATE_RE = re.compile(
 )
 
 
+# C85 (#10): a genuine date, matched over the WHOLE (stripped) string, not
+# merely "contains a digit or month word somewhere". "Recognised for 5
+# years of dedicated service" has a digit ("5") and used to satisfy the old
+# has_digit-or-has_month check, misclassifying award commentary as a date.
+_MONTH_ALT = (
+    r"jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?"
+    r"|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?"
+)
+# C85 review round 1: the FIRST version of this regex only accepted the
+# canonical "Month YYYY" shape this codebase's own writer emits — real
+# award dates can also carry a leading day ("1 August 2025") or an
+# abbreviated month with a trailing period ("Aug. 2025"), and a range can
+# use "to" instead of a dash ("2020 to 2024"). Rejecting those turned the
+# original "date misclassified as commentary" bug (#10) into a DIFFERENT
+# silent-loss failure (the same class #11 fixed) for non-canonical dates —
+# the date simply vanished instead of landing anywhere. Widened to accept
+# all four without loosening back toward "any digit substring".
+_DATE_ONLY_RE = re.compile(
+    rf"^(?:\d{{1,2}}\s+)?(?:(?:{_MONTH_ALT})\.?\s+)?\d{{4}}"
+    rf"(?:\s*(?:[-–—]|\bto\b)\s*(?:\d{{1,2}}\s+)?(?:(?:{_MONTH_ALT})\.?\s+)?"
+    rf"(?:\d{{4}}|present|ongoing|current))?$",
+    re.IGNORECASE,
+)
+
+
 def _is_valid_date(d: str) -> bool:
     if not d:
         return False
-    has_digit = any(c.isdigit() for c in d)
-    has_month = bool(re.search(
-        r"\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b",
-        d,
-        re.IGNORECASE
-    ))
-    return has_digit or has_month
+    return bool(_DATE_ONLY_RE.match(d.strip()))
 
 
 def _add_desc_sentence(desc: str, new_sent: str) -> str:
@@ -159,6 +178,7 @@ def _parse_award_parts(content: str) -> tuple:
     if "|" in content:
         left, right = content.rsplit("|", 1)
         right = right.strip()
+        unclassified_right = None
         for sep in (" – ", " — ", " - ", ", "):
             if sep in right:
                 date, description = right.split(sep, 1)
@@ -166,7 +186,22 @@ def _parse_award_parts(content: str) -> tuple:
                 description = description.strip()
                 break
         else:
-            date = right
+            # C85 (#11): the right-of-pipe segment has no recognised
+            # date/description separator. Classify it properly instead of
+            # blindly dumping it into `date` (the original bug) or
+            # unconditionally into `description` (round-2 review: this
+            # mishandles a bare org name like "University of Sydney",
+            # which is neither date- nor commentary-shaped — it belongs in
+            # `org`, matching how the H3/plain branches in
+            # _parse_award_raw_entry handle the identical shape). Defer
+            # that decision until we know whether `left` already supplies
+            # an org below.
+            if _is_valid_date(right):
+                date = right
+            elif _DESCRIPTION_PREFIX_RE.match(right):
+                description = right
+            else:
+                unclassified_right = right
         left = left.strip()
         parsed_name, parsed_org = _split_award_name_org(left)
         if parsed_org and _DESCRIPTION_PREFIX_RE.match(parsed_org):
@@ -175,6 +210,17 @@ def _parse_award_parts(content: str) -> tuple:
         else:
             name = parsed_name
             org = parsed_org
+        if unclassified_right and _looks_like_location(unclassified_right) and org:
+            # Org already came from the left-side dash split → the
+            # unclassified right side is pure location residue ("Sydney
+            # NSW"), matching how the sibling H3/plain branches in
+            # _parse_award_raw_entry discard the identical shape rather
+            # than appending it as commentary.
+            pass
+        elif unclassified_right and not org:
+            org = unclassified_right
+        elif unclassified_right:
+            description = _add_desc_sentence(description, unclassified_right)
     else:
         m = re.search(r"\(([^()]+)\)", content)
         if m:
@@ -308,10 +354,17 @@ def _dedupe_award_description_sentences(desc: str) -> str:
     Strategy:
       1. Split into sentences.
       2. Exact-normalised dedupe (handles case (a)).
-      3. Fuzzy pass: process longest-first; drop a sentence whose content
-         tokens are ≥80% contained in an already-kept (longer) sentence
-         (handles case (b) — the shorter subset is dropped, the richer
-         superset is kept). Re-emit in original order.
+      3. Subset pass: process longest-first; drop a sentence whose content
+         tokens are a STRICT SUBSET of an already-kept (longer) sentence's
+         tokens (handles case (b) — the shorter subset is dropped, the
+         richer superset is kept). C85 (#12): this used to be an ≥80%
+         overlap threshold, which also matched two DISTINCT sentences that
+         merely share most words but each name something the other
+         doesn't ("...teamwork and reliability." vs "...teamwork and
+         punctuality." — 5 of 6 tokens shared, but neither contains the
+         other), silently deleting one. Strict subset containment still
+         collapses genuine near-duplicates while keeping both when either
+         names something unique. Re-emit in original order.
     """
     if not desc or "." not in desc:
         return desc
@@ -336,8 +389,19 @@ def _dedupe_award_description_sentences(desc: str) -> str:
         stage1.append(s)
 
     # Pass 2 — fuzzy subset dedupe. Process longest-first so the richest
-    # sentence in a duplicate cluster is the one retained; a shorter sentence
-    # whose tokens are ≥80% covered by a kept longer one is dropped.
+    # sentence in a duplicate cluster is the one retained; a shorter
+    # sentence is dropped ONLY when it is a genuine STRICT SUBSET of an
+    # already-kept longer sentence's tokens (every one of its tokens
+    # present in the longer one — the "near-superset" relationship this
+    # pass exists to collapse, per the docstring's case (b)).
+    #
+    # C85 (#12): the ORIGINAL ≥80%-overlap threshold conflated that with
+    # merely "shares most words" — "...excellent teamwork and reliability."
+    # vs "...excellent teamwork and punctuality." share 5 of 6 tokens
+    # (≈83%) despite naming two DIFFERENT traits; the shorter one was
+    # silently deleted. Neither is a subset of the other (each has one
+    # token — "reliability"/"punctuality" — the other lacks), so strict
+    # subset containment correctly keeps both.
     order = {s: i for i, s in enumerate(stage1)}
     by_len_desc = sorted(stage1, key=lambda s: len(_tokens(s)), reverse=True)
     kept_fuzzy: list[str] = []
@@ -348,8 +412,7 @@ def _dedupe_award_description_sentences(desc: str) -> str:
         is_dup = False
         for k in kept_fuzzy:
             ktoks = _tokens(k)
-            overlap = len(toks & ktoks) / len(toks)
-            if overlap >= 0.8:
+            if toks <= ktoks:
                 is_dup = True
                 break
         if not is_dup:
@@ -570,6 +633,13 @@ def _parse_award_raw_entry(entry_lines: list) -> dict:
                         # Org already came from dash split → right is pure
                         # location residue, discard.
                         pass
+                    elif _DESCRIPTION_PREFIX_RE.match(candidate_right):
+                        # C85 (#10): commentary ("Recognised for 5 years of
+                        # dedicated service") is neither a date nor an org —
+                        # with #10's tightened _is_valid_date this no longer
+                        # falls through to `date`, so it must be routed to
+                        # `description` here instead of misfiling into `org`.
+                        description = _add_desc_sentence(description, candidate_right)
                     elif not org:
                         # Right may be 'Org, Suburb, State, Country' — accept
                         # and let _format_award_entry strip the location tail.
@@ -674,6 +744,10 @@ def _parse_award_raw_entry(entry_lines: list) -> dict:
                         # Org already came from dash split → right is just
                         # location residue, discard.
                         pass
+                    elif _DESCRIPTION_PREFIX_RE.match(candidate_right):
+                        # C85 (#10): same fix as the h3 branch above —
+                        # commentary must land in `description`, not `org`.
+                        description = _add_desc_sentence(description, candidate_right)
                     elif not org:
                         # Let _format_award_entry strip any trailing location.
                         org = candidate_right
