@@ -21,6 +21,7 @@ from app.services.skills import (
     lexicon_stats,
     normalise,
 )
+from app.services.skills.classifier import is_noise_exact
 
 
 # ---------------------------------------------------------------------------
@@ -78,6 +79,12 @@ class TestNormalise:
     def test_strips_multiple_prefixes(self):
         # "current valid first aid certificate" — both prefixes peeled
         assert normalise("current valid first aid") == "first aid"
+
+    def test_exact_noise_lookup_does_not_strip_semantic_prefixes(self):
+        assert is_noise_exact("first aid") == "credential"
+        assert is_noise_exact("CURRENT FIRST AID") is None
+        assert is_noise_exact("experience with first aid") is None
+        assert is_noise("current First Aid") == "credential"
 
     def test_preserves_internal_hyphen(self):
         assert normalise("person-centred care") == "person-centred care"

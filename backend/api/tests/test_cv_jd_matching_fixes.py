@@ -101,6 +101,32 @@ class TestPromoteLiteralMatches:
         assert "adaptability" in matched["preferred"]["soft_skills"]
 
 
+class TestProfileCredentialContextTails:
+    def test_context_tail_stays_missed_in_profile_promotion(self):
+        from app.services.pipeline.steps.cv_jd_matching import (
+            _promote_profile_credentials,
+        )
+        from app.services.pipeline.steps.keyword_feasibility import (
+            user_has_credential,
+        )
+
+        matched = _empty_block()
+        missed = _empty_block()
+        phrase = "AHPRA compliance administration"
+        missed["required"]["technical"] = [phrase]
+
+        promoted = _promote_profile_credentials(
+            matched,
+            missed,
+            {"credentials": {"ahpra_number": "NMW0001234567"}},
+            user_has_credential,
+        )
+
+        assert promoted == []
+        assert matched["required"]["technical"] == []
+        assert missed["required"]["technical"] == [phrase]
+
+
 # ---------------------------------------------------------------------------
 # 2. Vaccination-requirements noise
 # ---------------------------------------------------------------------------
@@ -261,6 +287,24 @@ class TestBuildCredentialsGap:
         )
         assert "Cert III in Ageing Support" in gap["present"]
         assert "Cert III in Ageing Support" not in gap["missing"]
+
+    def test_profile_context_tail_stays_missing(self):
+        phrase = "AHPRA compliance administration"
+        gap = _build_credentials_gap(
+            {
+                "credentials": {
+                    "required": [phrase],
+                    "preferred": [],
+                    "eligibility": [],
+                }
+            },
+            {"required": {}, "preferred": {}},
+            cv_text="",
+            contact_details={"credentials": {"ahpra_number": "NMW0001234567"}},
+        )
+
+        assert phrase in gap["missing"]
+        assert phrase not in gap["present"]
 
     def test_fallback_folds_in_regex_sidecar(self):
         # No deterministic block; a credential mis-bucketed by the LLM arrives
