@@ -33,6 +33,11 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  turbopack: {
+    // next.config.ts sits in the app dir; pin it so Turbopack stops inferring
+    // the workspace root from the knip lockfile at the repo root.
+    root: __dirname,
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
