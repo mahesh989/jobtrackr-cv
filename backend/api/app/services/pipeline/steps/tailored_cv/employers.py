@@ -33,7 +33,7 @@ _EXP_SECTION_RE = re.compile(
 )
 
 
-def _extract_employers_from_cv(cv_text: str, min_months: int = 2) -> list[str]:
+def _extract_employers_from_cv(cv_text: str) -> list[str]:
     """Return employer names from the CV's Experience section that have
     continuous multi-month tenure (i.e. a date range like 'May 2025 – Jun 2026'
     or 'Mar 2026 – Present'). True placement entries (lines containing 'placement'

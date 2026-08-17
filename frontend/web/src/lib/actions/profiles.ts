@@ -252,6 +252,7 @@ export async function copyProfile(profileId: string) {
       schedule_cron: orig.schedule_cron,
       is_active: false,   // copies start paused — user confirms before enabling
       target_verticals: orig.target_verticals,
+      setting_filter: orig.setting_filter,
       adzuna_title_keywords: orig.adzuna_title_keywords,
       adzuna_exclude_keywords: orig.adzuna_exclude_keywords,
       adzuna_salary_min: orig.adzuna_salary_min,
@@ -280,11 +281,12 @@ export async function copyProfile(profileId: string) {
 
 export async function deleteProfile(profileId: string) {
   const { supabase, user } = await authedClient();
-  await supabase
+  const { error } = await supabase
     .from("search_profiles")
     .delete()
     .eq("id", profileId)
     .eq("user_id", user.id);
+  if (error) throw new Error(error.message);
   triggerScheduleSync();
   revalidateTag(`profiles-${user.id}`, "default");
   revalidatePath("/dashboard");

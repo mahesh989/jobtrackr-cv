@@ -15,9 +15,9 @@ export interface MenuItemProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 /**
  * The row className itself, exported so a Link/`<a>` row in the same menu
- * (navigational items sitting next to action items — see PoolOverflowMenu)
- * can match a `<MenuItem>` exactly without a second copy of this string to
- * keep in sync by hand.
+ * (navigational items sitting next to action items) can match a
+ * `<MenuItem>` exactly without a second copy of this string to keep in
+ * sync by hand.
  */
 export function menuItemClass(danger = false, className = ""): string {
   return `w-full flex items-center gap-2 text-left px-3 py-1.5 text-label transition-colors hover:bg-[var(--surface-2)] disabled:cursor-not-allowed disabled:opacity-40 ${

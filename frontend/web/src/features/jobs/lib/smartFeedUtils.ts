@@ -1,4 +1,4 @@
-import { type BoardJob, type AtsBand } from "@/features/jobs/lib/jobFilters";
+import { type BoardJob, type AtsBand, byDistanceAsc } from "@/features/jobs/lib/jobFilters";
 import { EMPLOYMENT_TYPE_LABELS } from "@/lib/constants";
 import { MIN_INITIAL_ATS, MIN_FINAL_ATS } from "@/lib/atsThresholds";
 export { relativeDate } from "@/lib/dates";
@@ -63,14 +63,7 @@ export function visaKey(j: BoardJob): keyof typeof VISA_COLOR {
   return "unknown";
 }
 
-export function byDistanceAsc(a: BoardJob, b: BoardJob): number {
-  const aNull = a.distance_km == null;
-  const bNull = b.distance_km == null;
-  if (aNull && bNull) return 0;
-  if (aNull) return 1;
-  if (bNull) return -1;
-  return (a.distance_km as number) - (b.distance_km as number);
-}
+export { byDistanceAsc };
 
 export const EMPLOYMENT_CHIP_LABEL = EMPLOYMENT_TYPE_LABELS;
 

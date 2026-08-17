@@ -2,7 +2,8 @@
  * User event emitter — server-side only.
  *
  * Writes one row to user_events for each key user action.
- * Fire-and-forget: errors are logged but never thrown to callers.
+ * Fire-and-forget: errors are silently swallowed, not logged, and never
+ * thrown to callers.
  *
  * Call this from:
  *   - auth/confirm route (login event)

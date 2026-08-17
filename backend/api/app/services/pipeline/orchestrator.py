@@ -21,7 +21,7 @@ import uuid
 from typing import Optional
 
 from app.config import get_settings
-from app.database import ANALYSIS_RUNS, delete_storage_object
+from app.database import ANALYSIS_RUNS, delete_storage_object, supabase_update
 from app.enums import StepName, StepState
 from app.services.automation.auto_cover_letter import auto_generate_cover_letter
 from app.database import get_supabase
@@ -215,6 +215,8 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
             # categories. A wrong guess degrades to the base prompt's
             # behaviour. Built from the cleaned text (boilerplate stripped)
             # to avoid alias matches in company prose.
+            # Deferred: avoids loading role_families' vertical config modules
+            # unless this branch actually runs.
             from app.services.eval.role_families import resolve_vertical
             # Use the explicit vertical from the job search profile when set
             # (avoids alias-based misclassification). Fall back to auto-detect
@@ -360,6 +362,8 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
             # so it adds only the composition + verify calls. Same storage path
             # and (markdown, storage_path) contract as the legacy writer.
             logger.info("run %s: tailoring via w8_verified writer", run_id)
+            # Deferred: avoids loading the writers package (large — regex
+            # rewriters, honesty guard, etc.) unless this branch actually runs.
             from app.services.eval.writers import run_tailored_cv_w8_verified
             tailored_md, tailored_storage_path = await run_tailored_cv_w8_verified(
                 ai_client, payload.user_id, run_id, payload.cv_text, payload.jd_text,
@@ -525,14 +529,9 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
                 "(gate uses the tailored score, not the initial ATS score)",
                 run_id, final_score, payload.min_final_ats,
             )
-            try:
-                await asyncio.to_thread(
-                    lambda: get_supabase().table(ANALYSIS_RUNS).update(
-                        {"cover_letter_status": "skipped:below_gate"}
-                    ).eq("id", run_id).execute()
-                )
-            except Exception as exc:  # noqa: BLE001 — best effort
-                logger.warning("orchestrator: could not record below_gate outcome on run %s: %s", run_id, exc)
+            ok = await supabase_update(ANALYSIS_RUNS, run_id, {"cover_letter_status": "skipped:below_gate"})
+            if not ok:
+                logger.warning("orchestrator: could not record below_gate outcome on run %s", run_id)
 
     except _CancelledByUser:
         # User clicked Stop on the analysis run page; the row was already

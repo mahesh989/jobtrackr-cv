@@ -7,17 +7,11 @@
  * tailored CV exists but no cover letter was generated yet (e.g. the
  * below-final-gate "cover letter skipped" state).
  *
- * Reuses the exact render chain `TailoredCvCard`/`CvInlinePreview` use
- * (markdownHelpers + renderTailoredCvBlob) so the output is byte-identical.
+ * Reuses the same `renderTailoredCvBlob` call `TailoredCvCard`/
+ * `CvInlinePreview` use so the output is byte-identical.
  */
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import {
-  boldSkillCategories,
-  padPipesAndCleanArtifacts,
-  stampContactClient,
-  tidyContactLine,
-} from "@/lib/cv/markdownHelpers";
 import { renderTailoredCvBlob } from "@/lib/cv/pdfRender";
 import type { ContactDetails } from "@/lib/types";
 
@@ -40,10 +34,7 @@ async function loadMarkdownAndContact(storagePath: string) {
     }
   }
 
-  const formatted = padPipesAndCleanArtifacts(
-    boldSkillCategories(stampContactClient(tidyContactLine(rawMd), contact)),
-  );
-  return { rawMd, formatted, contact };
+  return { rawMd, contact };
 }
 
 export function useTailoredCvPdfAction(storagePath: string | null) {

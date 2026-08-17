@@ -71,7 +71,6 @@ logger = logging.getLogger(__name__)
 # to any sentence containing the word, which we still don't want. This
 # loosened version requires line-start anchoring but accepts trailing
 # content, which is the right balance for real-world CV layouts.
-_EXPECTED_SECTIONS = ("experience", "education", "skills")
 
 # Per-section heading patterns. Each pattern matches at line-start (optionally
 # with markdown/bold/bullet prefix) followed by a word boundary, so the
@@ -216,7 +215,7 @@ def _keyword_score(
     Compute Category 1 directly from the structured counts produced by
     the matching step. No substring searching, no text parsing.
 
-    Presence-aware: the nominal weights in ``_KEYWORD_WEIGHTS`` are shaped for
+    Presence-aware: the nominal weights in ``DEFAULT_KEYWORD_WEIGHTS`` are shaped for
     IT roles (technical-required carries 25 of 50). A nursing or care JD often
     has zero required-technical keywords, which under a fixed-weight scheme
     would make 25 of the 50 keyword points permanently unreachable and cap a
@@ -268,7 +267,7 @@ def _keyword_score(
 
 
 # ---------------------------------------------------------------------------
-# Category 2 — Experience (35 pts)
+# Category 2 — Experience (40 pts)
 # ---------------------------------------------------------------------------
 
 
@@ -458,7 +457,7 @@ def _count_responsibilities_covered(
 
 
 # ---------------------------------------------------------------------------
-# Category 3 — Formatting (15 pts)
+# Category 3 — Formatting (10 pts)
 # ---------------------------------------------------------------------------
 
 

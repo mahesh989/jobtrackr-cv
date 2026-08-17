@@ -1,9 +1,9 @@
 """Story extraction prompt — Phase 10.2.a of the cover letter feature.
 
 Used in: backend/api/app/services/stories/story_extractor.py
-Reused in: Phase 4, Pass 1 (skeleton generation) — stories are the source
-           material for the per-letter narrative block (the user's selected
-           story populates Paragraph 2 of the cover letter skeleton).
+Reused in: generate.py — stories are the source material for the per-letter
+           narrative block (the user's selected story populates Paragraph 3
+           of the cover letter).
 """
 
 STORY_EXTRACTION_SYSTEM = """You are an achievement analyst extracting cover letter stories from a professional CV.

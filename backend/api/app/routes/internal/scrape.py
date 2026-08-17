@@ -30,8 +30,3 @@ async def scrape_jd_endpoint(body: ScrapeJdRequest) -> ScrapeJdResponse:
         job_title=result.job_title,
         source_url=result.source_url,
     )
-
-
-# ── /internal/research-company ────────────────────────────────────────────────
-
-

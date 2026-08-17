@@ -6,8 +6,8 @@
  * large gap at the bottom because the floor never grows to fill the page.
  *
  * fitCvToPage scales the stylesheet's typographic numerics up (binary search,
- * clamped to 1.15× — matching the backend MAX_CONFIG ceiling of font 11.5pt)
- * so a single-page CV fills ~95% of the usable page before html2canvas
+ * clamped to MAX_SCALE = 1.45×, see below) so a single-page CV fills ~95% of
+ * the usable page before html2canvas
  * captures it. Multi-page CVs (already ≥ one page tall) are left untouched so
  * the existing safe-break slicing keeps working.
  */

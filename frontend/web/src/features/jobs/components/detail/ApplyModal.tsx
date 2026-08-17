@@ -146,7 +146,7 @@ export function ApplyModal({
   // it is a fresh closure every render, and depending on it would re-run the
   // request on every keystroke in the message box.
   const onChangedRef = useRef(onChanged);
-  onChangedRef.current = onChanged;
+  useEffect(() => { onChangedRef.current = onChanged; }, [onChanged]);
 
   // Only ever runs when the payload had no stored body — the first time this
   // job's message is needed. Everything after that is served from state.
@@ -234,7 +234,8 @@ export function ApplyModal({
       throw new Error(startJson.error ?? `Could not start (${startRes.status})`);
     }
 
-    const newLetterId = startJson.letter_id as string;
+    if (typeof startJson.letter_id !== "string") throw new Error("No letter_id came back — try again.");
+    const newLetterId = startJson.letter_id;
     if (startJson.status === "picking") {
       const variants = Array.isArray(startJson.variants) ? startJson.variants : [];
       const firstVariant = variants[0];

@@ -112,8 +112,3 @@ async def select_company_fact_endpoint(body: SelectCompanyFactRequest) -> Select
             for item in ranked
         ]
     )
-
-
-# ── /internal/generate-opening-variants ───────────────────────────────────────
-
-

@@ -206,13 +206,13 @@ def enrich_jd_analysis(
     # rolling JSONL log so weekly reviews can promote high-frequency
     # phrases into the lexicon. Pipeline never blocks on tracking.
     try:
-        from datetime import datetime
+        from app.database import utcnow_iso
         from app.services.skills.unknown_tracker import record_unknown_phrases
         record_unknown_phrases(
             role_family_id=str(jd_analysis.get("role_family") or "master"),
             job_title=str(jd_analysis.get("job_title") or "") or None,
             lexicon_meta=jd_analysis.get("lexicon_meta"),
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=utcnow_iso(),
         )
     except Exception:  # noqa: BLE001 — observability must never block
         logger.debug("unknown_tracker: failed to record", exc_info=True)

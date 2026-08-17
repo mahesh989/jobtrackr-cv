@@ -4,7 +4,7 @@ import type { FullProfile } from "./types.js";
 export async function loadProfile(profileId: string): Promise<FullProfile | null> {
   const { data } = await db
     .from("search_profiles")
-    .select("id, name, user_id, is_manual, keywords, location, visa_filter_mode, target_verticals, setting_filter, adzuna_title_keywords, adzuna_exact_phrase, adzuna_any_keywords, adzuna_exclude_keywords, adzuna_salary_min, adzuna_salary_max, adzuna_distance_km, adzuna_max_days_old, exclude_title_keywords, must_include_phrases, automation_enabled, enabled_sources, seek_method, adzuna_method, home_address, home_lat, home_lng")
+    .select("id, name, user_id, is_manual, keywords, location, visa_filter_mode, target_verticals, setting_filter, adzuna_title_keywords, adzuna_exclude_keywords, adzuna_salary_min, adzuna_salary_max, adzuna_distance_km, adzuna_max_days_old, exclude_title_keywords, must_include_phrases, automation_enabled, enabled_sources, seek_method, adzuna_method, home_address, home_lat, home_lng")
     .eq("id", profileId)
     .single();
   return data as FullProfile | null;

@@ -4,7 +4,9 @@
 // Careerjet v4 API (careerjet.ts); the worker filters/dedups to survivors;
 // then this runs the JD-fetcher actor on only the careerjet.com.au survivors
 // to get full descriptions over a residential proxy (datacenter is Turnstile-
-// blocked — verified 2026-06-22). Mirrors seek.ts enrichWithFullJDs.
+// blocked — verified 2026-06-22). SEEK's own JD enrichment is direct-only
+// now (seekDirect.ts's enrichWithDirectJDs) — the Apify JD-fetcher fallback
+// that used to mirror was removed; this file's actor path is Careerjet-only.
 //
 // Bound to the user's per-user Apify token (same integration as SEEK).
 

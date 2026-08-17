@@ -26,8 +26,6 @@ export interface SearchProfile {
   // user_visa_status.
   user_work_types?: string[];
   adzuna_title_keywords?: string;
-  adzuna_exact_phrase?: string;
-  adzuna_any_keywords?: string;
   adzuna_exclude_keywords?: string;
   adzuna_salary_min?: number;
   adzuna_salary_max?: number;

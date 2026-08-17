@@ -49,7 +49,7 @@ def _trim_to_words(text: str, max_words: int) -> str:
     Truncate text to roughly max_words, ending with a period and a complete
     thought. Resolution order:
       1. If a clause boundary (',' or ';') exists in [60%..max_words], cut there.
-      2. Else, look ahead up to max_words+5 for a clause boundary or sentence
+      2. Else, look ahead up to max_words+10 for a clause boundary or sentence
          end so we never break mid-phrase for the sake of a tight cap.
       3. Else, hard-cut at max_words then strip any trailing connective
          words ("to", "and", "of", "the", "with", ...) so we never end on

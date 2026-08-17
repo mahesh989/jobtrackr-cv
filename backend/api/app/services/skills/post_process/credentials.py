@@ -800,7 +800,7 @@ def extract_credentials_from_jd(
             # cover multi-word credentials like "certificate iii in individual
             # support (ageing)".
             words = scan_text.split()
-            found_phrases: List[str] = []
+            found_phrases: List[Tuple[str, str]] = []
             for start in range(len(words)):
                 for end in range(start + 1, min(start + 9, len(words) + 1)):
                     phrase = " ".join(words[start:end])

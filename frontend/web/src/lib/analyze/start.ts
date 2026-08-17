@@ -25,6 +25,10 @@ import { jsonError } from "@/lib/api-utils";
 
 const JD_FULL_THRESHOLD  = 1000;   // chars — below this we try a fresh scrape. Aligned to MANUAL_JD_MIN_CHARS + jd_quality classifier (migration 062). Was 1400, was 2000.
 const JD_MIN_USABLE      = 200;    // chars — below this we fail the run
+                                    // (deliberately stricter than coverLetter/
+                                    // start.ts's JD_MIN_CHARS=50: this gates a
+                                    // full scoring/tailoring run, which needs
+                                    // more JD context than a cover letter does)
 
 // Referees are single-sourced from the ACTIVE CV's structured_cv (the review
 // form is the only referee editor — see Fix 2, docs/design.md). The profile
@@ -210,12 +214,15 @@ export async function analyzeJob(
         normalizedText = fresh;
         if (wasStale) {
           // Best-effort self-heal so the next run + other read paths match.
-          try {
-            await admin
-              .from("cv_versions")
-              .update({ normalized_cv_text: fresh })
-              .eq("id", cv.id);
-          } catch { /* column absent (pre-059) or write denied — ignore */ }
+          // supabase-js resolves {error} rather than throwing, so this is
+          // checked directly rather than via try/catch.
+          const { error: selfHealErr } = await admin
+            .from("cv_versions")
+            .update({ normalized_cv_text: fresh })
+            .eq("id", cv.id);
+          if (selfHealErr) {
+            console.warn("[analyze/start] normalized_cv_text self-heal failed (ignored):", selfHealErr.message);
+          }
         }
       }
     } catch {
