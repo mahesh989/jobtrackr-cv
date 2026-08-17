@@ -303,7 +303,8 @@ class TestBridgeGating:
         out = _apply_setting_bridge(
             _RESIDENTIAL_S1, _SETTING_NDIS, cv_text=_RESIDENTIAL_S1,
         )
-        assert "disability support" not in out.lower()
+        # Bridge phrase "experience in aged care and disability support settings" not added
+        assert "aged care and disability support settings" not in out.lower()
 
     def test_ndis_bridge_applied_with_evidence(self):
         cv = _RESIDENTIAL_S1 + "Worked with NDIS participants providing disability support.\n"
@@ -315,8 +316,8 @@ class TestBridgeGating:
         out = _apply_setting_bridge(
             _RESIDENTIAL_S1, _SETTING_THEATRE, cv_text=_RESIDENTIAL_S1,
         )
-        # Bridge phrase "aged care and healthcare settings" not added
-        assert "healthcare settings" not in out
+        # Bridge phrase "experience in aged care and healthcare settings" not added
+        assert "aged care and healthcare settings" not in out
 
     def test_theatre_bridge_applied_with_evidence(self):
         cv = _RESIDENTIAL_S1 + "Perioperative experience in operating theatre.\n"

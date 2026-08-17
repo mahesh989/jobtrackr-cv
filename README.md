@@ -26,7 +26,7 @@ docs/design.md     Full integration plan — read this first
 |---|---|
 | Upload CV (PDF) with versioning + active flag | `/cv` page, `cv_versions` table |
 | Platform-wide AI provider (admin-managed, no BYOK) | `/dashboard/admin/ai-settings` page, `platform_ai_settings` table |
-| "Analyze" button on each job card | `/jobs/[id]/analysis/[run_id]` page |
+| "Analyze" button on each job card | `/jobs/[id]/analyze/[run_id]` page |
 | 7-step CV-tailoring pipeline | `backend/api/` FastAPI service |
 | Tailored CV PDF download | Supabase Storage + `analysis_runs.tailored_pdf_storage_path` |
 
