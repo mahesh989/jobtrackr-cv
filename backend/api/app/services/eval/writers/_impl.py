@@ -717,6 +717,22 @@ async def _writer_w8_verified(
     verified_md = canonicalise_body_spelling(verified_md)
     verified_md = normalise_heading_title_case(verified_md)
     verified_md = normalise_date_formats(verified_md)
+    # C82 (restores a call site dropped by 0628a5d1): deterministic setting
+    # bridge — replaces "residential aged care settings" in S1 with the
+    # correct bridge phrase for home care, hospital, NDIS, or theatre JDs,
+    # but ONLY when the CV's Experience section evidences the target
+    # setting (see bridges._BRIDGE_EVIDENCE_GATES) — otherwise S1 stays
+    # residential rather than fabricate cross-setting experience. Runs
+    # AFTER verify_claims, matching this file's stamp/repair-after-verify
+    # convention: verify_claims is an AI step that could otherwise rewrite
+    # S1 and drop or reintroduce a fabricated setting claim. Re-classifies
+    # directly from jd_text + result.jd_analysis rather than trusting
+    # result.extras["jd_setting"], which can be stale in resume paths.
+    _setting_for_bridge = _classify_jd_setting(jd_text, result.jd_analysis)
+    logger.info("w8_verified: S1 bridge — JD setting = %s", _setting_for_bridge)
+    verified_md = _apply_setting_bridge(
+        verified_md, _setting_for_bridge, cv_text=cv_text,
+    )
     # ── HONESTY GUARDS (single source-facts ground truth) ─────────────────
     # Deterministic anchors against the source CV. Each guard is idempotent,
     # returns (md, notes); the notes accumulate into result.extras so the
