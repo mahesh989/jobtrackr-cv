@@ -40,7 +40,7 @@ from app.services.eval.enforce_w3 import (
     clamp_two_sentences,
 )
 from app.services.eval.verify import _collect_bullets, _collect_summary
-from app.services.eval.writers.bridges import _apply_setting_bridge, _SETTING_HOSPITAL
+from app.services.eval.writers.bridges import _apply_setting_bridge, _SETTING_NDIS
 from app.services.pipeline.steps.tailored_cv import _enforce_structure
 from app.services.pipeline.steps.tailored_cv.structure import (
     _dedup_career_highlights,
@@ -113,15 +113,29 @@ class TestEnforceW3TrailingColon:
 
 class TestBridgesPyTrailingColon:
     def test_setting_bridge_still_applies_under_a_colon_headed_heading(self):
+        # C82 (round 5): switched from HOSPITAL to NDIS — the HOSPITAL
+        # bridge was disabled entirely after 5 independent review rounds
+        # each found a new way a vocabulary-based evidence gate fabricated
+        # hospital experience on a pure-residential-aged-care CV (see
+        # bridges._SETTING_BRIDGES's comment). NDIS is unaffected by that
+        # finding and still exercises the exact thing this test is named
+        # for: the colon'd "## Career Highlights:" heading is still
+        # recognised by _apply_setting_bridge's own heading-detection.
         md = (
             "## Career Highlights:\n"
             "Experienced carer with experience in residential aged care settings.\n\n"
             "## Experience\n- Did care.\n"
         )
+        # C82: the evidence gate requires a real Experience heading (fails
+        # closed otherwise, see bridges._scan_experience_section) to stop a
+        # heading-less document self-confirming via a Summary/Objective
+        # line. Real cv_text is always rendered with markdown headings
+        # (cv_renderer.py), so this is representative, not a workaround.
+        cv_text = "## Experience\n\n### Sunset Gardens Aged Care | Sydney, NSW\n*Support Worker | Jan 2020 – Present*\n- Supported NDIS participants with disability.\n"
         out = _apply_setting_bridge(
-            md, _SETTING_HOSPITAL, cv_text="Worked at City Hospital for 3 years.",
+            md, _SETTING_NDIS, cv_text=cv_text,
         )
-        assert "acute clinical settings" in out
+        assert "disability support settings" in out
         assert out != md
 
 
