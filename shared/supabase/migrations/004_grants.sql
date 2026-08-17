@@ -112,6 +112,17 @@ do $$ begin
     revoke execute on function public.consume_usage(uuid, text, uuid, int, int, timestamptz)
       from public, anon, authenticated;
   end if;
+  if to_regprocedure('public.reserve_run_usage(uuid, uuid, uuid, boolean, int, timestamptz)') is not null then
+    revoke execute on function public.reserve_run_usage(uuid, uuid, uuid, boolean, int, timestamptz)
+      from public, anon, authenticated;
+  end if;
+  if to_regprocedure('public.commit_run_usage(uuid)') is not null then
+    revoke execute on function public.commit_run_usage(uuid)
+      from public, anon, authenticated;
+  end if;
+  if to_regclass('public.run_usage_requests') is not null then
+    revoke all on table public.run_usage_requests from public, anon, authenticated;
+  end if;
 end $$;
 
 -- Keep finding #43's view fix durable across a re-run of 001 (which resets
