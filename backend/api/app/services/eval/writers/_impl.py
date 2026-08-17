@@ -240,6 +240,14 @@ from app.services.eval.writers.experience import (  # noqa: E402,F401
 
 
 
+# C83: sentence boundary for S1, NOT a bare "." split — a bare split breaks
+# on a decimal years figure ("12.5+ years" -> "with 12", losing "years"
+# entirely, so _YEARS_FIGURE_RE never matches). Mirrors enforce_w3.py's
+# _SENT_SPLIT_RE: requires the period be followed by whitespace, so a
+# decimal point (no following whitespace) never counts as a sentence end.
+_S1_SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
+
+
 def _apply_display_heading(md: str) -> str:
     """Set the summary heading to `## Career Highlights` (YEARS framing) or
     `## Professional Summary` (BREADTH framing) based on S1's prose, regardless
@@ -259,7 +267,7 @@ def _apply_display_heading(md: str) -> str:
         ln.strip() for ln in lines[start + 1 : end]
         if ln.strip() and not ln.strip().startswith(("-", "*"))
     )
-    s1 = prose.split(".", 1)[0].lower() if prose else ""
+    s1 = _S1_SENTENCE_END_RE.split(prose, maxsplit=1)[0].lower() if prose else ""
     if not s1:
         return md
     has_years = bool(_YEARS_FIGURE_RE.search(s1))
@@ -833,6 +841,13 @@ async def _writer_w8_verified(
     # and delete it. stamp_availability_in_summary is idempotent, so applying
     # it here guarantees the line survives to storage / PDF. See OPS-31.
     verified_md = stamp_availability_in_summary(verified_md, contact_details, role_family.id)
+    # C83: RE-RUN the display-heading pass LAST. It ran once inside
+    # _writer_w8_integrated (pre-verify), but verify_claims can add or
+    # remove a years figure from S1 — without a re-run here, the displayed
+    # heading (Career Highlights vs Professional Summary) can desync from
+    # the final prose it's meant to describe. Idempotent (no-op if the
+    # heading already matches).
+    verified_md = _apply_display_heading(verified_md)
     result.tailored_md = verified_md
     result.extras["verify"] = vreport
     return result
