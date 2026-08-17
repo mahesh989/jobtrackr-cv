@@ -77,7 +77,7 @@ export function DetailSlideOver({
       <div
         aria-hidden
         onClick={onClose}
-        className={`fixed inset-0 z-30 bg-[rgba(13,17,23,0.14)] transition-opacity duration-[240ms] ${
+        className={`fixed inset-0 z-30 bg-black/15 transition-opacity duration-[240ms] ${
           entered ? "opacity-100" : "opacity-0"
         }`}
       />
@@ -90,7 +90,7 @@ export function DetailSlideOver({
         // curve — 320ms cubic-bezier(0.22,1,0.36,1). The scrim fades in
         // lockstep and the content inside staggers up in waves separately
         // (BoardDetailPanel's own `entered` state).
-        className={`fixed inset-y-0 right-0 z-40 w-[min(684px,92vw)] bg-surface border-l border-border shadow-[-16px_0_48px_rgba(0,0,0,0.12)] transition-transform duration-[320ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] will-change-transform ${
+        className={`fixed inset-y-0 right-0 z-40 w-[min(684px,92vw)] bg-surface border-l border-border shadow-2xl transition-transform duration-[320ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] will-change-transform ${
           entered ? "translate-x-0" : "translate-x-[102%]"
         }`}
       >
