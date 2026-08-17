@@ -23,8 +23,9 @@
  * the meter (eventId = null → nothing to link/void). Fails CLOSED on RPC error.
  */
 import { db } from "../db/client.js";
+import { ADMIN_ROLES as ADMIN_ROLES_LIST } from "../lib/adminRoles.js";
 
-const ADMIN_ROLES = new Set(["founder", "admin"]);
+const ADMIN_ROLES = new Set<string>(ADMIN_ROLES_LIST);
 
 // CV caps per plan — typed mirror of PLAN_LIMITS (plans.ts) / migration 051
 // seed. null = unlimited for that dimension. Fallback only; the plans table is
