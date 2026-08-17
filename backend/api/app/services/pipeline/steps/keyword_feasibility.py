@@ -166,8 +166,9 @@ async def run_keyword_feasibility(
     # supplied CV evidence quote. The LLM frequently cites a related-skill
     # quote and rationalises a cross-skill inference (e.g. evidence
     # "dressing, bathing, feeding" → claim "continence care"), which is
-    # NOT verbatim grounding. Downgrade those to `inject_with_inference`
-    # so they surface as "Inferred from adjacent evidence" in the UI.
+    # NOT verbatim grounding. Entries failing this check are DROPPED
+    # entirely (not downgraded to `inject_with_inference`), consistent
+    # with the prompt's HARD "no fabrication" rule.
     plan = _enforce_inject_directly_groundedness(plan, cv_text)
 
     # Counts and expected-lift summary — use the per-family weights so the
