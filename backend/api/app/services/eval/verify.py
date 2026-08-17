@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 _BULLET_PREFIXES = ("- ", "* ", "• ")
 _SENT_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
+_MAX_BULLETS = 40
 
 # The summary section, whatever the family calls it. Fact-checked as prose (one
 # claim) alongside the bullets — it is the most-read line and otherwise passes
@@ -192,7 +193,7 @@ async def verify_claims(
     tailored_md: str,
     original_cv_text: str,
     *,
-    max_bullets: int = 40,
+    max_bullets: int = _MAX_BULLETS,
 ) -> Tuple[str, Dict[str, Any]]:
     """
     Check each tailored bullet for entailment against the source CV; repair or

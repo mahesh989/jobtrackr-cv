@@ -650,7 +650,20 @@ async def _writer_w8_verified(
     result = await _writer_w8_integrated(
         client, cv_text, jd_text, contact_details, vertical=vertical, upstream=upstream,
     )
-    verified_md, vreport = await verify_claims(client, result.tailored_md, cv_text)
+    # _writer_w8_integrated applies the role-relevance filter to its local CV
+    # copy. Recompute the same deterministic view once for every downstream
+    # honesty consumer; giving verify_claims the original source would let its
+    # repair step reintroduce a role composition deliberately excluded.
+    anchor_cv_text = cv_text
+    if vertical:
+        anchor_cv_text, _ = filter_irrelevant_roles_pre(cv_text, vertical)
+    # Targeted rewrites are AI-generated too, so they must run before the
+    # entailment verifier.  Running them after verify_claims gave the final AI
+    # call an unchecked path into the delivered CV.
+    rewritten_md = await _targeted_bullet_rewrites(
+        client, result.tailored_md, result.feasibility,
+    )
+    verified_md, vreport = await verify_claims(client, rewritten_md, anchor_cv_text)
     role_family = resolve_role_family(vertical, result.jd_analysis)
     verified_md = apply_w3_gates(
         verified_md,
@@ -722,12 +735,17 @@ async def _writer_w8_verified(
     #    reframing; the role's identity comes from source.
     verified_md, _n = enforce_source_settings(verified_md, cv_text)
     _hg_notes.extend(_n)
-    # 3. Skills-section label pin — force the headline label to the family's
-    #    convention (Care Skills for nursing) regardless of what the LLM
-    #    emitted. Fixes the 12/20 "Technical Skills" misrouting on nursing
-    #    CVs surfaced in the audit.
+    # 3. Skills-section label pin — force the headline label to the resolved
+    #    family/subtype convention (Care, Clinical, or Core for nursing)
+    #    regardless of what the LLM emitted.
     _rf_id = (result.extras or {}).get("role_family") if hasattr(result, "extras") else None
-    verified_md, _n = pin_skills_section_labels(verified_md, _rf_id)
+    verified_md, _n = pin_skills_section_labels(
+        verified_md,
+        _rf_id,
+        resolved_headline_label=(
+            role_family.skills_categories[0] if _rf_id == "nursing" else None
+        ),
+    )
     _hg_notes.extend(_n)
     # 4. Credential-claim guard — strip unverifiable compliance claims from
     #    bullets ("AIN with current compliance for pre-employment medical,
@@ -765,12 +783,6 @@ async def _writer_w8_verified(
     if _hg_notes:
         result.extras["honesty_guard_notes"] = _hg_notes
         logger.info("w8_verified: honesty guards applied — %d rewrite(s)", len(_hg_notes))
-    # Targeted bullet rewrites — for inject_as_extension keywords the composition
-    # LLM missed, run one small focused call per bullet concurrently. Zero cost
-    # when the LLM applied all rewrites correctly (no missed items → no calls).
-    # Runs AFTER all deterministic passes so rewrites are applied to the final
-    # experience text, not an intermediate state.
-    verified_md = await _targeted_bullet_rewrites(client, verified_md, result.feasibility)
     # Hard cap FIRST so each line is at DEFAULT_SKILL_CAPS (15/10/10) before
     # injection. Then cap-aware inject: approved keywords get priority over
     # writer-only tail items; writer-only items displaced when at cap.
@@ -798,7 +810,7 @@ async def _writer_w8_verified(
     # leaving a generic, anchor-less S2. Re-applying here (idempotent: no-op
     # when both top-2 employers are already named) guarantees the final S2
     # names them. See OPS-32.
-    verified_md = _enforce_company_anchor(verified_md, cv_text)
+    verified_md = _enforce_company_anchor(verified_md, anchor_cv_text)
     # RE-STAMP the opt-in availability note LAST. It was stamped mid-pipeline
     # inside _writer_w8_integrated, but verify_claims (+ the summary repair
     # pass) can bundle the italic "*Available: …*" line into the summary prose
@@ -871,5 +883,3 @@ async def run_tailored_cv_w8_verified(
     # Sync supabase write — run in a worker thread so the event loop stays free.
     await asyncio.to_thread(_persist_quality_flags, run_id, result)
     return md, storage_path
-
-

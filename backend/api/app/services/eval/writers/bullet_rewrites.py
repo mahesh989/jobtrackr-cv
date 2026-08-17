@@ -11,12 +11,14 @@ from typing import Any, Dict, Optional, Tuple
 import asyncio
 import re
 
+from app.services.eval.verify import _MAX_BULLETS, _collect_bullets
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Targeted bullet rewrite pass.
 #
-# After composition + verify_claims + all deterministic passes, some
+# After composition, some
 # inject_as_extension keywords from the feasibility plan may still be absent
 # from the generated CV — the composition LLM paraphrased instead of applying
 # the approved rewrite. This pass detects missed items and runs one small,
@@ -87,16 +89,13 @@ async def _targeted_bullet_rewrites(
 
     lines = markdown.split("\n")
 
-    # Locate ## Skills section so we never rewrite Skills lines.
-    skills_start = next(
-        (i for i, ln in enumerate(lines) if ln.strip().lower() == "## skills"), None
-    )
-    skills_end = len(lines)
-    if skills_start is not None:
-        for i in range(skills_start + 1, len(lines)):
-            if lines[i].startswith("## "):
-                skills_end = i
-                break
+    # Use the verifier's actual bounded collection, not merely its section
+    # names. verify_claims submits at most _MAX_BULLETS claims, so selecting a
+    # later line here would create another unverified AI-output path.
+    verifiable_lines = {
+        line_idx
+        for line_idx, _text in _collect_bullets(markdown)[:_MAX_BULLETS]
+    }
 
     def _is_experience_bullet(i: int, line: str) -> bool:
         stripped = line.strip()
@@ -104,9 +103,7 @@ async def _targeted_bullet_rewrites(
             return False
         if ":**" in stripped:      # Skills label line, e.g. "- **Care Skills:** ..."
             return False
-        if skills_start is not None and skills_start < i < skills_end:
-            return False
-        return True
+        return i in verifiable_lines
 
     def _find_best_bullet(evidence: str) -> Optional[int]:
         """Index of the experience bullet that best matches `evidence`."""
@@ -184,6 +181,12 @@ async def _targeted_bullet_rewrites(
         if not rewritten or len(rewritten.strip()) < 20:
             return None
         candidate = rewritten.strip()
+        if len(candidate.splitlines()) != 1:
+            logger.info(
+                "targeted_bullet_rewrites: bullet %d rewrite dropped — multiline response",
+                idx,
+            )
+            return None
         cand_norm = _kw_norm(candidate)
         landed = [k for k in keywords if _kw_present_in(cand_norm, k)]
         if not landed:
