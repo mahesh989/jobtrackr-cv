@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import { SidebarLinks } from "@/components/navigation/SidebarLinks";
+import { useFocusTrap } from "@/components/ui/useFocusTrap";
 
 interface Profile {
   id: string;
@@ -53,6 +54,8 @@ export function MobileNav({
 }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const drawerRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(open, drawerRef);
 
   // Listen for the custom event from MobileMenuButton.
   useEffect(() => {
@@ -99,11 +102,13 @@ export function MobileNav({
       />
       {/* Drawer — width matches the desktop sidebar, capped on small phones */}
       <div
-        className="absolute inset-y-0 left-0 max-w-[80vw] bg-[var(--sidebar-bg)] border-r border-[var(--sidebar-border)] shadow-xl flex flex-col"
+        ref={drawerRef}
+        className="absolute inset-y-0 left-0 max-w-[80vw] bg-[var(--sidebar-bg)] border-r border-[var(--sidebar-border)] shadow-xl flex flex-col outline-none"
         style={{ width: "var(--sidebar-width)" }}
         role="dialog"
         aria-modal="true"
         aria-label="Navigation menu"
+        tabIndex={-1}
       >
         {/* Close button floated over the drawer's own logo row */}
         <button

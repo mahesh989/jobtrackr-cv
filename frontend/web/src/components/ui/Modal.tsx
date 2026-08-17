@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useFocusTrap } from "./useFocusTrap";
 
 const SIZE_MAP = {
   sm: "max-w-md",
@@ -18,9 +19,6 @@ export interface ModalProps {
   size?: "sm" | "md" | "lg";
 }
 
-const FOCUSABLE =
-  'a[href],button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
-
 export function Modal({
   open,
   onClose,
@@ -30,44 +28,17 @@ export function Modal({
   size = "md",
 }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
-  const previousFocus = useRef<HTMLElement | null>(null);
 
-  // Escape to close + focus trap
+  useFocusTrap(open, panelRef);
+
+  // Escape to close
   useEffect(() => {
     if (!open) return;
-
-    previousFocus.current = document.activeElement as HTMLElement;
-
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        onClose();
-        return;
-      }
-      if (e.key === "Tab" && panelRef.current) {
-        const focusable = panelRef.current.querySelectorAll(FOCUSABLE);
-        if (focusable.length === 0) return;
-        const first = focusable[0] as HTMLElement;
-        const last = focusable[focusable.length - 1] as HTMLElement;
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
+      if (e.key === "Escape") onClose();
     }
-
     document.addEventListener("keydown", onKeyDown);
-
-    // Focus the panel on next frame so portal is mounted
-    const id = requestAnimationFrame(() => panelRef.current?.focus());
-
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      cancelAnimationFrame(id);
-      previousFocus.current?.focus();
-    };
+    return () => document.removeEventListener("keydown", onKeyDown);
   }, [open, onClose]);
 
   // Scroll lock
