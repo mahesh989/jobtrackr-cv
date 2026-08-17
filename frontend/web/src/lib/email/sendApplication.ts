@@ -18,10 +18,10 @@ import { buildDefaultEmailDraft }    from "@/lib/email/draftBody";
 import { emitEvent }                 from "@/lib/admin/events";
 import type { ContactDetails }       from "@/lib/types";
 import { jsonError } from "@/lib/api-utils";
+import { MAX_APPLICATION_BODY_LEN, MAX_APPLICATION_SUBJECT_LEN, TAILORED_CV_BUCKET } from "@/lib/constants";
 
-const TAILORED_CV_BUCKET = "tailored-cvs";
-const MAX_SUBJECT_LEN = 300;
-const MAX_BODY_LEN    = 20_000;
+const MAX_SUBJECT_LEN = MAX_APPLICATION_SUBJECT_LEN;
+const MAX_BODY_LEN    = MAX_APPLICATION_BODY_LEN;
 const MAX_CV_PDF_BYTES = 4 * 1024 * 1024;  // 4 MB — generous; a typical CV is ~80-200KB
 
 /**

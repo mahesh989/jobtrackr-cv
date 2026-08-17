@@ -43,6 +43,7 @@ import { buildDefaultEmailDraft } from "@/lib/email/draftBody";
 import { fetchEmailDraft } from "@/lib/email/emailDraft";
 import { loadCvInputs } from "@/features/applications/lib/cvPdfClient";
 import { renderTailoredCvBlob } from "@/lib/cv/pdfRender";
+import { MAX_APPLICATION_BODY_LEN } from "@/lib/constants";
 import type { BoardJob } from "../../lib/jobFilters";
 
 /** Generation is a one-shot AI cost, so it polls rather than subscribing —
@@ -504,7 +505,7 @@ export function ApplyModal({
                   value={body}
                   onChange={(e) => setBody(e.target.value)}
                   rows={12}
-                  maxLength={20_000}
+                  maxLength={MAX_APPLICATION_BODY_LEN}
                   spellCheck
                   className="w-full rounded-[10px] border border-border bg-surface text-text px-3.5 py-3 text-[13.5px] leading-relaxed resize-y focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
                 />

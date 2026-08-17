@@ -7,15 +7,21 @@
 import { useState } from "react";
 import { Radio, Button } from "@/components/ui";
 import type { JobSource, SourceTier, TierConfig, AdzunaMethod, SeekMethod } from "@/lib/constants";
+import { PUBLIC_PLANS, formatAud } from "@/lib/billing/plans";
 
 interface Props {
   initial: Record<SourceTier, TierConfig>;
 }
 
+function tierBadge(tier: SourceTier, unit: string): string {
+  const plan = PUBLIC_PLANS.find((p) => p.id === tier);
+  return plan ? `${formatAud(plan.priceCents)}/${unit}` : "";
+}
+
 const TIERS: { id: SourceTier; label: string; badge?: string }[] = [
-  { id: "weekly",    label: "Weekly",    badge: "A$9.99/wk" },
-  { id: "monthly",   label: "Monthly",   badge: "A$19.99/mo" },
-  { id: "unlimited", label: "Unlimited", badge: "A$29.99/mo" },
+  { id: "weekly",    label: "Weekly",    badge: tierBadge("weekly", "wk") },
+  { id: "monthly",   label: "Monthly",   badge: tierBadge("monthly", "mo") },
+  { id: "unlimited", label: "Unlimited", badge: tierBadge("unlimited", "mo") },
 ];
 
 const SOURCES: { id: JobSource; label: string; tag: string }[] = [

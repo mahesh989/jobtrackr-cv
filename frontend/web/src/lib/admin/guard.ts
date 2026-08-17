@@ -37,6 +37,16 @@ export async function requireAdmin(): Promise<{
 /** ISO date → "12 Jun 2026, 14:32" */
 export const fmtDateTime = formatDateTime;
 
+/** Relative time for recent dates, falling back to "12 Jun" beyond a week. */
+export function timeAgo(iso: string): string {
+  const secs = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (secs < 60)          return "just now";
+  if (secs < 3600)        return `${Math.floor(secs / 60)}m ago`;
+  if (secs < 86400)       return `${Math.floor(secs / 3600)}h ago`;
+  if (secs < 86400 * 7)   return `${Math.floor(secs / 86400)}d ago`;
+  return new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+}
+
 // ── Time-range helpers (used by admin pages with ?range= param) ──────────────
 
 export type RangeKey = "7d" | "30d" | "90d" | "all";

@@ -12,9 +12,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { jsonError, withUser } from "@/lib/api-utils";
+import { MAX_APPLICATION_BODY_LEN, MAX_APPLICATION_SUBJECT_LEN } from "@/lib/constants";
 
-const MAX_SUBJECT_LEN = 300;
-const MAX_BODY_LEN    = 20_000;
+const MAX_SUBJECT_LEN = MAX_APPLICATION_SUBJECT_LEN;
+const MAX_BODY_LEN    = MAX_APPLICATION_BODY_LEN;
 
 export const POST = withUser(async (
   req: NextRequest,

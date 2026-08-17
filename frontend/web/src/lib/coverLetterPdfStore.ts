@@ -17,7 +17,7 @@ import { assembleLetter } from "@/lib/coverLetterTemplate";
 import type { ContactDetails } from "@/lib/types";
 import { renderCoverLetterPdf } from "@/lib/coverLetterPdf";
 
-const COVER_LETTER_BUCKET = "cover-letters";
+import { COVER_LETTER_BUCKET } from "@/lib/constants";
 
 export interface EnsuredPdf {
   path:     string;   // {user_id}/{letter_id}.pdf
