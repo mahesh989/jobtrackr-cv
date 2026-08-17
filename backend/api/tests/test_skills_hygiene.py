@@ -1414,21 +1414,44 @@ def test_dedupe_skills_and_canonicalisation():
     md = (
         "## Skills\n"
         "**Care Skills:** Person-Centred Care\n"
-        "**Soft Skills:** Advocacy For Patients And Residents\n"
-        "**Other Skills:** Patient-Centred Care\n\n"
+        "**Soft Skills:** Advocacy For Patients And Residents, Person-Centered Care\n"
+        "\n"
         "## Experience\n"
     )
     # Test spelling conversions
-    assert _canonicalise_skill_spelling("Patient-Centred Care") == "Person-Centred Care"
+    assert _canonicalise_skill_spelling("Person-Centered Care") == "Person-Centred Care"
     assert _canonicalise_skill_spelling("Advocacy For Patients And Residents") == "Patient Advocacy"
 
-    # Test full pass and dropping of empty lines (Other Skills line should be dropped since it only has a duplicate)
+    # Test full pass and dropping of empty lines (Soft Skills line should be
+    # dropped once its only remaining entry, the American-spelling
+    # duplicate, is deduped against Care Skills' British-spelled entry)
     norm = _normalise_skills_case(md)
     deduped = _dedupe_skills_across_lines(norm)
 
     assert "Person-Centred Care" in deduped
     assert "Patient Advocacy" in deduped
-    assert "Other Skills" not in deduped
+    assert deduped.count("Person-Centred Care") == 1
+
+
+def test_c89_patient_centred_and_person_centred_are_distinct_skills_not_deduped():
+    """C89 (finding #23): patient-centred and person-centred are different
+    healthcare concepts, not a spelling variant of each other -- they must
+    both survive as distinct entries, not collapse into one via
+    _canonicalise_skill_spelling."""
+    md = (
+        "## Skills\n"
+        "**Care Skills:** Person-Centred Care\n"
+        "**Other Skills:** Patient-Centred Care\n\n"
+        "## Experience\n"
+    )
+    assert _canonicalise_skill_spelling("Patient-Centred Care") == "Patient-Centred Care"
+
+    norm = _normalise_skills_case(md)
+    deduped = _dedupe_skills_across_lines(norm)
+
+    assert "Person-Centred Care" in deduped
+    assert "Patient-Centred Care" in deduped
+    assert "Other Skills" in deduped
 
 
 # ---------------------------------------------------------------------------
