@@ -7,7 +7,7 @@
 // Stage  4: keyword pre-filter
 // Stage  5: dedup L1 (url hash)
 // Stage  6: dedup L2 (content fingerprint)
-// Stage  7: dedup L3 FLAGGED OFF (DEDUP_L3_ENABLED=false)
+// Stage  7: dedup L3 — not implemented (no DEDUP_L3_ENABLED flag exists in code)
 // Stage  8: dedup L4 repost — placeholder
 // Stage  9: expiry check (inside save)
 // Stage 10: visa extraction — regex-first, AI fallback for ambiguous (gpt-4o-mini or claude-haiku)

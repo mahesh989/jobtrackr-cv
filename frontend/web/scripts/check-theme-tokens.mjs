@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Theme token guard — structural edition, REPORT-ONLY (Phase 0).
+ * Theme token guard — structural edition. Hard CI gate (exits 1 on findings).
  *
  * docs/UI_IMPROVEMENT_2026-08-06.md §2 diagnoses why the theme system has
  * 559+ hardcoded-colour violations: there was a correct vocabulary

@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
@@ -33,6 +32,7 @@ from app.database import get_supabase
 from app.database import ANALYSIS_RUNS, COMPANY_RESEARCH_FACTS, COVER_LETTERS, STORIES, VOICE_PROFILES
 from app.enums import CoverLetterStatus
 from app.schemas.cover_letter import GenerateCoverLetterRequest
+from app.services.company.slug import make_company_slug
 from app.services.automation.billing import (
     link_letter_usage_event,
     release_letter_usage_event,
@@ -70,13 +70,6 @@ STUCK_LETTER_AGE_MIN = 15
 # STUCK_LETTER_AGE_MIN minutes). Older rows in these states are treated
 # as dead and auto-stale-d.
 _BLOCKING_IF_RECENT = frozenset({CoverLetterStatus.PENDING, CoverLetterStatus.RUNNING, CoverLetterStatus.PICKING})
-
-
-def _make_slug(name: str) -> str:
-    s = name.lower()
-    s = re.sub(r"[^a-z0-9 ]", " ", s)
-    s = re.sub(r"\s+", "_", s.strip())
-    return s[:80].rstrip("_") or "unknown_company"
 
 
 async def _record_outcome(run_id: str, outcome: str) -> None:
@@ -248,7 +241,7 @@ async def auto_generate_cover_letter(
             hook_row = await asyncio.to_thread(
                 lambda: sb.table(COMPANY_RESEARCH_FACTS)
                 .select("hook_text")
-                .eq("company_slug", _make_slug(company_name))
+                .eq("company_slug", make_company_slug(company_name))
                 .limit(1).execute()
             )
             if hook_row.data and hook_row.data[0].get("hook_text"):

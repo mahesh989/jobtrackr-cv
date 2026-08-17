@@ -20,7 +20,10 @@ const QUEUE_NAME = "jobtrackr-pipeline";
 export function triggerScheduleSync(): void {
   const redisUrl = process.env.REDIS_URL;
   if (!redisUrl) return;
-  const connection = new Redis(redisUrl, { maxRetriesPerRequest: null });
+  const connection = new Redis(redisUrl, {
+    maxRetriesPerRequest: null,
+    ...(redisUrl.startsWith("rediss://") ? { tls: {} } : {}),
+  });
   const queue = new Queue(QUEUE_NAME, { connection });
   queue
     .add("sync_schedules", { type: "sync_schedules" })

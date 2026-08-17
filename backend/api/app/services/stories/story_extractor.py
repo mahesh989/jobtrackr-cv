@@ -10,10 +10,12 @@ PRIVACY BOUNDARY — cv_text handling
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   - Sent to the AI provider for story extraction only.
-  - NEVER logged in plaintext. This function emits no log statements that
-    include the raw cv_text argument. Callers must not log the `cv_text`
-    parameter. Error log lines include only character counts, story indices,
-    and truncated schema-validation errors — never CV content.
+  - The raw cv_text argument itself is never logged. Callers must not log
+    the `cv_text` parameter directly. However, on a schema-validation
+    failure the log line includes a truncated (300-char) dump of the
+    model's raw extracted-story output, which is derived from cv_text and
+    may contain CV-derived content (names, dates, employers) even though
+    it is not the raw cv_text string.
   - NEVER returned to the client after initial submission. The GET endpoint
     for stories (Phase 10.2.b) returns structured Story objects only; the
     source cv_text is never re-exposed through this feature's response paths.

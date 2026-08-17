@@ -121,7 +121,7 @@ function DeltaBadge({ delta }: { delta: number }) {
           ? "bg-green-light text-green border-green/30"
           : "bg-red-light text-red border-red/30"
       }`}>
-        {positive ? "+" : ""}{delta}
+        {positive ? "+" : ""}{Math.round(delta)}
       </div>
       <span className="text-caption text-text-3 uppercase tracking-wide mt-1.5">Lift</span>
     </div>

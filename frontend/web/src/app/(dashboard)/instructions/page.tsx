@@ -33,7 +33,7 @@ export default async function InstructionsPage({
   if (!user) redirect("/auth/login");
 
   const { data: profileRows } = await supabase
-    .from("search_profiles").select("id");
+    .from("search_profiles").select("id").eq("user_id", user.id);
   const ids = ((profileRows ?? []) as Array<{ id: string }>).map((p) => p.id);
 
   const ent = await getEntitlement(user.id);

@@ -1,9 +1,10 @@
 """
 Unified AI client supporting Anthropic + OpenAI.
 
-cv-backend is **BYOK** — JobTrackr supplies the user's API key with each
-/internal/analyze request, and the key is held only in memory for the
-duration of the pipeline run. cv-backend never persists user keys.
+cv-backend never persists AI keys. JobTrackr decrypts the platform's
+admin-configured AI key (platform_ai_settings) and supplies it with each
+/internal/analyze request; the key is held only in memory for the
+duration of the pipeline run. BYOK (per-user keys) was removed 2026-06-16.
 
 Usage:
     client = make_ai_client(provider="anthropic", api_key="sk-ant-...")
@@ -23,7 +24,6 @@ import time as _time
 
 from json_repair import repair_json
 
-from app.config import get_settings
 from app.enums import Provider
 from app.services.ai import usage_tracker
 
@@ -432,6 +432,9 @@ class AIClient:
                         continue
                     raise _classify_provider_error(Provider.ANTHROPIC, exc) from exc
             else:
+                # Unreachable while the guard above holds: every iteration
+                # either breaks (success), continues (retry), or raises —
+                # the loop can never exhaust normally.
                 raise _classify_provider_error(Provider.ANTHROPIC, last_exc) from last_exc
 
             # Emit usage record — fire-and-forget, never delays the caller.
@@ -619,6 +622,8 @@ class AIClient:
                         continue
                     raise _classify_provider_error(self.provider, exc) from exc
             else:
+                # Unreachable while the guard above holds — see the matching
+                # comment on the Anthropic-only retry loop above.
                 raise _classify_provider_error(self.provider, last_exc) from last_exc
 
             # Emit usage record — fire-and-forget.

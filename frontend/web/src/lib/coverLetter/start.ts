@@ -26,7 +26,9 @@ import type { ToneTarget } from "@/lib/types";
 import { jsonError } from "@/lib/api-utils";
 
 
-const JD_MIN_CHARS = 50;
+const JD_MIN_CHARS = 50;   // deliberately more lenient than analyze/start.ts's
+                            // JD_MIN_USABLE=200: a cover letter needs less JD
+                            // context than a full scoring/tailoring run does
 
 /** Replicate make_company_slug() from backend/api/app/services/company/slug.py */
 function makeCompanySlug(name: string): string {
@@ -212,7 +214,7 @@ export async function startCoverLetter(
 
     admin
       .from("cover_letters")
-      .select("id, status")
+      .select("id")
       .eq("user_id", user.id)
       .eq("job_id", jobId)
       .eq("is_stale", false)

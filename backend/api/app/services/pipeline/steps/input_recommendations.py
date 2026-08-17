@@ -51,8 +51,8 @@ _SUGGEST_LIMIT_PREFERRED = 8
 
 
 def run_input_recommendations(
-    cv_text: str,
-    jd_analysis: Dict[str, Any],
+    cv_text: str,           # noqa: ARG001 — unused; kept for call-signature symmetry with sibling pipeline steps
+    jd_analysis: Dict[str, Any],  # noqa: ARG001 — unused; same reason
     matching: Dict[str, Any],
     ats_scores: Dict[str, Any],
 ) -> Dict[str, Any]:
@@ -152,10 +152,15 @@ def _suggested_additions(
     }
 
 
+_WEAK_KEYWORD_PCT    = 60
+_WEAK_EXPERIENCE_PCT = 60
+_WEAK_FORMATTING_PCT = 70
+
+
 def _weak_sections(ats_scores: Dict[str, Any]) -> List[Dict[str, str]]:
     weak: List[Dict[str, str]] = []
 
-    if _safe_int(ats_scores.get("keyword_match_score")) < 60:
+    if _safe_int(ats_scores.get("keyword_match_score")) < _WEAK_KEYWORD_PCT:
         weak.append({
             "section": "skills",
             "reason": (
@@ -164,7 +169,7 @@ def _weak_sections(ats_scores: Dict[str, Any]) -> List[Dict[str, str]]:
             ),
         })
 
-    if _safe_int(ats_scores.get("experience_match_score")) < 60:
+    if _safe_int(ats_scores.get("experience_match_score")) < _WEAK_EXPERIENCE_PCT:
         weak.append({
             "section": "experience",
             "reason": (
@@ -173,7 +178,7 @@ def _weak_sections(ats_scores: Dict[str, Any]) -> List[Dict[str, str]]:
             ),
         })
 
-    if _safe_int(ats_scores.get("formatting_score")) < 70:
+    if _safe_int(ats_scores.get("formatting_score")) < _WEAK_FORMATTING_PCT:
         weak.append({
             "section": "formatting",
             "reason": (

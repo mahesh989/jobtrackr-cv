@@ -42,6 +42,10 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Set, Tuple
 
+# The underscore-prefixed names below are intentionally-shared internals of
+# their modules, not accidental reach-ins — rescoring a tailored CV needs the
+# exact same formatting-score cap and count/rate math the initial ATS scoring
+# and CV↔JD matching steps use, so results stay comparable pre/post-tailoring.
 from app.services.pipeline.steps._keyword_match import literal_match as _literal_match
 from app.services.pipeline.steps.ats_scoring import (
     _FORMATTING_MAX,

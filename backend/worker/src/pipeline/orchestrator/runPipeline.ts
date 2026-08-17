@@ -171,14 +171,12 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     // Stage 4a: normalise — only truly new URLs from here on
     const normalised = newRawJobs.map(normalise);
 
-    // Stage 4b: keyword filter — title-only with optional smart-filter rescue.
+    // Stage 4b: keyword filter — title-only.
     // Phrase source: profile.must_include_phrases if set, else profile.keywords.
-    // Teaser rescue activates only when must_include_phrases is non-empty.
     const filtered = applyKeywordFilter(normalised, profile);
     const usingSmartFilter = (profile.must_include_phrases ?? []).filter((s) => s && s.trim()).length > 0;
     console.log(
-      `[pipeline] stage 4b — keyword filter (title-only` +
-      `${usingSmartFilter ? " + teaser rescue" : ""}): ` +
+      `[pipeline] stage 4b — keyword filter (title-only): ` +
       `${filtered.length} kept, ${normalised.length - filtered.length} dropped` +
       `${usingSmartFilter ? ` (smart filter: ${(profile.must_include_phrases ?? []).join(", ")})` : ""}`,
     );
@@ -186,7 +184,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       console.warn(
         `[pipeline] ⚠ stage 4b dropped ALL ${normalised.length} jobs — your "Title must include any of" ` +
         `(${(usingSmartFilter ? (profile.must_include_phrases ?? []) : (profile.keywords ?? [])).join(", ")}) ` +
-        `matched no title or teaser. Loosen it or add more phrases.`,
+        `matched no title. Loosen it or add more phrases.`,
       );
     }
 

@@ -783,7 +783,7 @@ async def _writer_w8_verified(
     if _hg_notes:
         result.extras["honesty_guard_notes"] = _hg_notes
         logger.info("w8_verified: honesty guards applied — %d rewrite(s)", len(_hg_notes))
-    # Hard cap FIRST so each line is at DEFAULT_SKILL_CAPS (14/6/6) before
+    # Hard cap FIRST so each line is at DEFAULT_SKILL_CAPS (15/10/10) before
     # injection. Then cap-aware inject: approved keywords get priority over
     # writer-only tail items; writer-only items displaced when at cap.
     # NO enforce_skills_section after inject — it would truncate the

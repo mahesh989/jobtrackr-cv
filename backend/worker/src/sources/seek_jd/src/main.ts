@@ -1,6 +1,12 @@
 /**
  * SEEK JD Fetcher — Playwright actor for JobTrackr
  *
+ * PARKED — not currently invoked from worker code. SEEK's JD enrichment now
+ * runs entirely via seekDirect.ts's enrichWithDirectJDs (direct HTML scrape,
+ * free); this actor's fallback path was never wired up as a caller. DO NOT
+ * DELETE — deliberately kept as a deployable Apify actor (tsconfig-excluded
+ * by design, see C72) in case the direct-scrape path needs a fallback again.
+ *
  * Takes a list of SEEK job detail URLs and extracts the full job description
  * from each via a single, humanized Playwright session.
  *

@@ -99,12 +99,13 @@ export const GET = withAdmin(async (_req: NextRequest, _ctx, { admin }) => {
 
 export const PATCH = withAdmin(async (req: NextRequest, _ctx, { userId, admin }) => {
 
-  const { data: body, error: parseErr } = await parseJsonBody<{
+  const parsed = await parseJsonBody<{
     provider?: string; key?: string; model?: string; setActive?: boolean;
   }>(req);
-  if (parseErr) return parseErr;
+  if (parsed.error) return parsed.error;
+  const body = parsed.data;
 
-  const provider = body!.provider;
+  const provider = body.provider;
   if (!provider || !PROVIDERS.has(provider as AiProvider)) {
     return jsonError("Unknown provider", 400);
   }
@@ -115,8 +116,8 @@ export const PATCH = withAdmin(async (req: NextRequest, _ctx, { userId, admin })
 
   const update: Record<string, unknown> = { updated_at: new Date().toISOString(), updated_by: userId };
 
-  if (typeof body!.key === "string" && body!.key.trim()) {
-    const key = body!.key.trim();
+  if (typeof body.key === "string" && body.key.trim()) {
+    const key = body.key.trim();
     const { valid, error } = await validateKey(p, key);
     if (!valid) return NextResponse.json({ valid: false, error }, { status: 422 });
     update.encrypted_api_key  = encryptApiKey(key);
@@ -125,8 +126,8 @@ export const PATCH = withAdmin(async (req: NextRequest, _ctx, { userId, admin })
     update.last_validated_at  = new Date().toISOString();
   }
 
-  if (typeof body!.model === "string" && body!.model.trim()) {
-    update.model = body!.model.trim();
+  if (typeof body.model === "string" && body.model.trim()) {
+    update.model = body.model.trim();
   }
 
   const { error: upsertErr } = await admin
@@ -137,7 +138,7 @@ export const PATCH = withAdmin(async (req: NextRequest, _ctx, { userId, admin })
     return jsonError("Failed to save settings", 500);
   }
 
-  if (body!.setActive === true) {
+  if (body.setActive === true) {
     // Require the provider to actually have a valid key before activating it.
     const { data: row, error: readErr } = await admin
       .from("platform_ai_settings")

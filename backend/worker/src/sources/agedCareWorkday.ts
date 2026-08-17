@@ -1,13 +1,14 @@
 // Aged-care direct-from-employer adapter — scrapes aged-care providers that run
 // on the Workday ATS via their PUBLIC CXS JSON API. No auth, no Cloudflare, free.
 //
-// Why a SEPARATE adapter from workday.ts?
-//   workday.ts targets big-enterprise tech/finance tenants (CBA, ANZ, Telstra)
-//   and keyword-filters on the caller's profile keywords. This adapter targets
-//   AGED-CARE providers and filters by a fixed clinical/care ROLE taxonomy
-//   (nursing, care/support workers, admin officers) regardless of the profile's
-//   keywords — the whole point is a curated aged-care job stream. Different
-//   tenant list, different filter, different vertical → its own file.
+// This adapter targets AGED-CARE providers and filters by a fixed
+// clinical/care ROLE taxonomy (nursing, care/support workers, admin
+// officers) regardless of the profile's keywords — the whole point is a
+// curated aged-care job stream, distinct from a generic Workday adapter
+// that would keyword-filter on the caller's profile. (An earlier
+// enterprise-tenant workday.ts adapter existed alongside this one; it was
+// removed in 52f1b711 — this file's own tenant list/filter/vertical is
+// unaffected by that removal.)
 //
 // Two public endpoints per tenant (verified against Anglicare 2026-06-29):
 //   1. LIST   POST /wday/cxs/{tenant}/{board}/jobs
@@ -92,8 +93,8 @@ const HEADERS = {
 const PAGE_LIMIT       = 20;   // Workday hard cap per list call
 const MAX_PAGES        = 60;   // up to 1200 jobs scanned per tenant (cheap list
                                // calls); AU-only boards stop early at their total.
-const MAX_DETAIL_FETCH = Infinity; // no cap — fetch a full JD for EVERY role match.
-                               // Natural bound is the board size (× MAX_PAGES).
+// No cap on detail fetches — a full JD is fetched for EVERY role match.
+// Natural bound is the board size (× MAX_PAGES).
 const DETAIL_CONCURRENCY = 5;  // Workday's CXS is a public JSON API with no
                                // stated rate limit; bounded concurrency replaces
                                // the old one-at-a-time + 250ms sleep pacing.
@@ -177,7 +178,7 @@ export const agedCareWorkdayAdapter: SourceAdapter = {
       // preserves output order (results land in `out` in the same order as
       // `matched`, matching the old sequential behaviour) regardless of which
       // request actually resolves first.
-      const toFetch = Number.isFinite(MAX_DETAIL_FETCH) ? matched.slice(0, MAX_DETAIL_FETCH) : matched;
+      const toFetch = matched;
       const detailLimit = pLimit(DETAIL_CONCURRENCY);
       const results = await Promise.all(
         toFetch.map(({ job, group }) =>

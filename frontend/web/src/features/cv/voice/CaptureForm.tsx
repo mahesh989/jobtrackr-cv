@@ -1,6 +1,6 @@
 import { AlertCircle, PenLine } from "lucide-react";
 import { Button, Form, Textarea } from "@/components/ui";
-import { WORD_MIN, type SourceTag } from "./types";
+import { WORD_MIN, WORD_MAX, type SourceTag } from "./types";
 
 interface Props {
   activeTab:     SourceTag;
@@ -31,7 +31,7 @@ export function CaptureForm({
   onCancel,
   showCancel,
 }: Props) {
-  const inRange  = words >= WORD_MIN && words <= 600;
+  const inRange  = words >= WORD_MIN && words <= WORD_MAX;
   const tooShort = words > 0 && words < WORD_MIN;
 
   return (

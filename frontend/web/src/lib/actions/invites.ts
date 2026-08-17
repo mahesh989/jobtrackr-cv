@@ -26,11 +26,12 @@ export async function generateInviteCode() {
 export async function revokeInviteCode(code: string) {
   await requireAdminRole();
   const adminClient = createAdminClient();
-  await adminClient
+  const { error } = await adminClient
     .from("invite_codes")
     .update({ is_active: false })
     .eq("code", code)
     .is("used_by", null); // only revoke unused codes
+  if (error) throw new Error(error.message);
   revalidatePath("/admin");
 }
 

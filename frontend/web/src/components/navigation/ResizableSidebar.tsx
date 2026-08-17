@@ -14,8 +14,10 @@ const KEY = "jt_sidebar_width";
  * hidden (`hidden md:flex`) — MobileNav handles that separately.
  */
 export function ResizableSidebar({ children }: { children: ReactNode }) {
-  // null until hydrated → render with the theme's --sidebar-width default so
-  // there's no layout flash before the saved width loads.
+  // null until hydrated → renders with the theme's --sidebar-width default
+  // first (jt_sidebar_width is not read by layout.tsx's FOUC script), then
+  // the saved width applies post-hydration — a user with a customized width
+  // may see a brief jump to it on load.
   const [width, setWidth] = useState<number | null>(null);
   const draggingRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);

@@ -69,11 +69,11 @@ frontend/web/src/
       components/   # ProfileForm, ProfilesTable, RunJobsTable
     admin/          # Admin dashboards (RangeFilter, AiSettings, SourcesCard)
     billing/        # Stripe billing (ManageButton, PlanCards, UsageMeter)
-    dashboard/      # Dashboard home page (StatCards, PipelineDonut)
+    dashboard/      # Dashboard home page (PipelineDonut, NextActions, ProgressLine)
     integrations/   # Third-party integrations (ApifyCard, EmailIntegrationCard)
   lib/              # Shared utilities, types, helpers
     types.ts        # Canonical shared types (ContactDetails, SkillCategory, etc.)
-    api-utils.ts    # withUser(), withAdmin() (canonical route wrappers), requireUser(), requireAdmin(), parseJsonBody(), jsonError()
+    api-utils.ts    # withUser(), withAdmin() (canonical route wrappers), requireAdmin(), parseJsonBody(), jsonError()
     constants.ts    # RunStatus, StepState, ADMIN_ROLES, VisaStatus, JOB_SOURCES, TIER_DEFAULTS
     supabase/       # Supabase client creation (browser + server)
     cv/             # CV-specific helpers (skillLabels, etc.)
