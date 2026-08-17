@@ -155,7 +155,6 @@ def _render_experience(items: List[Dict]) -> List[Any]:
             # Collect bullets for this entry
             bullet_start = i
             while i < len(items) and items[i]["type"] == "bullet":
-                fp = _norm(items[i]["text"])
                 # Note: bullet dedup is per-entry — duplicates would just be
                 # different recommendations, so we don't dedup bullets globally.
                 i += 1

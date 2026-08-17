@@ -446,7 +446,7 @@ def _sort_experience_recent_first(experience: List[Dict[str, Any]]) -> List[Dict
     indexed.sort(
         key=lambda pair: (
             _parse_end_date(pair[1].get("end_date", ""), bool(pair[1].get("is_current"))),
-            -pair[0],  # stability inverted so earlier entries lose ties on equal dates
+            -pair[0],  # earlier entries win ties, preserving input order (stable sort)
         ),
         reverse=True,
     )
@@ -460,7 +460,7 @@ def _sort_education_recent_first(education: List[Dict[str, Any]]) -> List[Dict[s
     indexed.sort(
         key=lambda pair: (
             _parse_end_date(pair[1].get("end_date", ""), not pair[1].get("completed", True)),
-            -pair[0],  # stability inverted so earlier entries lose ties on equal dates
+            -pair[0],  # earlier entries win ties, preserving input order (stable sort)
         ),
         reverse=True,
     )

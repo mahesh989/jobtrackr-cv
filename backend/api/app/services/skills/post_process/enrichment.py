@@ -56,7 +56,6 @@ from .credentials import (
 # treats hyphens as boundaries, which is correct here (we look up the literal
 # phrase, hyphenated entries work because their internal '-' is matched
 # literally and `\b` anchors at the outer ends).
-_JD_BODY_SCAN_CAP: int = 10  # max canonicals to inject; mirrors schema limit
 _MAX_PHRASE_TOKENS: int = 6  # skip very-long lexicon phrases (rarely literal)
 
 

@@ -90,7 +90,6 @@ from app.services.skills.post_process.core import (  # noqa: F401
 from app.services.skills.post_process.enrichment import (  # noqa: F401
     _BUCKET_CAPS,
     _COORD_COMM_RE,
-    _JD_BODY_SCAN_CAP,
     _MAX_PHRASE_TOKENS,
     _already_extracted_canonicals,
     _expand_coordinated_modifiers,

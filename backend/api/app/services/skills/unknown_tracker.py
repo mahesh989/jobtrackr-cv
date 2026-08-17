@@ -6,9 +6,12 @@ it in ``lexicon_meta.required.unknown`` (and the preferred side equivalent).
 Today those entries are only logged — nothing aggregates them, so the only
 way to discover lexicon gaps is the manual ``/beta/skills-audit`` page.
 
-This tracker appends every unknown phrase to a rolling JSONL file. A weekly
-review (or admin page) can read the file, count by phrase, and surface the
-top-N candidates for lexicon promotion.
+This tracker appends every unknown phrase to a rolling JSONL file, intended
+to support a future weekly review (or admin page) that reads the file,
+counts by phrase, and surfaces the top-N candidates for lexicon promotion.
+Neither the persistent-path override nor a reader currently exist — as of
+this writing the file only accumulates at the default ephemeral /tmp path
+with nothing consuming it in production.
 
 Design notes:
   • Append-only JSONL so concurrent runs don't clobber.
@@ -53,9 +56,7 @@ def record_unknown_phrases(
     errors, or disabled tracking.
 
     The timestamp argument is REQUIRED for production calls (caller passes
-    an ISO string from `datetime.now().isoformat()`). Inside the workflow
-    runtime where `Date.now()` is unavailable, the caller is expected to
-    stamp it from the request layer.
+    a UTC ISO-8601 string, e.g. from `datetime.now(timezone.utc).isoformat()`).
     """
     if not lexicon_meta:
         return 0
