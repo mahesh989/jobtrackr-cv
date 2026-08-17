@@ -5,7 +5,14 @@ export const pipelineQueue = new Queue(QUEUE_NAME, { connection });
 
 export type PipelineJobData =
   | { type: "noop"; message: string }
-  | { type: "run_profile"; profileId: string; trigger?: "manual" | "auto"; fullRefresh?: boolean }
+  | {
+      type: "run_profile";
+      profileId: string;
+      trigger?: "manual" | "auto";
+      fullRefresh?: boolean;
+      userId?: string;
+      usageEventId?: string;
+    }
   | { type: "sync_schedules" }
   | { type: "send_weekly_digest" }
   | { type: "run_notify_sweep" };

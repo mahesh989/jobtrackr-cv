@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { Queue } from "bullmq";
 import { Redis } from "ioredis";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
-import { consumeRun } from "@/lib/billing/entitlements";
+import {
+  commitRunUsageEvent,
+  consumeRun,
+} from "@/lib/billing/entitlements";
 import { jsonError, withUser } from "@/lib/api-utils";
 
 const QUEUE_NAME = "jobtrackr-pipeline";
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function getQueue() {
   const redisUrl = process.env.REDIS_URL;
@@ -14,9 +19,15 @@ function getQueue() {
     maxRetriesPerRequest: null,
     tls: {}, // Enable TLS for Upstash
     connectTimeout: 5000,
+    commandTimeout: 5000,
     retryStrategy: () => null, // Don't retry on connection failure
   });
-  return new Queue(QUEUE_NAME, { connection });
+  try {
+    return { queue: new Queue(QUEUE_NAME, { connection }), connection };
+  } catch (err) {
+    connection.disconnect();
+    throw err;
+  }
 }
 
 export const POST = withUser(async (
@@ -28,9 +39,16 @@ export const POST = withUser(async (
   // Optional { fullRefresh: true } body → re-run the deep 28-day window even on
   // an established profile (the UI "Full refresh" action). Default false.
   let fullRefresh = false;
+  let requestId = randomUUID();
   try {
     const body = await request.json();
     fullRefresh = body?.fullRefresh === true;
+    if (body?.requestId !== undefined) {
+      if (typeof body.requestId !== "string" || !UUID_RE.test(body.requestId)) {
+        return jsonError("Invalid run request ID", 400);
+      }
+      requestId = body.requestId.toLowerCase();
+    }
   } catch { /* no body → incremental */ }
 
   // Rate limit: each run enqueues a pipeline job that can incur Apify cost.
@@ -58,36 +76,147 @@ export const POST = withUser(async (
     return jsonError("This profile can't be run — it's for manually-added jobs only", 400);
   }
 
-  // Billing gate: read-only accounts blocked; run quota metered per period.
-  const gate = await consumeRun(user.id);
-  if (!gate.allowed) {
-    return NextResponse.json(
-      { error: "Run limit reached", reason: gate.reason },
-      { status: 402 },
-    );
-  }
-
-  // Enqueue the pipeline job with timeout
+  // BullMQ acknowledgement loss is ambiguous: Redis may have created the job
+  // even when add() rejects. A stable browser request UUID is therefore both
+  // the BullMQ job id and the idempotency key for the usage reservation.
+  let resources: ReturnType<typeof getQueue> | null = null;
   try {
-    const queue = getQueue();
+    resources = getQueue();
+    const { queue } = resources;
+    const queueJobId = `run-${user.id}-${requestId}`;
 
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Redis connection timeout")), 5000)
+    const existing = await queue.getJob(queueJobId);
+    if (existing) {
+      const data = existing.data as {
+        type?: string;
+        profileId?: string;
+        userId?: string;
+        usageEventId?: string;
+        fullRefresh?: boolean;
+      };
+      if (data.type !== "run_profile" || data.profileId !== profileId || data.userId !== user.id
+        || data.fullRefresh !== fullRefresh) {
+        return jsonError("Run request ID is already in use", 409);
+      }
+      const state = await existing.getState();
+      if (state === "failed") {
+        if (!existing.failedReason?.startsWith("run usage commit failed:")) {
+          return NextResponse.json(
+            { error: "The previous run failed. Retry to start a new run.", resetRequest: true },
+            { status: 409 },
+          );
+        }
+        if (data.usageEventId) await commitRunUsageEvent(data.usageEventId);
+        await existing.retry("failed", {
+          resetAttemptsMade: true,
+          resetAttemptsStarted: true,
+        });
+        return NextResponse.json({ ok: true, jobId: existing.id });
+      }
+      if (data.usageEventId) {
+        try {
+          await commitRunUsageEvent(data.usageEventId);
+        } catch (commitErr) {
+          console.error(
+            "[run] usage commit retry failed:",
+            commitErr instanceof Error ? commitErr.message : String(commitErr),
+          );
+        }
+      }
+      return NextResponse.json({ ok: true, jobId: existing.id });
+    }
+
+    // Billing gate: read-only accounts blocked; run quota metered per period.
+    const gate = await consumeRun(user.id, requestId, profileId, fullRefresh);
+    if (!gate.allowed) {
+      if (gate.requestConflict) {
+        return NextResponse.json(
+          { error: "Run request ID is already in use", resetRequest: true },
+          { status: 409 },
+        );
+      }
+      return NextResponse.json(
+        { error: "Run limit reached", reason: gate.reason },
+        { status: 402 },
+      );
+    }
+    if (gate.alreadyCommitted) {
+      return NextResponse.json({ ok: true, jobId: queueJobId, alreadyProcessed: true });
+    }
+
+    const job = await queue.add(
+      "run_profile",
+      {
+        type: "run_profile",
+        profileId,
+        userId: user.id,
+        usageEventId: gate.eventId,
+        trigger: "manual",
+        fullRefresh,
+      },
+      {
+        jobId: queueJobId,
+        attempts: 3,
+        backoff: { type: "exponential", delay: 5000 },
+      },
     );
 
-    const job = await Promise.race([
-      queue.add(
-        "run_profile",
-        { type: "run_profile", profileId, trigger: "manual", fullRefresh },
-        { attempts: 3, backoff: { type: "exponential", delay: 5000 } }
-      ),
-      timeoutPromise
-    ]);
+    // A duplicate add returns the already-existing job. Re-read its stored
+    // payload before charging this request; BullMQ does not replace job data.
+    const confirmed = await queue.getJob(queueJobId);
+    const confirmedData = confirmed?.data as {
+      type?: string;
+      profileId?: string;
+      userId?: string;
+      usageEventId?: string;
+      fullRefresh?: boolean;
+    } | undefined;
+    if (!confirmed || confirmedData?.type !== "run_profile"
+      || confirmedData.profileId !== profileId || confirmedData.userId !== user.id
+      || confirmedData.usageEventId !== gate.eventId
+      || confirmedData.fullRefresh !== fullRefresh) {
+      throw new Error("queued run could not be reconciled to its reservation");
+    }
 
-    await queue.close();
-    return NextResponse.json({ ok: true, jobId: job.id });
+    if (gate.eventId) {
+      try {
+        await commitRunUsageEvent(gate.eventId);
+      } catch (commitErr) {
+        // The worker repeats this write before starting the paid pipeline.
+        console.error(
+          "[run] usage commit failed after enqueue:",
+          commitErr instanceof Error ? commitErr.message : String(commitErr),
+        );
+      }
+    }
+    return NextResponse.json({ ok: true, jobId: confirmed.id ?? job.id });
   } catch (err) {
     console.error("[run] enqueue failed:", err instanceof Error ? err.message : String(err));
-    return jsonError("Failed to start run. Please try again.", 500);
+    // Keep any pending reservation: queue.add may have succeeded server-side.
+    // Retry with this same id reconciles the job and reuses the reservation.
+    return NextResponse.json(
+      { error: "Run start is uncertain. Please retry.", requestId },
+      { status: 503 },
+    );
+  } finally {
+    if (resources) {
+      try {
+        await resources.queue.close();
+      } catch (closeErr) {
+        console.error(
+          "[run] queue close failed:",
+          closeErr instanceof Error ? closeErr.message : String(closeErr),
+        );
+      }
+      try {
+        await resources.connection.quit();
+      } catch (quitErr) {
+        resources.connection.disconnect();
+        console.error(
+          "[run] Redis quit failed:",
+          quitErr instanceof Error ? quitErr.message : String(quitErr),
+        );
+      }
+    }
   }
 });

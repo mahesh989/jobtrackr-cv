@@ -14,6 +14,7 @@ import { sendWorkerRestartAlert } from "./notifications/errorAlert.js";
 import { getLastKnownRun } from "./pipeline/runLog.js";
 import { db } from "./db/client.js";
 import { startHeartbeat } from "./queue/heartbeat.js";
+import { commitRunUsageEvent } from "./automation/billing.js";
 
 // Expected-shutdown marker — distinguishes a deploy-triggered SIGTERM
 // (expected, don't alert) from anything else the process didn't get a
@@ -46,6 +47,9 @@ const worker = new Worker<PipelineJobData>(
     }
 
     if (type === "run_profile") {
+      if (job.data.usageEventId) {
+        await commitRunUsageEvent(job.data.usageEventId);
+      }
       await runPipeline(job.data.profileId, job.data.trigger ?? "auto", job.data.fullRefresh ?? false);
       return { ok: true };
     }

@@ -45,6 +45,13 @@ export interface CvReservation {
   eventId: string | null;
 }
 
+/** Commit a manual-run reservation before starting its paid pipeline work. */
+export async function commitRunUsageEvent(eventId: string): Promise<void> {
+  const { data, error } = await db.rpc("commit_run_usage", { p_event: eventId });
+  if (error) throw new Error(`run usage commit failed: ${error.message}`);
+  if (data !== true) throw new Error("run usage commit failed: event is not pending or committed");
+}
+
 export async function reserveTailoredCv(userId: string, jobId: string): Promise<CvReservation> {
   // Founder/admin bypass everything.
   const { data: userRow } = await db.from("users").select("role").eq("id", userId).maybeSingle();
