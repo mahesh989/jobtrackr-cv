@@ -586,11 +586,25 @@ def _split_award_name_org(text: str) -> tuple:
     The AI commonly emits 'Staff Excellence Award – Jesmond Miranda Nursing
     Home' as a single h3/plain string; this helper extracts the org so the
     layout can put it in the right column instead of mashing it with the name.
+
+    C86 (#13): never split DESCRIPTION-language text ("Recognised for hard
+    work, caring nature, and positive attitude.") on a COMMA — the
+    "swapped" shape (verify_claims promotes a description sentence to its
+    own ### heading) feeds a bare commentary sentence through this same
+    helper, and the comma-split truncated it at the first comma with the
+    rest silently lost (the caller only ever reads the returned `name`,
+    not `org`, for a description-only entry). Scoped to the comma branch
+    only — a genuine dash-separated award/org pair that happens to START
+    with a description-prefix word ("Honoured Service Award – City
+    Council", "For Excellence in Care – St Vincent's") must still split
+    correctly; the ambiguity is specific to the comma shape, not the dash.
     """
     for sep in (" – ", " — ", " - "):
         if sep in text:
             name, org = text.split(sep, 1)
             return name.strip(), org.strip()
+    if _DESCRIPTION_PREFIX_RE.match(text.strip()):
+        return text.strip(), ""
     if "," in text and not _DATE_TAIL_RE.search(text):
         name, org = text.split(",", 1)
         return name.strip(), org.strip()
