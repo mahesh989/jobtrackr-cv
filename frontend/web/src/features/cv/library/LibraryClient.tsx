@@ -112,11 +112,7 @@ export function LibraryClient({ initial, skillLabels = DEFAULT_SKILL_LABELS }: P
   // On success, auto-proceed after a short "flash" unless the user acts first.
   useEffect(() => {
     if (uploadPhase !== "success") return;
-    const id = window.setTimeout(() => {
-      const to = redirectRef.current;
-      setUploadPhase(null);
-      if (to) router.push(withSetupParams(to, searchParams));
-    }, 3800);
+    const id = window.setTimeout(proceedAfterUpload, 3800);
     return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- withSetupParams reads stable params
   }, [uploadPhase, router]);

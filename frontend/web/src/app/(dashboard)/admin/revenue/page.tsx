@@ -40,12 +40,12 @@ export default async function AdminRevenuePage() {
     { data: plansRaw },
     { data: usersRaw },
   ] = await Promise.all([
-    admin.from("subscriptions").select("user_id, plan_id, status, current_period_start, current_period_end, trial_end, cancel_at_period_end, created_at"),
+    admin.from("subscriptions").select("id, user_id, plan_id, status, current_period_start, current_period_end, trial_end, cancel_at_period_end, created_at"),
     admin.from("plans").select("id, display_name, price_cents, billing_interval").order("sort_order"),
     admin.from("users").select("id, email"),
   ]);
 
-  type SubRow  = { user_id: string; plan_id: string; status: string; current_period_start: string | null; current_period_end: string | null; trial_end: string | null; cancel_at_period_end: boolean; created_at: string };
+  type SubRow  = { id: string; user_id: string; plan_id: string; status: string; current_period_start: string | null; current_period_end: string | null; trial_end: string | null; cancel_at_period_end: boolean; created_at: string };
   type PlanRow = { id: string; display_name: string; price_cents: number; billing_interval: string | null };
 
   const subs   = (subsRaw  ?? []) as SubRow[];
@@ -217,7 +217,7 @@ export default async function AdminRevenuePage() {
                   <tr><td colSpan={5} className="text-center text-text-3 py-6">No subscription changes in the last 30 days.</td></tr>
                 )}
                 {recentSubs.map((s) => (
-                  <tr key={s.user_id}>
+                  <tr key={s.id}>
                     <td className="text-text font-medium truncate max-w-[200px]">
                       <Link href={`/admin/activity?user=${s.user_id}`} className="hover:underline">
                         {emailById[s.user_id] ?? s.user_id.slice(0, 12) + "…"}

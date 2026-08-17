@@ -18,7 +18,7 @@ export function PageLoader({ rows = 6 }: { rows?: number }) {
       <div className="px-6 py-4 space-y-4">
         {/* Simulated funnel / filter row */}
         <div className="flex gap-2">
-          {[80, 64, 80, 72, 60, 80].map((w, i) => (
+          {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="h-14 rounded-md bg-[var(--surface-2)]" style={{ flex: 1 }} />
           ))}
         </div>
