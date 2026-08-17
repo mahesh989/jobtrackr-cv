@@ -86,7 +86,7 @@ export function FullAnalysisModal({
       <div
         aria-hidden
         onClick={onClose}
-        className={`fixed inset-0 z-[60] bg-[rgba(13,17,23,0.4)] transition-opacity duration-[240ms] ${
+        className={`fixed inset-0 z-[60] bg-black/40 transition-opacity duration-[240ms] ${
           entered ? "opacity-100" : "opacity-0"
         }`}
       />

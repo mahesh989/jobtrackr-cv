@@ -49,6 +49,19 @@ const REDIRECT_ROUTES = new Set([
   "billing/checkout/confirm/route.ts",
 ]);
 
+export function findUnwrappedHttpMethods(src) {
+  const exported = [
+    ...src.matchAll(/export\s+(?:async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE|HEAD)\b/g),
+    ...src.matchAll(/export\s+const\s+(GET|POST|PUT|PATCH|DELETE|HEAD)\s*=/g),
+  ].map((m) => m[1]);
+  const wrapped = new Set(
+    [...src.matchAll(/export\s+const\s+(GET|POST|PUT|PATCH|DELETE|HEAD)\s*=\s*with(?:User|Admin)\s*\(/g)].map(
+      (m) => m[1],
+    ),
+  );
+  return exported.filter((method) => !wrapped.has(method));
+}
+
 function walk(dir) {
   const out = [];
   for (const name of readdirSync(dir)) {
@@ -69,7 +82,7 @@ for (const file of walk(API_DIR)) {
   // one unwrapped `export async function METHOD` alongside wrapped ones is
   // exactly the forgotten-auth hole this guard exists to catch.
   const usesWrapper = /export const (GET|POST|PUT|PATCH|DELETE|HEAD) = with(User|Admin)\(/.test(src);
-  const bareExports = [...src.matchAll(/export (?:async )?function (GET|POST|PUT|PATCH|DELETE|HEAD)\b/g)].map((m) => m[1]);
+  const bareExports = findUnwrappedHttpMethods(src);
 
   if (usesWrapper && bareExports.length === 0) continue;
 

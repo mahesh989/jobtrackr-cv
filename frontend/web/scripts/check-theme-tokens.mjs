@@ -89,11 +89,13 @@ const ALLOWLIST = {
 // following `:`, quote, space, brace, paren or backtick means "start of a
 // class token" for every way these appear in TSX (plain strings, template
 // literals, conditional expressions, `dark:`/`hover:` modifier chains).
-const PALETTE_RE =
-  /\b(bg|text|border|ring|fill|stroke|from|to|via)-(red|green|emerald|amber|yellow|blue|sky|teal|purple|violet|indigo|pink|rose|orange|slate|gray|zinc)-(50|100|200|300|400|500|600|700|800|900)\b/g;
+export const PALETTE_RE =
+  /\b(bg|text|border|ring|fill|stroke|from|to|via|shadow|divide|outline|accent|placeholder|decoration)-(red|green|emerald|amber|yellow|blue|sky|teal|purple|violet|indigo|pink|rose|orange|slate|gray|zinc|neutral|stone|lime|cyan|fuchsia)-(50|100|200|300|400|500|600|700|800|900|950)\b/g;
 
-// Arbitrary hex in class position.
-const ARBITRARY_HEX_RE = /\b(bg|text|border|ring)-\[#[0-9a-fA-F]{3,8}\]/g;
+// Arbitrary literal colours in class position. The utility prefix is kept
+// generic so a new Tailwind colour-bearing utility cannot bypass the guard.
+export const ARBITRARY_HEX_RE =
+  /\b[a-z][\w-]*-\[(?:#[0-9a-fA-F]{3,8}|(?:rgb|hsl)a?\([^\]\r\n]*\))\]/g;
 
 // `dark:` variant — this app has no OS-preference-based dark mode.
 const DARK_VARIANT_RE = /\bdark:/g;
@@ -113,7 +115,7 @@ const INLINE_STYLE_HEX_RE =
 // a regex scan over class strings, not an exhaustive AST-level check.
 const CLASSNAME_VALUE_RE = /className\s*=\s*(?:"([^"]*)"|'([^']*)'|\{\s*`([^`]*)`\s*\})/g;
 
-function countMatches(re, text) {
+export function countMatches(re, text) {
   const matches = text.match(re);
   return matches ? matches.length : 0;
 }
@@ -225,4 +227,3 @@ if (perFile.length > 0) {
 }
 
 console.log("PASS — no raw palette classes, arbitrary hex, or dark: variants outside the allowlist.\n");
-process.exit(0);
