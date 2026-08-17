@@ -279,7 +279,17 @@ def _credential_already_in_registration(entry: str, registration_blob: str) -> b
     "First Aid (HLTAID011)")."""
     if not registration_blob:
         return False
-    t = entry.lower()
+    # C86 (#15): strip apostrophes (straight and curly) from BOTH sides
+    # before matching — "Driver's Licence" is the standard AU spelling, but
+    # the anchors below only enumerated the apostrophe-less forms
+    # ("driver licence"/"drivers license"), so the apostrophe alone
+    # defeated the dedup and let the same credential appear twice (once in
+    # Registration & Licences, once as a separate Certifications entry).
+    def _norm(s: str) -> str:
+        return s.lower().replace("'", "").replace("’", "")
+
+    t = _norm(entry)
+    blob = _norm(registration_blob)
     # Canonical credential anchors — if entry contains one AND registration
     # also contains it, treat as duplicate. Keeps the check tight (avoids
     # over-matching on generic words).
@@ -290,7 +300,7 @@ def _credential_already_in_registration(entry: str, registration_blob: str) -> b
         "vaccination", "police clearance", "work rights",
     )
     for anchor in anchors:
-        if anchor in t and anchor in registration_blob:
+        if anchor in t and anchor in blob:
             return True
     return False
 
@@ -507,6 +517,9 @@ _CRED_KEYWORDS = {
     "clearances", "clearance", "checks", "check", "licences", "licence",
     "licenses", "license", "registration", "registrations", "achievements",
     "achievement", "credential", "credentials", "development",
+    # C86 round-2 review: the all-of-tokens tightening for #14 lost recall
+    "training", "trainings", "courses", "course", "memberships", "membership",
+    "police", "working", "children", "national", "screening", "screenings",
 }
 # Other common CV headings — used to detect where a credentials section ends.
 _OTHER_SECTION_WORDS = {
@@ -514,6 +527,14 @@ _OTHER_SECTION_WORDS = {
     "clinical experience", "skills", "summary", "professional summary",
     "profile", "projects", "references", "interests", "languages", "contact",
     "objective", "career highlights", "registration & licences",
+}
+
+# C86 (#14): connective/generic words allowed alongside a _CRED_KEYWORDS
+# token in a bare-label heading ("Awards & Recognition", "Licences, Checks
+# & Clearances", "Other Certifications") without disqualifying it.
+_CRED_HEADING_CONNECTORS = {
+    "and", "or", "of", "the", "amp", "other", "professional", "additional",
+    "key", "current", "with",
 }
 
 
@@ -526,7 +547,31 @@ def _is_cred_heading(heading: str, is_explicit: bool = False) -> bool:
             return False
         if len(h.split()) > 5:
             return False
+        if h.rstrip().endswith("."):
+            return False
     tokens = re.findall(r"\b\w+\b", h)
+    if not is_explicit:
+        # C86 (#14): a bare-label heading is a short LABEL ("Certifications",
+        # "Awards & Recognition") whose EVERY word is a credential keyword,
+        # a connector, or a bare number/date — not an ordinary sentence
+        # that merely CONTAINS one credential-ish word somewhere. The
+        # original any()-of-tokens check let a plain Experience-section
+        # sentence ("Recognition program participant, 2019") get
+        # misclassified as a new section start whenever it happened to
+        # contain a stray _CRED_KEYWORDS token ("recognition",
+        # "development", "check", ...); collecting=True then swept every
+        # following line — including unrelated prose — into what
+        # _extract_original_credentials treats as credential entries,
+        # ready to be fabricated verbatim into a new Awards/Certifications
+        # bullet by ensure_awards.
+        # Round-3 review: also require at least one GENUINE credential
+        # keyword — without this, a line made entirely of connector words
+        # ("Professional", "Other", "Current", "Key") wrongly returned
+        # True with zero credential-domain content.
+        return bool(tokens) and any(t in _CRED_KEYWORDS for t in tokens) and all(
+            t in _CRED_KEYWORDS or t in _CRED_HEADING_CONNECTORS or t.isdigit()
+            for t in tokens
+        )
     return any(t in _CRED_KEYWORDS for t in tokens)
 
 
