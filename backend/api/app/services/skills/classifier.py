@@ -156,6 +156,22 @@ def normalise(phrase: str) -> str:
     return s
 
 
+def _normalise_exact(phrase: str) -> str:
+    """Normalise punctuation/case without removing semantic prefixes.
+
+    This is intentionally narrower than :func:`normalise`: callers using it
+    need to know whether the complete supplied phrase is in the curated
+    lexicon, not whether a leading qualifier can be stripped to reach one.
+    """
+    if not phrase:
+        return ""
+    s = phrase.strip().lower()
+    for ch in "‐‑‒–—−":
+        s = s.replace(ch, "-")
+    s = _PUNCT_RE.sub(" ", s)
+    return _WS_RE.sub(" ", s).strip()
+
+
 # ---------------------------------------------------------------------------
 # Lexicon loading (once at import)
 # ---------------------------------------------------------------------------
@@ -254,6 +270,13 @@ def _load_subsumes(vertical: VerticalT) -> Dict[str, set]:
 
 
 _NOISE_LOOKUP: Dict[str, NoiseT] = _load_noise()
+_NOISE_EXACT_LOOKUP: Dict[str, NoiseT] = {}
+_noise_data = json.loads((_LEXICON_DIR / "_universal_noise.json").read_text())
+for _noise_type in ("noise", "credential", "eligibility"):
+    for _noise_term in _noise_data.get(_noise_type, []):
+        _noise_key = _normalise_exact(_noise_term)
+        if _noise_key:
+            _NOISE_EXACT_LOOKUP[_noise_key] = _noise_type  # type: ignore[assignment]
 _VERTICAL_LOOKUPS: Dict[VerticalT, Dict[str, Tuple[str, CategoryT]]] = {
     v: _load_vertical(v) for v in _VERTICALS
 }
@@ -276,6 +299,19 @@ def is_noise(phrase: str) -> Optional[NoiseT]:
     if not phrase:
         return None
     return _NOISE_LOOKUP.get(normalise(phrase))
+
+
+def is_noise_exact(phrase: str) -> Optional[NoiseT]:
+    """Return a noise type only when the complete phrase is curated.
+
+    Unlike :func:`is_noise`, this does not strip prefixes such as
+    ``"experience with"`` or ``"current"``.  It is used by high-stakes
+    credential evidence checks where accepting a decorated duty phrase as a
+    profile credential would fabricate evidence.
+    """
+    if not phrase:
+        return None
+    return _NOISE_EXACT_LOOKUP.get(_normalise_exact(phrase))
 
 
 # Minimum string length for fuzzy matching to apply. Below this, difflib's

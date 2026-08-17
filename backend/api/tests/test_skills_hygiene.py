@@ -889,6 +889,95 @@ def test_user_has_credential_mapping():
     assert not user_has_credential("wwcc", contact)
 
 
+def test_user_has_credential_keeps_anchored_credential_modifiers():
+    from app.services.pipeline.steps.keyword_feasibility import user_has_credential
+
+    contact = {
+        "credentials": {
+            "police_check": True,
+            "ndis_screening": True,
+            "forklift_licence": True,
+            "first_aid": True,
+            "cpr": True,
+            "drivers_licence": "Open C Class",
+            "flu_vaccination": True,
+            "covid_vaccination": True,
+        }
+    }
+    for phrase in (
+        "current criminal history check",
+        "valid NDIS worker screening check",
+        "current forklift licence",
+        "current first aid certification",
+        "valid CPR certification",
+        "NSW driver's licence",
+        "current flu vaccination",
+        "current COVID-19 vaccination",
+        "proof of COVID-19 vaccination",
+    ):
+        assert user_has_credential(phrase, contact), phrase
+
+
+def test_exact_eligibility_lookup_does_not_accept_decorated_context():
+    from app.services.pipeline.steps.keyword_feasibility import user_has_credential
+
+    contact = {"visa_status": "citizen", "credentials": {}}
+    assert not user_has_credential("experience with work rights", contact)
+    assert not user_has_credential("knowledge of visa", contact)
+
+
+def test_user_has_credential_preserves_compound_check_semantics():
+    from app.services.pipeline.steps.keyword_feasibility import user_has_credential
+
+    both = {"credentials": {"police_check": True, "ndis_screening": True}}
+    police_only = {"credentials": {"police_check": True, "ndis_screening": False}}
+
+    assert user_has_credential("national police check and ndis worker check", both)
+    assert not user_has_credential(
+        "national police check and ndis worker check", police_only
+    )
+    assert user_has_credential(
+        "national police check or ndis workers check requirements", police_only
+    )
+
+
+def test_profile_credential_context_tail_is_not_force_injected():
+    """Profile data must not become synthetic evidence for a duty phrase."""
+    plan = {
+        bucket: []
+        for bucket in (
+            "inject_directly",
+            "inject_as_extension",
+            "inject_with_inference",
+            "cannot_inject",
+        )
+    }
+    missing = {
+        "required": {
+            "technical": ["AHPRA compliance administration"],
+            "soft_skills": [],
+            "domain_knowledge": [],
+        },
+        "preferred": {
+            "technical": [],
+            "soft_skills": [],
+            "domain_knowledge": [],
+        },
+    }
+
+    cleaned = _reconcile_with_missing(
+        plan,
+        missing,
+        matching={},
+        contact_details={"credentials": {"ahpra_number": "NMW0001234567"}},
+    )
+
+    assert cleaned["inject_directly"] == []
+    assert [entry["keyword"] for entry in cleaned["cannot_inject"]] == [
+        "ahpra compliance administration"
+    ]
+
+
 def test_user_has_credential_does_not_fabricate_transport_duty_from_own_car():
     """Finding #1 (chunk C17) — "patient transport" is a clinical/support-work
     DUTY (moving patients/residents between wards, appointments, etc.), not a
@@ -1012,6 +1101,247 @@ def test_user_has_credential_flu_word_boundary():
     assert user_has_credential("flu vaccination", contact)
     assert user_has_credential("annual flu shot", contact)
     assert user_has_credential("influenza immunisation", contact)
+
+
+def test_user_has_credential_does_not_fabricate_vehicle_credentials_from_duties():
+    """C17b: a bare car/vehicle noun describes many care-sector duties.
+
+    It must not become evidence that the candidate owns a car.  Positive
+    possession/access language remains valid profile-backed evidence.
+    """
+    from app.services.pipeline.steps.keyword_feasibility import user_has_credential
+
+    contact = {
+        "credentials": {
+            "own_car": True,
+            "drivers_licence": "Open C Class",
+        }
+    }
+
+    duty_phrases = [
+        "patient vehicle transfers",
+        "wheelchair to vehicle transfers",
+        "car seat fitting for children",
+        "car park management",
+        "vehicle fleet rostering",
+        "vehicle cleaning and maintenance",
+        "motor vehicle accident rehabilitation",
+    ]
+    for phrase in duty_phrases:
+        assert not user_has_credential(phrase, contact), phrase
+
+    genuine_requirements = [
+        "own car",
+        "own a car",
+        "own reliable vehicle",
+        "reliable vehicle",
+        "access to a reliable car",
+        "use of own vehicle",
+        "must have a car",
+        "personal vehicle required",
+    ]
+    for phrase in genuine_requirements:
+        assert user_has_credential(phrase, contact), phrase
+
+    # A compound ownership + insurance requirement needs both profile facts.
+    assert not user_has_credential("reliable insured vehicle", contact)
+    assert not user_has_credential(
+        "ownership of reliable comprehensively insured vehicle", contact
+    )
+    assert not user_has_credential(
+        "ownership of a reliable comprehensively insured vehicle", contact
+    )
+    assert not user_has_credential("vehicle ownership with comprehensive insurance", contact)
+    insured_contact = {
+        "credentials": {
+            "own_car": True,
+            "car_insurance": True,
+        }
+    }
+    assert user_has_credential("vehicle ownership with comprehensive insurance", insured_contact)
+    assert user_has_credential("reliable insured vehicle", insured_contact)
+    assert user_has_credential(
+        "ownership of reliable comprehensively insured vehicle", insured_contact
+    )
+    assert user_has_credential(
+        "ownership of a reliable comprehensively insured vehicle", insured_contact
+    )
+    assert user_has_credential(
+        "reliable vehicle with minimum third party vehicle insurance",
+        insured_contact,
+    )
+    assert not user_has_credential("car insurance policy administration", insured_contact)
+
+
+def test_user_has_credential_does_not_fabricate_medication_or_wwcc_from_duties():
+    """C17b: generic administration and child-facing work are duties, not
+    proof of medication competency or a Working with Children Check.
+    """
+    from app.services.pipeline.steps.keyword_feasibility import user_has_credential
+
+    contact = {
+        "credentials": {
+            "medication_competency": True,
+            "wwcc": True,
+        }
+    }
+
+    for phrase in (
+        "administer payroll",
+        "administer staff rosters",
+        "administer training programs",
+        "administer client records",
+        "administration of office systems",
+        "medication stock ordering",
+    ):
+        assert not user_has_credential(phrase, contact), phrase
+
+    for phrase in (
+        "working with children with autism",
+        "experience working with children and families",
+        "working with children in a disability support setting",
+        "Blue Card application processing",
+        "child check-in procedures",
+    ):
+        assert not user_has_credential(phrase, contact), phrase
+
+    assert user_has_credential("medication administration competency", contact)
+    assert user_has_credential("administer prescribed medication", contact)
+    assert user_has_credential("current Working with Children Check", contact)
+    assert user_has_credential("valid WWCC", contact)
+    assert user_has_credential("Blue Card clearance", contact)
+    assert user_has_credential("Working with Children Check (NSW)", contact)
+    assert user_has_credential("Working with Children Check NSW", contact)
+    assert user_has_credential("Victorian Working with Children Check", contact)
+    assert user_has_credential("Western Australian Working with Children Check", contact)
+
+
+def test_user_has_credential_does_not_fabricate_checks_or_registration_from_context():
+    """C17b: broad criminal/registration context must not stamp a saved
+    police check or AHPRA registration into the delivered CV.
+    """
+    from app.services.pipeline.steps.keyword_feasibility import user_has_credential
+
+    contact = {
+        "credentials": {
+            "police_check": True,
+            "ahpra_number": "NMW0001234567",
+        }
+    }
+
+    for phrase in (
+        "criminal law knowledge",
+        "criminal justice experience",
+        "support for victims of criminal offences",
+        "liaise with police and emergency services",
+        "police referral coordination",
+        "criminal history research",
+        "background check administration",
+    ):
+        assert not user_has_credential(phrase, contact), phrase
+
+    for phrase in (
+        "registration for the nursing conference",
+        "event registration for nurses and midwives",
+        "manage nursing course registration enquiries",
+        "registered nurse recruitment",
+        "worked alongside registered nurses",
+        "nursing registration administration",
+        "AHPRA compliance administration",
+    ):
+        assert not user_has_credential(phrase, contact), phrase
+
+    assert user_has_credential("National Police Check", contact)
+    assert user_has_credential("criminal history check", contact)
+    assert user_has_credential("current AHPRA registration", contact)
+    assert user_has_credential("current registration as a nurse", contact)
+    assert user_has_credential("Nursing and Midwifery Board registration", contact)
+    assert user_has_credential("registration with the Nursing and Midwifery Board of Australia", contact)
+    assert user_has_credential("general registration with the Nursing and Midwifery Board of Australia", contact)
+
+
+def test_user_has_credential_does_not_fabricate_driver_ndis_or_vaccination_credentials():
+    """C17b full-rule sweep: professional licences, NDIS duties and disease
+    context are not proof of a driver licence, screening or vaccination.
+    """
+    from app.services.pipeline.steps.keyword_feasibility import user_has_credential
+
+    contact = {
+        "credentials": {
+            "drivers_licence": "Open C Class",
+            "ndis_screening": True,
+            "covid_vaccination": True,
+            "car_insurance": True,
+        }
+    }
+
+    for phrase in (
+        "security licence administration",
+        "professional licence renewals",
+        "software license management",
+        "open source license compliance",
+        "driving clients to appointments",
+        "driver licence application processing",
+    ):
+        assert not user_has_credential(phrase, contact), phrase
+
+    for phrase in (
+        "NDIS plan implementation",
+        "NDIS participant support",
+        "experience delivering NDIS services",
+        "NDIS orientation program facilitation",
+        "NDIS quality and safeguarding framework implementation",
+    ):
+        assert not user_has_credential(phrase, contact), phrase
+
+    for phrase in (
+        "COVID-19 infection control",
+        "coronavirus response planning",
+        "COVID ward experience",
+        "motor vehicle accident insurance claims",
+        "COVID status dashboard administration",
+    ):
+        assert not user_has_credential(phrase, contact), phrase
+
+    assert user_has_credential("valid driver licence", contact)
+    assert user_has_credential("NDIS worker screening check", contact)
+    assert user_has_credential("Yellow Card clearance", contact)
+    assert user_has_credential("COVID-19 vaccination requirements", contact)
+    assert user_has_credential("Class C licence", contact)
+    assert user_has_credential("current unrestricted Australian licence", contact)
+    assert user_has_credential("COVID booster requirement", contact)
+
+
+def test_user_has_credential_does_not_treat_any_visa_or_citizenship_text_as_work_rights():
+    """C17b: the profile's work-rights flag satisfies requirements, not
+    unrelated prose that merely contains the words visa or citizenship.
+    """
+    from app.services.pipeline.steps.keyword_feasibility import user_has_credential
+
+    contact = {"visa_status": "citizen", "credentials": {}}
+
+    for phrase in (
+        "visa sponsorship available",
+        "administer visa application support",
+        "citizenship ceremony coordination",
+        "citizenship support services",
+        "Australian citizen support services",
+        "work rights advocacy program",
+    ):
+        assert not user_has_credential(phrase, contact), phrase
+
+    assert user_has_credential("Australian work rights required", contact)
+    assert user_has_credential("valid visa with work rights", contact)
+    assert user_has_credential("Australian citizenship required", contact)
+    assert user_has_credential("right to work in Australia", contact)
+    # Exact canonical eligibility entries remain profile-backed even though
+    # the same words embedded in unrelated prose no longer match.
+    assert user_has_credential("visa", contact)
+    assert user_has_credential("work visa", contact)
+    assert user_has_credential("citizenship", contact)
+    assert user_has_credential("permanent residency or citizenship", contact)
+    assert user_has_credential("temporary resident visa", contact)
+    assert user_has_credential("bridging visa with work rights", contact)
 
 
 def test_split_compound_skills_single_line():
