@@ -329,14 +329,24 @@ _SKILL_LABEL_LINE_RE = re.compile(
 )
 
 
-def pin_skills_section_labels(md: str, role_family_id: Optional[str]) -> Tuple[str, List[str]]:
+def pin_skills_section_labels(
+    md: str,
+    role_family_id: Optional[str],
+    *,
+    resolved_headline_label: Optional[str] = None,
+) -> Tuple[str, List[str]]:
     """Force the Skills section headline label to the family's convention.
 
-    For nursing: any ``**Technical Skills:**`` / ``**Clinical Skills:**``
-    is rewritten to ``**Care Skills:**``. Tech / master families keep
-    ``Technical Skills``. Idempotent.
+    For nursing, ``resolved_headline_label`` carries the already-classified
+    care/clinical/core subtype. Direct callers can omit it and retain the
+    family-level compatibility fallback. Tech/master remain unchanged.
     """
-    target = _FAMILY_HEADLINE_LABEL.get(role_family_id or "")
+    # Nursing is one family with three resolved subtypes (Care / Clinical /
+    # Core).  The resolved profile is authoritative when supplied; the family
+    # map remains the compatibility fallback for direct callers.
+    target = (resolved_headline_label or "").strip() or _FAMILY_HEADLINE_LABEL.get(
+        role_family_id or ""
+    )
     if not target:
         return md, []  # tech/master → leave alone
 
