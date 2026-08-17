@@ -640,10 +640,10 @@ def _empty_plan() -> Dict[str, Any]:
 #
 # Rule: an `inject_directly` entry must have an `evidence` quote that
 # (a) appears in cv_text and (b) shares a >=4-char prefix-match content
-# token with the keyword. Entries failing this test are DOWNGRADED to
-# `inject_with_inference` — same content survives, but the UI now labels
-# it "Inferred from adjacent evidence (defensible in interview)" instead
-# of "Strong CV evidence — verbatim".
+# token with the keyword. Entries failing this test are DROPPED entirely
+# (see the groundedness gate below) — not downgraded to
+# `inject_with_inference`, consistent with the prompt's HARD "no
+# fabrication" rule.
 
 _VERBATIM_TOKEN_MIN_LEN = 4
 
