@@ -131,7 +131,7 @@ async def extract_cv_text(body: ExtractCvTextRequest) -> ExtractCvTextResponse:
     return ExtractCvTextResponse(cv_text=cv_text, word_count=word_count)
 
 
-# ── /internal/scrape-jd ──────────────────────────────────────────────────────
+# ── /internal/categorise-cv ──────────────────────────────────────────────────
 
 @router.post("/categorise-cv", response_model=CategoriseCvResponse)
 async def categorise_cv(body: CategoriseCvRequest) -> CategoriseCvResponse:

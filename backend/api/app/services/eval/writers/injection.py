@@ -416,7 +416,7 @@ def _inject_approved_skills(markdown: str, feasibility: Optional[Dict[str, Any]]
     Must run AFTER the final ``enforce_skills_section`` so the cap is already
     applied. This function RESPECTS the cap — it classifies existing items as
     approved-keep vs writer-only, places new approved keywords ahead of
-    writer-only items, and truncates to ``DEFAULT_SKILL_CAPS`` (14/6/6
+    writer-only items, and truncates to ``DEFAULT_SKILL_CAPS`` (15/10/10
     position-based). Writer-only tail items are displaced when the line is
     full; approved-existing peers are preserved.
 

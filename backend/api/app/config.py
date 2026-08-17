@@ -41,7 +41,8 @@ class Settings(BaseSettings):
     MAX_CV_UPLOAD_BYTES: int = 10 * 1024 * 1024
 
     # -------------------------------------------------------------------------
-    # AI defaults — actual key is BYOK, supplied by JobTrackr per-request.
+    # AI defaults — actual key comes from platform_ai_settings (admin-managed,
+    # BYOK removed 2026-06-16). These fields have zero live consumers.
     # -------------------------------------------------------------------------
     DEFAULT_AI_PROVIDER: Provider = Provider.ANTHROPIC
     DEFAULT_AI_MODEL: str = "claude-3-5-sonnet-20241022"

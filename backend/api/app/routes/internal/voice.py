@@ -65,7 +65,7 @@ async def extract_voice_fingerprint_endpoint(
     )
 
 
-# ── /internal/extract-stories ────────────────────────────────────────────────
+# ── /internal/voice-rewrite-email ────────────────────────────────────────────
 
 
 @router.post(
@@ -131,8 +131,3 @@ async def voice_rewrite_email_endpoint(
         )
 
     return VoiceRewriteEmailResponse(body=cleaned)
-
-
-# ── /internal/classify-skills ─────────────────────────────────────────────────
-
-

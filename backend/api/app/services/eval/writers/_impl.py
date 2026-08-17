@@ -771,7 +771,7 @@ async def _writer_w8_verified(
     # Runs AFTER all deterministic passes so rewrites are applied to the final
     # experience text, not an intermediate state.
     verified_md = await _targeted_bullet_rewrites(client, verified_md, result.feasibility)
-    # Hard cap FIRST so each line is at DEFAULT_SKILL_CAPS (14/6/6) before
+    # Hard cap FIRST so each line is at DEFAULT_SKILL_CAPS (15/10/10) before
     # injection. Then cap-aware inject: approved keywords get priority over
     # writer-only tail items; writer-only items displaced when at cap.
     # NO enforce_skills_section after inject — it would truncate the
