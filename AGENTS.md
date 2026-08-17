@@ -152,8 +152,8 @@ Inline `<button>` elements in feature code should use a `Button` component varia
 
 ### Ponytail Mode — Lazy Guidance
 
-Active at `full` level every session via `opencode.json`. `ponytail:` comments
-mark deliberate shortcuts. Keep them; don't "fix" what isn't broken.
+`ponytail:` comments mark deliberate shortcuts. Keep them; don't "fix" what
+isn't broken.
 
 **Laziness welcome here — the codebase already follows YAGNI:**
 - `Button.tsx` — minimal Slot (merges props, no dependency)
