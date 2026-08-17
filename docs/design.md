@@ -55,7 +55,7 @@ cv-magic, as a separate product, ceases to exist in this project. It is folded i
 | Service | Hosting | Purpose |
 |---|---|---|
 | `web/` | Vercel `jobtrackr-cv` | JobTrackr UI + new CV/analysis pages |
-| `worker/` | Fly.io `jobtrackr-cv-worker` | Existing job-discovery pipeline (unchanged) |
+| `worker/` | Fly.io `jobtrackr-worker` | Existing job-discovery pipeline (unchanged) |
 | `backend/api/` | Fly.io `jobtrackr-cv-api` | CV-tailoring pipeline (added in Phase 2) |
 | Postgres + Storage + Realtime | Supabase | Shared with production JobTrackr — additive tables only |
 
@@ -163,7 +163,7 @@ Response: `202 Accepted` with `{ run_id }`. Pipeline runs in FastAPI BackgroundT
    - INSERT new `analysis_runs` row with `status='pending'`
    - HMAC-sign and POST to cv-backend `/internal/analyze`
    - Return `{ run_id }`
-3. Browser navigates to `/jobs/[id]/analysis/[run_id]`.
+3. Browser navigates to `/jobs/[id]/analyze/[run_id]`.
 4. Page subscribes to Realtime on the row; step cards animate as `step_status` updates.
 5. On `tailored_cv` complete → "Download tailored CV" appears (signed Storage URL).
 
@@ -205,7 +205,7 @@ Each phase ends in a manual verification gate. Do not advance until the gate pas
 ### Phase 0 — Setup & infra
 - Create this repo, push to GitHub
 - Create Vercel project pointed at this repo
-- Set up Fly.io `jobtrackr-cv-worker` app (copy config from JobTrackr)
+- Set up Fly.io `jobtrackr-worker` app (copy config from JobTrackr)
 - Create Fly.io `jobtrackr-cv-api` app (empty hello-world FastAPI)
 - Set env vars on Vercel (Preview scope only — no Production scope yet)
 - **Gate:** Vercel preview URL loads JobTrackr unchanged.
@@ -238,7 +238,7 @@ Each phase ends in a manual verification gate. Do not advance until the gate pas
 ### Phase 5 — End-to-end with **only step 1 wired**
 - Analyze button + state machine
 - `POST /api/jobs/[id]/analyze` route
-- `/jobs/[id]/analysis/[run_id]` page (minimal — subscribes to Realtime)
+- `/jobs/[id]/analyze/[run_id]` page (minimal — subscribes to Realtime)
 - cv-backend orchestrator runs only `run_jd_analysis`, then stops
 - **Gate:** Click Analyze on a SEEK job → see step 1 JSON appear live.
 
