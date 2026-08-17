@@ -39,7 +39,10 @@ _BR_AM_BODY_SUBS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\bbehavior(s|al|ally)?\b", re.IGNORECASE),  "behaviour"),
     (re.compile(r"\bfavor(s|ed|ing|ite|able|ably)?\b", re.IGNORECASE), "favour"),
     (re.compile(r"\bhonor(s|ed|ing|able|ably)?\b", re.IGNORECASE),     "honour"),
-    (re.compile(r"\blabor(s|ed|ing|ious)?\b", re.IGNORECASE),          "labour"),
+    # C87 (#16): "ious" deliberately excluded — "laborious" is spelled
+    # identically in British/AU English (like "laboratory"), not
+    # "labourious". Matching only genuine inflections of the verb "labor".
+    (re.compile(r"\blabor(s|ed|ing)?\b", re.IGNORECASE),          "labour"),
     # -er → -re (curated)
     (re.compile(r"\bcenter(s|ed|ing)?\b", re.IGNORECASE),  "centre"),
     # Other common spelling pairs
@@ -83,6 +86,12 @@ def canonicalise_body_spelling(markdown: str) -> str:
       • Inline code spans (`` `…` ``)
       • The Registration & Licences section's middot-delimited line
         (Already canonical from stamp_credentials.)
+      • H3 employer/institution lines (### …) — proper-noun heavy, same
+        rationale as normalise_heading_title_case's own H3 skip (C87
+        #17): "Cancer Treatment Centers of America" is a real
+        organisation's actual name, not a spelling variant to correct —
+        the "center" -> "centre" substitution was silently rewriting it
+        to "Cancer Treatment Centres of America".
     """
     if not markdown:
         return markdown
@@ -98,6 +107,10 @@ def canonicalise_body_spelling(markdown: str) -> str:
             out.append(ln)
             continue
         if in_code:
+            out.append(ln)
+            continue
+        # H3 headings deliberately skipped — proper nouns.
+        if stripped.startswith("### "):
             out.append(ln)
             continue
         # Replace OUTSIDE inline-code spans only. Cheap split-on-backtick.
@@ -175,10 +188,25 @@ def _title_case_token(token: str, *, is_first: bool, is_last: bool) -> str:
     # HLTAID011, ISO27001), preserve as-is.
     if token.isupper() and any(c.isalpha() for c in token):
         return token
-    # Hyphenated compound: recurse on each segment.
+    # Hyphenated compound: recurse on each segment. C87 (#18): the
+    # ORIGINAL token's own is_first/is_last must propagate to the FIRST
+    # and LAST segment respectively (only middle segments are neither) —
+    # hardcoding False/False for every segment regardless of the caller's
+    # own args meant a stop-word starting a hyphenated compound at the
+    # true start of the phrase ("In-Home Care Assistant") still lowercased
+    # ("in-Home Care Assistant"), since the "in" segment never learned it
+    # was the phrase's actual first word.
     if "-" in token:
         segs = token.split("-")
-        return "-".join(_title_case_token(s, is_first=False, is_last=False) for s in segs)
+        last_i = len(segs) - 1
+        return "-".join(
+            _title_case_token(
+                s,
+                is_first=(is_first and i == 0),
+                is_last=(is_last and i == last_i),
+            )
+            for i, s in enumerate(segs)
+        )
     # Stop-word in non-leading/non-trailing position → lowercase.
     if not is_first and not is_last and lower in _TITLE_CASE_STOPWORDS:
         return lower
