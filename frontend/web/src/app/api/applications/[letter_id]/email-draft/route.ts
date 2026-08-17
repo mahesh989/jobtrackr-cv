@@ -16,8 +16,7 @@ import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
 import { voiceRewriteEmail }         from "@/lib/cv/backend";
 import type { ContactDetails }       from "@/lib/types";
 import { jsonError, withUser } from "@/lib/api-utils";
-
-const TAILORED_CV_BUCKET = "tailored-cvs";
+import { TAILORED_CV_BUCKET } from "@/lib/constants";
 
 export const GET = withUser(async (
   _req: NextRequest,

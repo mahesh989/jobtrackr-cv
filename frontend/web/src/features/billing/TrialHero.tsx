@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Loader2, CreditCard, Check } from "lucide-react";
+import { PUBLIC_PLANS, formatAud } from "@/lib/billing/plans";
 
 const TRIAL_PERKS = [
   "3 tailored CVs",
@@ -9,6 +10,8 @@ const TRIAL_PERKS = [
   "1 search profile",
   "1 discovery run",
 ];
+
+const monthlyPrice = formatAud(PUBLIC_PLANS.find((p) => p.id === "monthly")!.priceCents);
 
 /**
  * Compact horizontal trial banner — sits above the plan cards so everything
@@ -48,7 +51,7 @@ export function TrialHero() {
             </span>
           </div>
           <p className="text-xs text-text-2">
-            After 3 days → <span className="font-medium text-text">A$19.99/month</span> (Monthly plan) · Cancel anytime before trial ends
+            After 3 days → <span className="font-medium text-text">{monthlyPrice}/month</span> (Monthly plan) · Cancel anytime before trial ends
           </p>
         </div>
 

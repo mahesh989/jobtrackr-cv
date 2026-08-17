@@ -79,6 +79,19 @@ export const RoleMatch = {
 } as const;
 export type RoleMatch = (typeof RoleMatch)[keyof typeof RoleMatch];
 
+// Supabase Storage bucket names. Multiple files independently named a local
+// const for the same bucket ("tailored-cvs" x2, "cover-letters" x1) — single
+// source of truth so they can't drift apart.
+export const TAILORED_CV_BUCKET = "tailored-cvs";
+export const COVER_LETTER_BUCKET = "cover-letters";
+
+// Application email/letter body length limits — enforced both client-side
+// (ApplyModal textarea maxLength) and server-side ([letter_id] PATCH, review
+// POST, send-email dispatch). Single source of truth so the caps stay in
+// sync; a mismatch would let the client accept text the server then rejects.
+export const MAX_APPLICATION_BODY_LEN = 20_000;
+export const MAX_APPLICATION_SUBJECT_LEN = 300;
+
 // cover_letters.status — DB CHECK vocabulary (025 + Phase-11 'picking').
 export const LetterStatus = {
   PENDING: "pending",

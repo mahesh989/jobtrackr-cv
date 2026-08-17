@@ -2,9 +2,12 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { getEntitlement } from "@/lib/billing/entitlements";
+import { PUBLIC_PLANS, formatAud } from "@/lib/billing/plans";
 import { TrialHero } from "@/features/billing/TrialHero";
 import { PlanCards } from "@/features/billing/PlanCards";
 import { Button } from "@/components/ui";
+
+const monthlyPrice = formatAud(PUBLIC_PLANS.find((p) => p.id === "monthly")!.priceCents);
 
 export const metadata = { title: "Start your free trial — JobTrackr" };
 
@@ -34,7 +37,7 @@ export default async function OnboardingPlanPage({
 
         <div className="text-center">
           <h1 className="text-xl font-bold text-text">Start your free trial</h1>
-          <p className="mt-1 text-sm text-text-2">3 days free, then A$19.99/month — cancel anytime.</p>
+          <p className="mt-1 text-sm text-text-2">3 days free, then {monthlyPrice}/month — cancel anytime.</p>
         </div>
 
         {checkout === "cancelled" && (
