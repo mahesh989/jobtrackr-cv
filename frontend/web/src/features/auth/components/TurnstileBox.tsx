@@ -9,8 +9,11 @@
  * Supabase / siteverify returns "timeout-or-duplicate".
  *
  * If NEXT_PUBLIC_TURNSTILE_SITE_KEY is unset (e.g. before keys are provisioned)
- * the component renders nothing and reports a token immediately, so the form
- * stays usable in environments where the gate isn't configured yet.
+ * the component renders nothing and never calls onToken — it does not report
+ * a token. Layer-1 (Supabase) enforcement still applies server-side once the
+ * key+secret are set; this only affects local/preview environments where the
+ * gate isn't configured, and the parent form's own handling of "no token"
+ * determines whether the form stays usable there.
  */
 
 import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";

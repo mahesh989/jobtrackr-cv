@@ -137,6 +137,9 @@ export function ProfileForm({ mode, profileId, defaults, showWorkSetting = false
       {(defaults?.role_match_strict ?? false) && (
         <input type="hidden" name="role_match_strict" value="on" />
       )}
+      {/* Not rendered as its own field — carry the existing value through so
+          submitting this form doesn't silently reset it to the 25km default. */}
+      <input type="hidden" name="adzuna_distance_km" value={defaults?.adzuna_distance_km ?? 25} />
       {/* Salary fields intentionally absent → extractAdzunaFields sets them to null. */}
 
       {/* ───── 1. Identity ──────────────────────────────────────────── */}
