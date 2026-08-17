@@ -15,9 +15,8 @@
 // Cost: zero (no API/proxy). Risk: SEEK can change bot-defence rules
 // any time. That's why we keep the Apify path wired in.
 //
-// Full JD enrichment lives in `enrichWithDirectJDs` (mirrors the actor's
-// enrichWithFullJDs shape). Orchestrator picks the right enrich function
-// based on which fetch path produced the SEEK jobs in this run.
+// Full JD enrichment lives in `enrichWithDirectJDs` below — the only SEEK
+// JD-enrichment path; the Apify actor's own JD-fetcher fallback was removed.
 
 import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
 import type { NormalisedJob } from "../pipeline/types.js";
@@ -310,8 +309,7 @@ export const seekDirectAdapter: SourceAdapter = {
 // ── Full JD enrichment ────────────────────────────────────────────────────────
 /**
  * Fetch full job descriptions for SEEK survivors via direct HTML scraping
- * of /job/<id> pages. Mirrors enrichWithFullJDs from seek.ts so the
- * orchestrator can swap call sites cleanly.
+ * of /job/<id> pages. The only SEEK JD-enrichment path in production.
  *
  * Returns the same shape (with costUsd = 0 — this path is free).
  */
