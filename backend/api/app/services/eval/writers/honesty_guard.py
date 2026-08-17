@@ -168,12 +168,45 @@ def enforce_source_dates(md: str, cv_text: str) -> Tuple[str, List[str]]:
     # entry can still exist in the raw text).
     src_lower = cv_text.lower()
 
+    # C84 (#7): a bare year-digit substring search collides with AU
+    # postcodes — "...NSW 2017" reads identically to the year 2017 to a
+    # plain `"2017" in src_lower` check, so a fabricated "Jan 2017 - Dec
+    # 2017" role could be "proven" by an address elsewhere in the source
+    # CV. Build the set of GENUINE year mentions by excluding any 4-digit
+    # occurrence immediately preceded by an AU state name/abbreviation
+    # (the standard "Suburb STATE 1234" address shape) — a year that also
+    # genuinely appears elsewhere (not as a postcode) still counts, since
+    # this only excludes that ONE postcode-shaped occurrence, not the
+    # digit string globally. Round-2 review found this too broad on its
+    # own: a heading like "Brisbane QLD 2015 - 2018" or prose like
+    # "Relocated to NSW 2016 and continued casual shifts" put a GENUINE
+    # year right after a state abbreviation too, and both got wrongly
+    # excluded. The distinguishing signal is what follows: a real postcode
+    # terminates the address (end of line/heading, a comma, a pipe); a
+    # genuine year is followed by a range dash or a conjunction continuing
+    # the sentence. Only exclude when there's no such continuation.
+    _AU_STATE_TAIL_RE = re.compile(
+        r"\b(?:nsw|vic|qld|sa|wa|tas|nt|act"
+        r"|new\s+south\s+wales|victoria|queensland|south\s+australia"
+        r"|western\s+australia|tasmania|northern\s+territory"
+        r"|australian\s+capital\s+territory)\b[\s,]*$"
+    )
+    _DATE_CONTINUATION_RE = re.compile(r"^\s*(?:[-–—]|and\b)")
+    _genuine_source_years: set = set()
+    for _m in re.finditer(r"\b(?:19|20)\d{2}\b", src_lower):
+        _preceding = src_lower[max(0, _m.start() - 30):_m.start()]
+        _following = src_lower[_m.end():_m.end() + 6]
+        if _AU_STATE_TAIL_RE.search(_preceding) and not _DATE_CONTINUATION_RE.match(_following):
+            continue  # postcode-shaped, no date-range continuation
+        _genuine_source_years.add(_m.group(0))
+
     def _dates_appear_in_source(date_str: str) -> bool:
-        """True iff every year mentioned in `date_str` appears in source.
-        Strict: ANY year in the tailored date that's not in source means
-        the date string is at least partially fabricated → strip."""
-        years = re.findall(r"\b(19|20)\d{2}\b", date_str)
-        return all(y in src_lower for y in [m for m in re.findall(r"\b(?:19|20)\d{2}\b", date_str)]) and bool(years)
+        """True iff every year mentioned in `date_str` genuinely appears in
+        source (excluding postcode-shaped digit runs). Strict: ANY year in
+        the tailored date that's not in source means the date string is at
+        least partially fabricated → strip."""
+        years = re.findall(r"\b(?:19|20)\d{2}\b", date_str)
+        return bool(years) and all(y in _genuine_source_years for y in years)
 
     def _rewrite(m: re.Match) -> str:
         prefix, inner, suffix = m.group(1), m.group(2), m.group(3)
@@ -226,26 +259,48 @@ def enforce_source_dates(md: str, cv_text: str) -> Tuple[str, List[str]]:
 # Setting tokens that name a SPECIFIC work setting. If a tailored CV's role
 # header introduces one of these but the source role doesn't evidence it,
 # strip the descriptor — the role's identity must come from source.
+# C84 (#9): every pattern below carries a trailing s?\b — without the \b,
+# "ndis\s+home" matches the "NDIS Home" prefix of "NDIS Homecare Package"
+# (a single word, no space before "care"), and the sub then corrupts the
+# phrase into "care Package". A trailing \b requires the match to end at a
+# genuine word boundary, so it correctly does NOT match inside "Homecare"
+# at all (there's no boundary between "home" and "care"). The `s?` matters
+# too: a BARE \b (round-1 fix) broke plural role titles like "Retirement
+# Villages Coordinator" / "Hospital Wards Assistant" / "Operating Theatres
+# Aide" — those no longer matched at all, so a fabricated plural descriptor
+# with ZERO source evidence survived unstripped (the opposite failure
+# direction from #9's original corruption bug).
 _SETTING_DESCRIPTORS = {
-    "retirement village": r"retirement\s+village",
-    "retirement living": r"retirement\s+living",
-    "acute hospital": r"acute\s+hospital",
-    "hospital ward": r"hospital\s+ward",
-    "surgical ward": r"surgical\s+ward",
-    "operating theatre": r"operating\s+theatre",
-    "ndis home": r"ndis\s+home",
+    "retirement village": r"retirement\s+villages?\b",
+    "retirement living": r"retirement\s+living\b",
+    "acute hospital": r"acute\s+hospitals?\b",
+    "hospital ward": r"hospital\s+wards?\b",
+    "surgical ward": r"surgical\s+wards?\b",
+    "operating theatre": r"operating\s+theatres?\b",
+    "ndis home": r"ndis\s+homes?\b",
 }
 
 # Source-role markers per setting — phrases in the source bullets/role
 # line that legitimise the descriptor.
+#
+# C84 (#6): every alternative below is now a multi-word, setting-specific
+# PHRASE, never a bare generic word. The original bare-word alternatives
+# ("acute", "hospital", "ward", "theatre", "surgical", "ndis" alone) each
+# have plausible non-evidentiary aged-care readings — "liaised with
+# hospital discharge planners", "organised theatre outings for residents",
+# "residents with complex and acute care needs" — that let an incidental
+# mention "prove" a setting claim the candidate never actually worked in.
+# Requiring a specific phrase closes that: any ONE of several genuine
+# phrasings still legitimises the claim (that's what the OR is for), but a
+# single generic word floating anywhere in the source no longer can.
 _SETTING_EVIDENCE = {
     "retirement village": (r"retirement\s+village", r"retirement\s+living", r"independent\s+living"),
     "retirement living": (r"retirement\s+village", r"retirement\s+living", r"independent\s+living"),
-    "acute hospital": (r"acute", r"hospital"),
-    "hospital ward": (r"hospital", r"ward\b"),
-    "surgical ward": (r"surgical", r"operating\s+theatre"),
-    "operating theatre": (r"theatre", r"surgical"),
-    "ndis home": (r"ndis", r"home\s+support"),
+    "acute hospital": (r"acute\s+hospital", r"acute\s+ward", r"hospital\s+ward"),
+    "hospital ward": (r"hospital\s+ward", r"acute\s+ward"),
+    "surgical ward": (r"surgical\s+ward", r"operating\s+theatre"),
+    "operating theatre": (r"operating\s+theatre", r"surgical\s+ward"),
+    "ndis home": (r"ndis\s+home", r"home[-\s]based\s+ndis", r"in[-\s]home\s+ndis"),
 }
 
 
@@ -501,34 +556,96 @@ def _strip_employer_blocks(cv_text: str, drop_employers: set) -> str:
 # Anything claimed but not held is downgraded — the claim phrase is stripped
 # from the bullet and the user is notified via the quality_flags badge.
 
-# Credential families. (name, individual_regex, profile_key, holds_check_alone)
+# Credential families. (name, individual_regex, profile_key, anchor_mode)
 # `individual_regex` matches the credential in isolation. `profile_key` is the
 # slot in contact_details.credentials we check; None means we have no profile
 # evidence either way and must strip when the claim is found.
+#
+# C84 (#8): `anchor_mode` distinguishes two shapes families need to be
+# disambiguated from a non-claim mention:
+#   "trailing_noun" — "police" and bare "ndis" are highly ambiguous generic
+#     words with plausible non-credential readings ("liaised with police",
+#     "supported NDIS participants") — require a trailing noun (clearance/
+#     check/certificate/etc.) immediately after to confirm it's a claim.
+#   "claim_prefix"  — "WWCC" / "blue card" / "pre-employment medical" are
+#     self-contained credential NAMES (WWCC's own C already stands for
+#     Check) with no trailing-noun ambiguity, but round-2 independent
+#     review found the opposite problem: they're also common DUTY-
+#     description vocabulary ("Maintained the WWCC register", "Coordinated
+#     pre-employment medical assessments for new staff") that has nothing
+#     to do with the CANDIDATE'S OWN credential. Requiring a preceding
+#     claim marker ("with (current)?", "hold(s)? (a)? (current)?",
+#     "current") distinguishes "I have X" from "I administer/process X for
+#     others" — the duty-verb examples above are preceded by "Maintained
+#     the"/"Coordinated", neither of which is a claim marker.
 _CREDENTIAL_FAMILIES = [
     ("pre-employment medical",
      re.compile(r"(?ix)\bpre[-\s]?employment\s+medical\b"),
-     None),
+     None,
+     "claim_prefix"),
     ("ndis worker clearance",
      re.compile(r"(?ix)\bndis(?:\s+worker)?(?:\s+screening)?\b"),
-     None),
+     None,
+     "trailing_noun"),
     ("police clearance",
      re.compile(r"(?ix)\b(?:national\s+)?police\b"),
-     "police_check"),
+     "police_check",
+     "trailing_noun"),
     ("working with children check",
      re.compile(r"(?ix)\b(?:working\s+with\s+children\s+check|wwcc|blue\s+card)\b"),
-     "wwcc"),
+     "wwcc",
+     "claim_prefix"),
 ]
+
+# Trailing nouns that turn an ambiguous family word into an unambiguous
+# credential claim, used ONLY by Stage 2's per-family "trailing_noun" mode
+# (anchored immediately after a specific family regex match, so a broad
+# vocabulary here is safe). C84 (#8): added certificate(s)/certification(s)
+# — "Holds a current National Police Certificate" previously escaped both
+# stages because "certificate" wasn't in this list at all.
+#
+# Deliberately NOT used by _COMPOUND_CLAIM_RE below (see its own comment) —
+# that regex's filler is unanchored prose between "with" and the trailing
+# noun, so "certificate"/"certification" there swallows unrelated content
+# whenever a genuine qualification sentence happens to follow a " with "
+# earlier in the same bullet ("Familiar with NDIS Practice Standards and
+# hold a current Certificate III in Individual Support" -> mangled).
+_CREDENTIAL_TRAILING_NOUNS = (
+    r"clearances?|checks?|certificates?|certifications?|screenings?"
+    r"|endorsements?|requirements?|compliance"
+)
+
+# Claim-prefix markers for Stage 2's "claim_prefix" mode — a family word is
+# only a personal credential CLAIM when preceded by one of these, not a
+# duty-description verb ("Maintained", "Coordinated", "Trained ... on").
+#
+# "with" REQUIRES a following "current" — round-3 review found bare
+# "\bwith\s+(?:current\s+)?" (an optional "current") matched ANY "with
+# <family>", including duty prose that also uses "with" as a preposition:
+# "Liaised with WWCC administrators", "Assisted with pre-employment
+# medical bookings", "Worked with blue card holders", "Onboarded staff
+# with current WWCC verification recorded" — none of those are the
+# candidate claiming to hold the credential themselves.
+_CREDENTIAL_CLAIM_PREFIX = (
+    r"\bwith\s+current\s+|\bholds?\s+(?:a\s+)?(?:current\s+)?|\bcurrent\s+"
+)
 
 # Match the COMPOUND compliance clause: " with [current] compliance for/with X,
 # Y, and Z clearances/checks/etc." — the form composers use to list multiple
 # credentials at once. Anchored on the trailing credential noun so we strip
 # the whole list at once rather than fragments.
+#
+# Deliberately uses the ORIGINAL, narrower trailing-noun set (not
+# _CREDENTIAL_TRAILING_NOUNS's certificate(s)/certification(s) addition —
+# see that constant's own comment for why).
+_COMPOUND_CLAIM_TRAILING_NOUNS = (
+    r"clearances?|checks?|screenings?|endorsements?|requirements?|compliance"
+)
 _COMPOUND_CLAIM_RE = re.compile(
     r"(?ix)"
     r"\s*,?\s+with\s+(?:current\s+)?(?:compliance\s+(?:for|with)\s+)?"
     r"[a-z][a-z0-9\-\s,]*?"
-    r"\b(?:clearance|check|screening|endorsement|requirements?|compliance)s?\b\.?"
+    rf"\b(?:{_COMPOUND_CLAIM_TRAILING_NOUNS})\b\.?"
 )
 
 
@@ -583,7 +700,7 @@ def enforce_credential_claims(
         def _strip_compound(match: "re.Match[str]") -> str:
             clause = match.group(0)
             mentioned: List[Tuple[str, Optional[str]]] = []
-            for name, family_re, profile_key in _CREDENTIAL_FAMILIES:
+            for name, family_re, profile_key, _anchor_mode in _CREDENTIAL_FAMILIES:
                 if family_re.search(clause):
                     mentioned.append((name, profile_key))
             if not mentioned:
@@ -602,22 +719,49 @@ def enforce_credential_claims(
         updated = _COMPOUND_CLAIM_RE.sub(_strip_compound, updated)
 
         # ── Stage 2: leftover individual mentions ────────────────────────
-        for name, family_re, profile_key in _CREDENTIAL_FAMILIES:
-            # Look for ", X check"  or  " X clearance"  or  "X check"  trailing forms.
-            # The trailing noun is required so a stray "police" word (e.g. inside
-            # the word "policy") is not stripped.
-            trailing = re.compile(
-                family_re.pattern + r"\s+(?:clearance|check|screening|endorsement|compliance|requirements?)s?\b\.?",
+        for name, family_re, profile_key, anchor_mode in _CREDENTIAL_FAMILIES:
+            trailing_noun_pattern = re.compile(
+                family_re.pattern + rf"\s+(?:{_CREDENTIAL_TRAILING_NOUNS})\b\.?",
                 family_re.flags,
             )
-            if not trailing.search(updated):
-                continue
+            if anchor_mode == "trailing_noun":
+                # Ambiguous generic word (police / bare ndis) — require a
+                # trailing noun ("X check", "X clearance") to confirm it's
+                # actually a credential CLAIM, not an incidental mention
+                # (e.g. "police" inside "policy", or "liaised with police").
+                candidate_patterns = [trailing_noun_pattern]
+            else:
+                # "claim_prefix" — self-contained credential name (WWCC /
+                # blue card / pre-employment medical). Round-2 review found
+                # requiring NO trailing noun at all also stripped duty prose
+                # ("Maintained the WWCC register"). Round-3 found the fix
+                # for that (a required claim-marker prefix) then lost
+                # coverage for genuine claims phrased with a trailing noun
+                # instead of a prefix ("Obtained WWCC clearance in 2019").
+                # Try BOTH shapes — a trailing-noun suffix still proves a
+                # claim on its own, same as the ambiguous families; the
+                # claim-prefix pattern additionally catches the no-suffix
+                # form ("with current WWCC"). (?ix) must stay at position 0,
+                # so build the prefix pattern from the family body (with
+                # its own inline-flag prefix removed) rather than
+                # prepending onto family_re.pattern directly.
+                family_body = family_re.pattern.replace("(?ix)", "", 1)
+                candidate_patterns = [
+                    trailing_noun_pattern,
+                    re.compile(
+                        rf"(?:{_CREDENTIAL_CLAIM_PREFIX})(?:{family_body})",
+                        re.IGNORECASE,
+                    ),
+                ]
             if _user_holds(creds, profile_key):
                 continue
-            new_line = trailing.sub("", updated)
-            if new_line != updated:
-                updated = new_line
-                notes.append(f"Stripped unverifiable claim: '{name}'")
+            for pattern_to_strip in candidate_patterns:
+                if not pattern_to_strip.search(updated):
+                    continue
+                new_line = pattern_to_strip.sub("", updated)
+                if new_line != updated:
+                    updated = new_line
+                    notes.append(f"Stripped unverifiable claim: '{name}'")
 
         if updated != line:
             # Cosmetic cleanup: collapse the kinds of debris stripping leaves
