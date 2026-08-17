@@ -166,8 +166,8 @@ async def run_keyword_feasibility(
     # supplied CV evidence quote. The LLM frequently cites a related-skill
     # quote and rationalises a cross-skill inference (e.g. evidence
     # "dressing, bathing, feeding" → claim "continence care"), which is
-    # NOT verbatim grounding. Entries failing this check are DROPPED
-    # entirely (not downgraded to `inject_with_inference`), consistent
+    # NOT verbatim grounding. Entries failing this check are removed from
+    # injection and recorded in `cannot_inject` as honest gaps, consistent
     # with the prompt's HARD "no fabrication" rule.
     plan = _enforce_inject_directly_groundedness(plan, cv_text)
 
@@ -990,13 +990,12 @@ def _evidence_grounds_keyword_verbatim(
 def _enforce_inject_directly_groundedness(
     plan: Dict[str, List[Dict[str, Any]]], cv_text: str,
 ) -> Dict[str, List[Dict[str, Any]]]:
-    """Drop `inject_directly` entries whose evidence doesn't literally
-    contain the keyword's word family (M4 — Phase F).
+    """Re-home direct entries with ungrounded evidence as honest gaps.
 
     Previously these were downgraded to inject_with_inference, which
     silently softened the honesty contract ("must be verbatim → may be
-    inferred"). Now ungrounded entries are dropped entirely, consistent
-    with the prompt's HARD "no fabrication" rule.
+    inferred"). Ungrounded entries are not injected, but remain visible in
+    ``cannot_inject`` so the user receives a truthful gap explanation.
     Mutates a shallow copy. Idempotent.
     """
     if not plan or not cv_text:
@@ -1006,6 +1005,7 @@ def _enforce_inject_directly_groundedness(
         return plan
     kept_direct: List[Dict[str, Any]] = []
     dropped: List[str] = []
+    rejected: List[Dict[str, Any]] = []
     for entry in direct:
         if not isinstance(entry, dict):
             continue
@@ -1015,10 +1015,20 @@ def _enforce_inject_directly_groundedness(
             kept_direct.append(entry)
         else:
             dropped.append(kw)
+            rejected.append({
+                "keyword": kw,
+                "category": entry.get("category") or "",
+                "bucket": entry.get("bucket") or "",
+                "reason": (
+                    "Classifier evidence was absent from the CV or did not contain "
+                    "the keyword; recorded as an honest gap."
+                ),
+            })
     if not dropped:
         return plan
     out = dict(plan)
     out["inject_directly"] = kept_direct
+    out["cannot_inject"] = list(plan.get("cannot_inject") or []) + rejected
     logger.info(
         "feasibility groundedness gate: dropped %d inject_directly "
         "(evidence quote did not contain keyword): %s",

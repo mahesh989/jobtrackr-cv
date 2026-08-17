@@ -146,11 +146,8 @@ class TestForceInjectMissedApproved:
 class TestInjectDirectlyGroundednessGate:
     """Real Shanti tailored runs surfaced: the LLM puts cross-skill rationale
     entries into inject_directly. e.g. evidence 'dressing, bathing, feeding'
-    → claim 'continence care'. The deterministic gate downgrades any
-    inject_directly entry whose evidence quote doesn't share a word-family
-    token with the keyword. Same data survives — moves to
-    inject_with_inference so the UI labels it 'Inferred from adjacent
-    evidence' instead of 'Strong CV evidence'."""
+    → claim 'continence care'. The deterministic gate removes any ungrounded
+    entry from injection and records it in cannot_inject as an honest gap."""
 
     _CV = (
         "Aged Care Placement at RFBI Concord. Assisted with daily living "
@@ -182,6 +179,62 @@ class TestInjectDirectlyGroundednessGate:
         # Gone from direct — and NOT promoted to inference (M4 drop policy)
         assert out["inject_directly"] == []
         assert out["inject_with_inference"] == []
+
+    def test_rejected_direct_entry_becomes_an_honest_gap(self):
+        """A rejected claim must remain visible in the feasibility plan."""
+        from app.services.pipeline.steps.keyword_feasibility import (
+            _enforce_inject_directly_groundedness,
+        )
+        plan = {
+            "inject_directly": [
+                {"keyword": "continence care",
+                 "category": "domain_knowledge", "bucket": "required",
+                 "evidence": "dressing, bathing, feeding",
+                 "rationale": "related care duties"},
+            ],
+            "inject_as_extension": [],
+            "inject_with_inference": [],
+            "cannot_inject": [],
+        }
+        cv = "Supported residents with dressing, bathing, feeding and mobility."
+
+        out = _enforce_inject_directly_groundedness(plan, cv)
+
+        assert out["inject_directly"] == []
+        assert out["cannot_inject"] == [{
+            "keyword": "continence care",
+            "category": "domain_knowledge",
+            "bucket": "required",
+            "reason": (
+                "Classifier evidence was absent from the CV or did not contain "
+                "the keyword; recorded as an honest gap."
+            ),
+        }]
+
+    def test_honest_gap_reason_covers_evidence_missing_from_cv(self):
+        from app.services.pipeline.steps.keyword_feasibility import (
+            _enforce_inject_directly_groundedness,
+        )
+        plan = {
+            "inject_directly": [{
+                "keyword": "continence care",
+                "category": "domain_knowledge",
+                "bucket": "required",
+                "evidence": "Continence care for residents",
+            }],
+            "inject_as_extension": [],
+            "inject_with_inference": [],
+            "cannot_inject": [],
+        }
+
+        out = _enforce_inject_directly_groundedness(
+            plan, "Supported residents with dressing and mobility."
+        )
+
+        assert out["cannot_inject"][0]["reason"] == (
+            "Classifier evidence was absent from the CV or did not contain the "
+            "keyword; recorded as an honest gap."
+        )
 
     def test_verbatim_keyword_kept_in_direct(self):
         """When the evidence quote contains the keyword's word family,
