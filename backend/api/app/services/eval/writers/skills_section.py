@@ -493,8 +493,16 @@ def _normalise_skills_case(markdown: str) -> str:
 _BR_AM_SKILL_SUBS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\bperson[- ]centered\b", re.IGNORECASE),         "Person-Centred"),
     (re.compile(r"\bperson[- ]centred\b", re.IGNORECASE),          "Person-Centred"),
-    (re.compile(r"\bpatient[- ]centered\b", re.IGNORECASE),         "Person-Centred"),
-    (re.compile(r"\bpatient[- ]centred\b", re.IGNORECASE),          "Person-Centred"),
+    # C89 (#23): "patient-centred" and "person-centred" are DIFFERENT
+    # concepts in healthcare (patient-centred narrows to the individual
+    # patient's clinical needs/preferences; person-centred is the broader
+    # whole-person aged-care/disability framing) — not a spelling variant
+    # of each other. This block only normalises the genuine American/
+    # British spelling pair ("centered" -> "centred"); it must never
+    # substitute "patient" for "person". Confirmed with the user
+    # (2026-08-18): fix as a bug, not an intentional domain choice.
+    (re.compile(r"\bpatient[- ]centered\b", re.IGNORECASE),         "Patient-Centred"),
+    (re.compile(r"\bpatient[- ]centred\b", re.IGNORECASE),          "Patient-Centred"),
     (re.compile(
         r"\badvocacy\s+for\s+(?:patients|residents|clients|people)(?:\s+(?:and|or)\s+(?:patients|residents|clients|people))?\b",
         re.IGNORECASE
