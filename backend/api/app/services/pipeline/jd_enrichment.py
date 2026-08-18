@@ -32,10 +32,16 @@ def build_boilerplate_blob(jd_section_map: Dict[str, str]) -> str:
     try:
         _bp_headings = (jd_section_map.get("_boilerplate") or "")
         if _bp_headings:
+            from app.services.preprocessing.jd_cleaner import BOILERPLATE_HEADING_SEP
             from app.services.skills.post_process import _ground_norm
+            # C67: was .split(",") — a heading legitimately containing a
+            # comma (e.g. "Our Benefits, Perks & Culture") corrupted itself
+            # AND its neighbour on round-trip, silently dropping both
+            # sections' bodies from this provenance blob. Must match
+            # jd_cleaner.clean_jd_text's join exactly.
             _bp_bodies = " ".join(
                 jd_section_map.get(h.strip(), "")
-                for h in _bp_headings.split(",")
+                for h in _bp_headings.split(BOILERPLATE_HEADING_SEP)
             )
             _boilerplate_blob = f" {_ground_norm(_bp_bodies)} "
     except Exception:  # noqa: BLE001 — provenance is best-effort

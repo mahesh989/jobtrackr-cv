@@ -259,9 +259,18 @@ def _discover_domain(tavily_results: list[dict], company_domain: Optional[str]) 
         m = re.match(r"https?://(?:www\.)?([^/]+)", url)
         if m:
             host = m.group(1).lower()
-            root = ".".join(host.split(".")[-2:])
-            if root not in skip_hosts:
-                return host
+            # C67: was `root = ".".join(host.split(".")[-2:])` compared by
+            # exact match — correct for a plain 2-label TLD ("seek.com" ->
+            # last 2 labels IS "seek.com") but wrong for any compound
+            # ccTLD in skip_hosts ("seek.com.au" needs 3 labels; the last
+            # 2 are just "com.au", which is never in skip_hosts, so the
+            # job board was never actually skipped). Suffix match against
+            # each skip_hosts entry directly instead — correct regardless
+            # of how many labels the entry's TLD has, no hardcoded list of
+            # compound TLDs required.
+            if any(host == h or host.endswith(f".{h}") for h in skip_hosts):
+                continue
+            return host
     return None
 
 
