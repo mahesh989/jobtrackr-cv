@@ -51,12 +51,12 @@ def _render_contact_line(contact: str) -> List[Any]:
     fragments: List[str] = []
     for part in parts:
         if "@" in part and "." in part and " " not in part:
-            fragments.append(f'<a href="mailto:{part}" color="#000080">{_escape(part)}</a>')
+            fragments.append(f'<a href="mailto:{part}" color="{C_LINK.hexval()}">{_escape(part)}</a>')
         elif re.search(r'(linkedin\.com|github\.com|github\.io|behance|dribbble|https?://|www\.)', part, re.I):
             url = _ensure_https(part)
             label = _contact_label(url)
             fragments.append(
-                f'<a href="{url.replace("&", "&amp;")}" color="#000080">{_escape(label)}</a>'
+                f'<a href="{url.replace("&", "&amp;")}" color="{C_LINK.hexval()}">{_escape(label)}</a>'
             )
         else:
             fragments.append(_escape(part))

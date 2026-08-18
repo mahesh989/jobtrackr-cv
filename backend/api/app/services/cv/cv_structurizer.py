@@ -250,7 +250,16 @@ def _normalise_education(raw: Any) -> Dict[str, Any]:
         "location":      _str(raw.get("location")),
         "start_date":    _strip_date_label(raw.get("start_date")),
         "end_date":      _strip_date_label(raw.get("end_date")),
-        "completed":     bool(raw.get("completed")),
+        # C67: default to completed=True when the AI omits the field
+        # entirely — the common case for an old, obviously-finished degree,
+        # since the extraction prompt doesn't ask for an explicit boolean.
+        # bool(raw.get("completed")) previously defaulted a missing field to
+        # False, which _sort_education_recent_first below reads as "ongoing"
+        # (pins it to the same (9999, 12) sort bucket as a genuinely-current
+        # degree) — silently reordering the whole education section by
+        # AI-extraction luck rather than actual end_date. An explicit
+        # "completed": false from the AI still overrides this default.
+        "completed":     bool(raw.get("completed", True)),
         # Carried through when the post-processor moved an item out of
         # certifications; the UI surfaces an "moved from certifications"
         # badge so the user understands the rebucketing.
