@@ -16,7 +16,11 @@
 > (tier-projected JD + the profile's own filters + per-user distance). Consequences:
 > - **Zero web changes, no `analysis_runs` FK repoint** — open decision #1 is now MOOT.
 > - **`profile_jobs` (068) is reserved/unused** under this model (table stays, harmless).
-> - Everything gated by `USE_GLOBAL_BUCKET` (default off); flag off = byte-for-byte old behaviour.
+> - Everything gated by `USE_GLOBAL_BUCKET`, which defaults to off in code but has been
+>   set to `true` in every environment that matters (Fly production secret,
+>   `backend/worker/.env`/`.env.example`) since 2026-08-08 — **corrected 2026-08-19,
+>   this line previously implied bucket mode was still opt-in; it is the live default
+>   everywhere except an env with the var unset.** Flag off = byte-for-byte old behaviour.
 > Where the text below says reads switch to `profile_jobs`, read it as "served into `jobs`".
 
 ## 1. Problem & goal

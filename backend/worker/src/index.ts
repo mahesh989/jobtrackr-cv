@@ -73,11 +73,14 @@ const worker = new Worker<PipelineJobData>(
   },
   {
     connection,
-    // Concurrency MUST stay at 1 on the 512MB shared-cpu-1x machine:
-    // Jora spawns a Playwright Chromium per pipeline, ~200-300MB resident.
-    // Two parallel runs send the VM into swap thrashing and Jora hangs
-    // silently inside makeBrowser() with no error to log. Increase only
-    // if memory is bumped via `fly scale memory`.
+    // Concurrency stays at 1 on the 512MB shared-cpu-1x machine. Originally
+    // set for Jora, which spawned a Playwright Chromium per pipeline
+    // (~200-300MB resident) and hung the VM under two parallel runs — Jora
+    // has since been deleted entirely (see graph.json BUG-5), and no current
+    // adapter uses Playwright/Chromium. The underlying 512MB constraint is
+    // still real; this value has NOT been re-evaluated against the current
+    // pipeline's memory profile (AI calls, PDF generation, etc.), so treat
+    // raising it as a fresh decision, not a leftover restriction to remove.
     concurrency: 1,
     // Upstash bills per command, and BullMQ's idle loop at the defaults
     // (drainDelay 5s, stalledInterval 30s) measured 1.03 cmds/sec ≈ 2.7M

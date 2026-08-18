@@ -8,9 +8,12 @@
 //   31 web read sites and the analyze/applications flows keep reading `jobs`
 //   unchanged; profile_jobs (068) is reserved/unused under this model.
 //
-// Everything here is gated by USE_GLOBAL_BUCKET (default off) and is best-effort
-// (try/catch): with the flag off, or before migrations 066-067 are applied, the
-// worker behaves exactly as before.
+// Everything here is gated by USE_GLOBAL_BUCKET, which defaults to off in code
+// (unset env var) but is set to true everywhere the worker actually runs today
+// (Fly production secret + backend/worker/.env and .env.example) — the flag-off
+// legacy path is therefore dead in practice, not a live alternate mode. Access
+// is best-effort (try/catch): with the flag off, or before migrations 066-067
+// are applied, the worker behaves exactly as before.
 
 import { db } from "../db/client.js";
 import { selectInChunked } from "../db/chunkedIn.js";
