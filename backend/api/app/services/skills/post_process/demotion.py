@@ -27,8 +27,9 @@ from ._common import logger
 # The prompt-level "About Us suppression" rule helps but doesn't fully
 # stop this on JDs that weave brand prose into the role description. This
 # deterministic post-process catches the rest: when the JD's setting is
-# clearly RESIDENTIAL, demote off-setting domain keywords from required
-# to preferred. We don't drop them entirely — they may still be present
+# clearly RESIDENTIAL or HOME_COMMUNITY, demote that setting's off-setting
+# domain keywords from required to preferred. We don't drop them entirely
+# — they may still be present
 # as a real nice-to-have — but they no longer drive required-bucket
 # match-rate scoring.
 
@@ -42,7 +43,7 @@ _OFF_SETTING_DOMAIN_KEYWORDS: Dict[str, frozenset] = {
         "mental health support", "mental health care",
         "home care", "community care", "in-home care", "domiciliary care",
     }),
-    "home": frozenset({
+    "home_community": frozenset({
         # Home-care JDs often quote the provider's portfolio: "we support
         # people across aged care, disability and mental health services."
         # On a home-care role these are NOT the day-to-day work.

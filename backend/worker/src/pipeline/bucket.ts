@@ -311,7 +311,7 @@ export async function evictStaleBucket(): Promise<void> {
 
 // ── Serve: bucket → this profile's jobs rows (projection) ────────────────────
 
-interface BucketRow {
+export interface BucketRow {
   url_hash: string;
   canonical_url: string;
   source: string;
@@ -345,8 +345,10 @@ interface BucketRow {
   is_agency?: boolean | null;
 }
 
-/** Choose tier-appropriate JD text. Adzuna full JD is gated to unlimited. */
-function projectDescription(row: BucketRow, tier: string): string {
+/** Choose tier-appropriate JD text. Adzuna full JD is gated to unlimited.
+ * Exported for direct unit testing (C67) — same rationale as
+ * deriveDescriptionFields above: this triple IS the paywall gate. */
+export function projectDescription(row: BucketRow, tier: string): string {
   const full = row.description_full ?? row.description_snippet ?? "";
   const snippet = row.description_snippet ?? full;
   if (row.jd_access === "unlimited_only" && tier !== "unlimited") return snippet;
