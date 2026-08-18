@@ -285,6 +285,7 @@ class AIClient:
         temperature: float = 0.1,
         no_training: bool = False,
         max_attempts: int = 3,
+        operation: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Return a parsed JSON object.
@@ -301,6 +302,16 @@ class AIClient:
         other AIClientError variants propagate immediately (a regen wouldn't
         help and would waste the user's tokens). Raises the last
         AIJSONParseError if every attempt fails.
+
+        operation — override the operation label for this specific call,
+        same as complete()'s own parameter. Falls back to self.operation.
+        Added C67: this parameter was previously silently dropped, unlike
+        complete()'s identical one — every complete_json() call (the
+        majority of this codebase's AI calls: JD analysis, CV
+        structurization, skills categorisation, ...) was attributed to
+        self.operation's constructor-time default in the ai_calls
+        telemetry table regardless of what the caller actually wanted
+        logged.
         """
         json_system = (
             system
@@ -314,6 +325,7 @@ class AIClient:
                 # to 0.0 to bias toward strict, well-formed JSON.
                 temperature=temperature if attempt == 1 else 0.0,
                 no_training=no_training,
+                operation=operation,
             )
             try:
                 return _extract_json(raw)
@@ -746,17 +758,28 @@ def _extract_json(text: str) -> Dict[str, Any]:
     """
     stripped = _FENCE_RE.sub("", text).strip()
 
-    # 2. Strict parse of the whole string.
+    # 2. Strict parse of the whole string. Must still be a dict — json.loads
+    #    happily parses a top-level list/string/number as "valid JSON", but
+    #    this function's contract (and every caller's `.get(...)` usage) is
+    #    a dict. Returning anything else here would silently skip
+    #    complete_json's regenerate-on-failure retry instead of triggering
+    #    it (C67).
     try:
-        return json.loads(stripped)
+        parsed = json.loads(stripped)
+        if isinstance(parsed, dict):
+            return parsed
     except json.JSONDecodeError:
         pass
 
-    # 3. Strict parse of the first balanced { ... } block.
+    # 3. Strict parse of the first balanced { ... } block. Always a dict by
+    #    construction (the block starts at the first "{"), but keep the
+    #    check for defense-in-depth / consistency with step 2.
     candidate = _first_balanced_object(stripped)
     if candidate is not None:
         try:
-            return json.loads(candidate)
+            parsed = json.loads(candidate)
+            if isinstance(parsed, dict):
+                return parsed
         except json.JSONDecodeError:
             pass
 

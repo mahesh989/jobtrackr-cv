@@ -42,7 +42,10 @@ async def generate_opening_variants_endpoint(
         body.user_id, body.job_id, body.ai_provider,
     )
 
-    ai_client = build_ai_client_or_422(body, detail_prefix="Invalid AI client configuration: ")
+    ai_client = build_ai_client_or_422(
+        body, detail_prefix="Invalid AI client configuration: ",
+        operation="generate_opening_variants", user_id=body.user_id,
+    )
 
     try:
         variants = await generate_opening_variants(ai_client, body)

@@ -42,7 +42,7 @@ async def extract_voice_fingerprint_endpoint(
     NOTE: voice_sample_text must not appear in logs. If request-body logging
     is ever added to this service, add this field to the redaction list.
     """
-    ai_client = build_ai_client_or_422(body)
+    ai_client = build_ai_client_or_422(body, operation="extract_voice_fingerprint")
 
     try:
         result = await extract_voice_fingerprint(ai_client, body.voice_sample_text)
@@ -92,7 +92,10 @@ async def voice_rewrite_email_endpoint(
         body.user_id, body.letter_id, body.ai_provider, body.job_title, body.company,
     )
 
-    ai_client = build_ai_client_or_422(body, detail_prefix="Invalid AI client configuration: ")
+    ai_client = build_ai_client_or_422(
+        body, detail_prefix="Invalid AI client configuration: ",
+        operation="voice_rewrite_email", user_id=body.user_id,
+    )
 
     user_prompt = VOICE_EMAIL_USER_TEMPLATE.format(
         voice_sample=body.voice_sample_text,
