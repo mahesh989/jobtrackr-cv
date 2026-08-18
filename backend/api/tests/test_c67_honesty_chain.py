@@ -226,6 +226,83 @@ def test_final_company_anchor_uses_the_pre_filtered_cv() -> None:
     assert "_enforce_company_anchor(verified_md, anchor_cv_text)" in src
 
 
+_FULL_SOURCE_CV = """\
+## Professional Summary
+Dedicated aged care professional with hands-on experience at Alpha Aged Care
+and Beta Care Home. Delivers safe, person-centred personal care.
+
+## Skills
+Personal care, medication assistance, manual handling, documentation
+
+## Experience
+### Alpha Aged Care
+*Assistant in Nursing | Jan 2024 – Present*
+- Provided personal care and medication assistance to residents.
+- Documented care delivery in line with facility policy.
+
+### Beta Care Home
+*Personal Care Worker | Jan 2020 – Dec 2021*
+- Supported residents with personal care and daily living activities.
+
+## Awards
+- Employee of the Month, Alpha Aged Care, 2024
+"""
+
+
+def test_writer_w8_verified_runs_end_to_end_and_returns_verified_output(monkeypatch) -> None:
+    """C67: every other test in this file exercises _writer_w8_verified for
+    its intermediate data flow (what verify_claims receives, how the anchor
+    is chosen) but none of them capture and assert on its actual RETURN
+    VALUE — the default production writer's full deterministic
+    post-processing chain (S1 bridge, honesty guards, skills hygiene,
+    awards normalisation, display-heading pass, ...) has never been run
+    end-to-end and checked against realistic output. This runs the whole
+    function against a realistic multi-section CV and asserts the final
+    result is well-formed and hasn't lost its honesty-critical content."""
+    result = _impl.WriterResult(
+        tailored_md=_FULL_SOURCE_CV,
+        jd_analysis={"job_title": "Assistant in Nursing"},
+        matching={},
+        initial_ats_internal={},
+        feasibility={},
+        extras={"role_family": "nursing"},
+    )
+    monkeypatch.setattr(_impl, "_writer_w8_integrated", AsyncMock(return_value=result))
+
+    async def _verify_noop(_client, markdown: str, _source_cv: str):
+        # verify_claims is the one real AI entailment step in this chain —
+        # stub it as a no-op repair (returns input unchanged) so this test
+        # exercises _writer_w8_verified's own deterministic chain around
+        # it, not verify.py's own logic (which has its own dedicated tests).
+        return markdown, {"checked": 0, "repaired": 0, "dropped": 0}
+
+    monkeypatch.setattr(_impl, "verify_claims", _verify_noop)
+
+    client = MagicMock()
+    client.complete = AsyncMock(return_value="")  # no bullets queued for targeted rewrite
+
+    final = asyncio.get_event_loop().run_until_complete(
+        _impl._writer_w8_verified(
+            client=client,
+            cv_text=_FULL_SOURCE_CV,
+            jd_text="Assistant in Nursing — residential aged care role.",
+            contact_details=None,
+            vertical="nursing",
+        )
+    )
+
+    assert isinstance(final, _impl.WriterResult)
+    assert final.tailored_md, "the default writer must not return empty output"
+    # Structural sanity — the chain must not have dropped whole sections.
+    assert "## Experience" in final.tailored_md
+    assert "Alpha Aged Care" in final.tailored_md
+    assert "Beta Care Home" in final.tailored_md
+    # Honesty-critical: real employer names must survive the full
+    # honesty-guard + re-run gauntlet, not just the first pass.
+    assert "verify" in final.extras
+    assert final.extras["verify"] == {"checked": 0, "repaired": 0, "dropped": 0}
+
+
 def test_verifier_receives_the_same_pre_filtered_cv_as_the_final_anchor(monkeypatch) -> None:
     """The verifier cannot repair a summary with an intentionally removed role."""
     result = _impl.WriterResult(

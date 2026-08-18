@@ -126,3 +126,44 @@ class TestGoldenAggregate:
         assert total == 0, (
             f"corpus has {total} hallucinations across {len(results)} JDs"
         )
+
+
+class TestScoreCategoriesEmptyExpectedBucket:
+    """C67: an empty expected bucket previously evaded hallucination checks
+    entirely — ``evaluate()``'s per-category loop hit a bare ``continue``
+    for any category with no expected items, before it ever computed the
+    false-positive set for that category. A hallucination landing wholly in
+    an empty-expected category (e.g. the model invents a soft skill in a JD
+    hand-labelled "no soft skills required") was therefore invisible to
+    ``test_per_jd_zero_hallucinations`` / ``test_aggregate_zero_hallucinations``
+    above, on both this corpus and any future one."""
+
+    def test_hallucination_in_empty_expected_category_is_caught(self):
+        from tests.golden.harness import _score_categories
+
+        expected = {
+            "technical": ["python"],
+            "soft_skills": [],
+            "domain_knowledge": ["aged care"],
+        }
+        actual = {
+            "technical": ["python"],
+            "soft_skills": ["teamwork"],
+            "domain_knowledge": ["aged care"],
+        }
+        _, _, hallucinations, _, _ = _score_categories(expected, actual)
+        assert ("soft_skills", "teamwork") in hallucinations
+
+    def test_empty_expected_category_still_excluded_from_precision_recall_average(self):
+        """The hallucination fix must not change precision/recall semantics
+        — an empty-expected category still contributes no ratio to the
+        macro average (unchanged from before this fix)."""
+        from tests.golden.harness import _score_categories
+
+        expected = {"technical": ["python"], "soft_skills": [], "domain_knowledge": []}
+        actual = {"technical": ["python"], "soft_skills": [], "domain_knowledge": []}
+        precision, recall, hallucinations, missed, _ = _score_categories(expected, actual)
+        assert precision == 1.0
+        assert recall == 1.0
+        assert hallucinations == []
+        assert missed == []

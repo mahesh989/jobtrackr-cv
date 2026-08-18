@@ -189,11 +189,13 @@ def enrich_jd_analysis(
     except Exception:  # noqa: BLE001 — never block on a heuristic
         logger.warning("section clamp: failed", exc_info=True)
 
-    # Off-setting boilerplate demotion: for a residential aged-care JD
-    # whose About-Us / brand prose leaks "disability support" or
-    # "mental health support" into required skills, move them to
-    # preferred so they don't drive the required-match score.
-    # Deterministic; conservative (only RESIDENTIAL currently).
+    # Off-setting boilerplate demotion: for a residential or home_community
+    # aged-care JD whose About-Us / brand prose leaks off-setting domain
+    # skills (e.g. "disability support" on residential, "acute care" on
+    # home_community) into required skills, move them to preferred so they
+    # don't drive the required-match score. Deterministic; conservative —
+    # only settings with an explicit entry in _OFF_SETTING_DOMAIN_KEYWORDS
+    # are touched, everything else is a no-op (see demotion.py).
     try:
         from app.services.eval.writers import _classify_jd_setting
         from app.services.skills.post_process import demote_off_setting_keywords

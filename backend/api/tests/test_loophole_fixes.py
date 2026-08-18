@@ -386,7 +386,8 @@ class TestOffSettingDemotion:
     across aged care, disability, and mental health services' into Required
     Care Skills, blowing up the required-match rate from 100% to 66.7%.
     The deterministic demoter moves off-setting domain keywords from
-    required → preferred when the JD's classified setting is RESIDENTIAL."""
+    required → preferred when the JD's classified setting has an entry in
+    _OFF_SETTING_DOMAIN_KEYWORDS (currently RESIDENTIAL and HOME_COMMUNITY)."""
 
     def _jd(self, required_dk, preferred_dk=None):
         return {
@@ -432,11 +433,34 @@ class TestOffSettingDemotion:
         assert "home care" not in out["required_skills"]["domain_knowledge"]
         assert "home care" in out["preferred_skills"]["domain_knowledge"]
 
-    def test_no_demotion_on_home_setting(self):
-        """Home-care JD: 'disability support' / 'mental health' should stay
-        put — we only demote on RESIDENTIAL today. Conservative."""
-        jd = self._jd(["disability support", "mental health support"])
+    def test_off_setting_keywords_demoted_on_home_community(self):
+        """C67: the classifier's real setting value is 'home_community'
+        (see writers/bridges.py _SETTING_HOME), but _OFF_SETTING_DOMAIN_
+        KEYWORDS previously keyed this entry as 'home' — a dict lookup
+        that could never match, silently disabling the entire home-care
+        off-setting rule (acute/hospital, disability, mental-health-only
+        brand-prose leakage) despite the rule being fully written out with
+        its own reasoning comment. Fixed by keying it 'home_community'."""
+        jd = self._jd([
+            "personal care", "disability support", "mental health support", "acute care",
+        ])
         out = demote_off_setting_keywords(jd, "home_community")
+        req = out["required_skills"]["domain_knowledge"]
+        pref = out["preferred_skills"]["domain_knowledge"]
+        assert "disability support" not in req
+        assert "disability support" in pref
+        assert "mental health support" not in req
+        assert "mental health support" in pref
+        assert "acute care" not in req
+        assert "acute care" in pref
+        # Real home-care skills stay in required.
+        assert "personal care" in req
+
+    def test_no_demotion_on_unclassified_setting(self):
+        """A setting string with no dict entry at all (not 'residential' or
+        'home_community') is still a no-op — conservative by default."""
+        jd = self._jd(["disability support", "mental health support"])
+        out = demote_off_setting_keywords(jd, "hospital")
         assert "disability support" in out["required_skills"]["domain_knowledge"]
         assert "mental health support" in out["required_skills"]["domain_knowledge"]
 
