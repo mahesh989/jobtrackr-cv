@@ -140,7 +140,7 @@ async def categorise_cv(body: CategoriseCvRequest) -> CategoriseCvResponse:
     domain_knowledge — extracted from the provided CV text by the AI provider
     the user has connected. JobTrackr calls this once at CV upload time.
     """
-    ai_client = build_ai_client_or_422(body)
+    ai_client = build_ai_client_or_422(body, operation="categorise_cv")
 
     try:
         result = await categorise_cv_skills(ai_client, body.cv_text)
@@ -170,7 +170,7 @@ async def extract_cv_references_route(
     {name, job_title, company, email}. Called on-demand from the web UI
     when a user clicks "Extract from active CV" in the References section.
     """
-    ai_client = build_ai_client_or_422(body)
+    ai_client = build_ai_client_or_422(body, operation="extract_cv_references")
 
     try:
         referees = await extract_cv_references(ai_client, body.cv_text)
@@ -198,7 +198,7 @@ async def structurize_cv_route(body: StructurizeCvRequest) -> StructurizeCvRespo
     the result is stored on cv_versions.structured_cv and edited in the
     review form. Dates are extracted verbatim (never inferred).
     """
-    ai_client = build_ai_client_or_422(body)
+    ai_client = build_ai_client_or_422(body, operation="structurize_cv")
 
     try:
         structured = await structurize_cv(ai_client, body.cv_text)

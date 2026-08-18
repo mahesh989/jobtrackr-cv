@@ -46,7 +46,9 @@ async def research_company_endpoint(body: ResearchCompanyRequest) -> ResearchCom
         body.ai_provider,
     )
 
-    ai_client = build_ai_client_or_422(body, detail_prefix="Invalid AI client configuration: ")
+    ai_client = build_ai_client_or_422(
+        body, detail_prefix="Invalid AI client configuration: ", operation="research_company",
+    )
 
     try:
         result_dict = await research_company(

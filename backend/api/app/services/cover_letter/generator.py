@@ -355,6 +355,8 @@ async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None
             api_key=payload.ai_api_key,
             model=model,
         )
+        client.operation = "generate_cover_letter"
+        client.user_id = payload.user_id
     except AIClientError as exc:
         logger.error("cover letter %s: AI client init failed: %s", letter_id, exc)
         await supabase_update(COVER_LETTERS, letter_id, {
