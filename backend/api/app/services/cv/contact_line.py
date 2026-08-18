@@ -327,9 +327,14 @@ def build_availability_line(contact_details: Optional[Dict[str, Any]]) -> str:
     values saved before that change; both render the same display labels.
 
     Returns "" unless the user flipped ``show_availability`` AND ticked at
-    least one work type. Family-agnostic — the caller (stamp_credentials)
-    applies the role-family gate. Rendered on its OWN line, in italics, by
-    stamp_credentials so it reads as a soft note rather than a hard licence.
+    least one work type. Family-agnostic — availability applies to every
+    role family (a tech contractor signals "Casual" just as a care worker
+    does), so unlike ``stamp_credentials`` this is deliberately NOT
+    role-gated. Rendered on its OWN line, in italics, by
+    ``stamp_availability_in_summary`` (below) at the end of the Professional
+    Summary — NOT by ``stamp_credentials``, which only ever handles the
+    Registration & Licences line since the two were split apart (see that
+    function's own body comment).
     """
     if not contact_details:
         return ""

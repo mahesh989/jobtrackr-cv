@@ -359,3 +359,25 @@ class TestGapDetection:
         assert "Master of Professional Accounting" in edu[0]["qualification"]
         assert "Certificate IV in Ageing Support" in edu[1]["qualification"]
         assert "Bachelor of Business Administration" in edu[2]["qualification"]
+
+    def test_education_missing_completed_field_still_sorts_by_end_date(self):
+        """C67: `_normalise_education` sets `completed: bool(raw.get("completed"))`
+        — when the AI omits the field entirely (the extraction prompt never
+        asks for an explicit completed boolean, so this is the common case
+        for an old, obviously-finished degree), `bool(None)` is False. The
+        sort function reads a False `completed` as "ongoing" and pins it to
+        (9999, 12), the same bucket as a genuinely-current degree —
+        silently reordering the whole education section by AI-extraction
+        luck rather than actual end_date. Neither entry below sets
+        `completed` at all; the newer one must still sort first."""
+        raw = {
+            "education": [
+                {"qualification": "Bachelor of Nursing", "end_date": "2015"},
+                {"qualification": "Master of Nursing", "end_date": "2023"},
+            ],
+        }
+        s = normalise_structured_cv(raw)
+        edu = s["education"]
+        assert len(edu) == 2
+        assert "Master of Nursing" in edu[0]["qualification"]
+        assert "Bachelor of Nursing" in edu[1]["qualification"]
