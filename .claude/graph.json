@@ -541,16 +541,16 @@
     },
     {
       "id": "BUG-5",
-      "title": "Jora adapter hangs Chromium on 512MB Fly worker — disabled",
-      "severity": "medium",
-      "detail": "Commented out in backend/worker/src/sources/index.ts. Fix: (A) fly scale memory 1024; (B) rewrite to HTTP/SSR parse; (C) drop Jora."
+      "title": "RESOLVED (re-verified 2026-08-19) — Jora adapter has been fully DELETED, not merely disabled",
+      "severity": "resolved",
+      "detail": "Stale: this entry previously said Jora was commented out in backend/worker/src/sources/index.ts pending a memory/rewrite decision. Re-checked 2026-08-19: sources/jora.js no longer exists, Jora is absent from the adapters array entirely, and audit_cleanup.test.ts now asserts both (\"deleted adapters are gone\" name check, \"deleted source adapter files are gone\" existence check) as a permanent regression guard. index.ts's worker-queue concurrency:1 comment still attributed the limit to \"Jora spawns a Playwright Chromium\" — corrected in the same pass (2026-08-19) since grep confirms zero remaining Playwright/Chromium usage in any current source adapter; concurrency itself left at 1 (untouched, comment-only fix, no behavior change)."
     },
     {
       "id": "BUG-16",
-      "title": "Local worker .env lacks USE_GLOBAL_BUCKET, so local runs take the legacy path and skip ALL geographic filtering",
-      "severity": "high",
-      "detail": "USE_GLOBAL_BUCKET is a Fly secret on jobtrackr-worker but was absent from backend/worker/.env. Without it runPipeline takes the legacy path, where stage 11b only COMPUTES distance for display and nothing filters on it (10b++ filters work-type, 10d filters setting - neither is geographic). The only geographic filter in the codebase is the bucket serve radius in bucket.ts (max(adzuna_distance_km*2, 50)). Observed on the AIN Sydney profile: 17/17 agedcare jobs were 161-1016km away (Brisbane/Sunshine Coast suburbs from national tenants like unitingcareqld), while SEEK - which filters server-side by location - returned 16/17 within 50km. Worse than the missing filter itself: the flag silently changes WHICH CODE PATH RUNS, so local testing does not represent production at all.",
-      "fix": "USE_GLOBAL_BUCKET=true added to backend/worker/.env 2026-08-08. Still open: whether the legacy path should be deleted outright (it is documented as dead code) rather than left as an unfiltered trap."
+      "title": "RESOLVED (re-verified 2026-08-19) — local worker .env now matches production default; legacy-path deletion remains a separate, still-open design decision",
+      "severity": "low",
+      "detail": "USE_GLOBAL_BUCKET is a Fly secret on jobtrackr-worker; was absent from backend/worker/.env, causing local runs to silently take the legacy code path (no geographic filtering) while production ran bucket mode — different behavior under identical-looking config. Re-checked 2026-08-19: both backend/worker/.env and backend/worker/.env.example now set USE_GLOBAL_BUCKET=true, confirmed live in production ([[project_global_bucket_live.md]] memory, verified 2026-08-01). The original local/prod parity gap is closed.",
+      "fix": "USE_GLOBAL_BUCKET=true added to backend/worker/.env 2026-08-08, and to .env.example since (new contributors now default to bucket mode). Still open, NOT touched by this doc pass (would be a real code deletion, not a comment fix, and needs its own review): whether the legacy path (orchestrator stages 10b+/10b++/10d/11b + 7c) should be deleted outright now that it is unreachable in every environment that matters — see [[project_global_bucket_live.md]]."
     },
     {
       "id": "BUG-24",
@@ -592,11 +592,12 @@
       "title": "Split oversized service files (1k+ lines)",
       "status": "watch list — refactor opportunity, no behaviour change required",
       "candidates": [
-        "backend/api/app/services/eval/writers/_impl.py (1542 lines — split per writer variant)",
-        "backend/api/app/services/ai/prompts/tailored_cv.py (1234 lines — split by section/variant)",
-        "backend/api/app/services/eval/enforce_w3.py (1139 lines — CONFIRMED LIVE, not dead: apply_w3_gates is called from _writer_w8_integrated/_writer_w8_verified, the production w8_verified path — confirmed repeatedly this session via C22e/C22j's independent reviews tracing the real call chain. Split candidate stands, \"VERIFY DEAD\" question is answered: it is not.)",
-        "backend/api/app/services/pipeline/steps/tailored_cv.py (841 lines — orchestrator + helpers)",
-        "backend/api/app/services/eval/role_families.py (706 lines — extract role-family configs to JSON)",
+        "backend/api/app/services/pipeline/steps/keyword_feasibility.py (1183 lines — NEW as of this correction, not in the original list; largest single-file service module in the repo as of 2026-08-19)",
+        "(DONE, remove from watch list — re-verified 2026-08-19) backend/api/app/services/eval/writers/_impl.py — now 916 lines (was 1542), below threshold. Shrank via the C79-C89 writers/* fabrication-bug fix sessions (2026-08-18), not a dedicated split.",
+        "(DONE, remove from watch list — re-verified 2026-08-19) backend/api/app/services/ai/prompts/tailored_cv.py — now 645 lines (was 1234), below threshold.",
+        "(DONE, remove from watch list — re-verified 2026-08-19) backend/api/app/services/eval/enforce_w3.py — now 468 lines (was 1139), below threshold. Still CONFIRMED LIVE (apply_w3_gates called from the w8_verified production path) — smaller, not deleted.",
+        "(DONE, remove from watch list — re-verified 2026-08-19) backend/api/app/services/pipeline/steps/tailored_cv.py — already split into a package (tailored_cv/), same pattern as tailored_structural_validation below. The old 841-line single-file path no longer exists.",
+        "(DONE, remove from watch list — re-verified 2026-08-19) backend/api/app/services/eval/role_families.py — now 408 lines (was 706), below threshold.",
         "(DONE, remove from watch list) backend/api/app/services/pipeline/steps/tailored_structural_validation.py — already split into a 9-file package (tailored_structural_validation/: __init__.py, _common.py, gates_experience.py, gates_prose.py, gates_sections.py, parsing.py, relevance.py, results.py, runner.py), confirmed 2026-08-16 during this session's C42 coverage-scoping investigation."
       ],
       "when_to_act": "When touching one of these files for an unrelated reason, or when a feature needs to add to it. Do NOT do a big-bang split — high regression risk."
