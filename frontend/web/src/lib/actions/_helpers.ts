@@ -25,10 +25,18 @@ export function triggerScheduleSync(): void {
     ...(redisUrl.startsWith("rediss://") ? { tls: {} } : {}),
   });
   const queue = new Queue(QUEUE_NAME, { connection });
+  // C67: passing an already-instantiated ioredis client as `connection`
+  // makes BullMQ treat it as caller-owned (`shared: true` internally) —
+  // queue.close() then deliberately skips quitting it, assuming the caller
+  // will. Nothing here did, so every profile create/update/delete/toggle
+  // leaked one open Redis TCP connection. Quit it explicitly.
   queue
     .add("sync_schedules", { type: "sync_schedules" })
-    .finally(() => queue.close())
-    .catch((err) => console.error("[actions] sync_schedules enqueue failed:", err));
+    .catch((err) => console.error("[actions] sync_schedules enqueue failed:", err))
+    .finally(async () => {
+      await queue.close();
+      await connection.quit().catch(() => connection.disconnect());
+    });
 }
 
 /** Resolve the signed-in user, or redirect to login. Returns a scoped client. */

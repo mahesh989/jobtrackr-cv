@@ -503,7 +503,15 @@ export async function startCoverLetter(
 
   // Link the pending reservation to the letter row so the cover_letters status
   // trigger can commit (status 'completed') or void (status 'failed') it.
-  if (usageEventId) await linkUsageEvent(usageEventId, letterId);
+  // Non-fatal: the letter already exists — a link failure means this one
+  // reservation won't auto-reconcile, not that letter generation failed.
+  if (usageEventId) {
+    try {
+      await linkUsageEvent(usageEventId, letterId);
+    } catch (err) {
+      console.error("[coverLetter/start] linkUsageEvent failed — reservation stuck pending:", err);
+    }
+  }
 
   return NextResponse.json({ letter_id: letterId, status: "picking", variants });
 }
