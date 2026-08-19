@@ -68,10 +68,6 @@ export function titleOnlyFilter(
   return out;
 }
 
-// ── Pass 2: teaser rescue ────────────────────────────────────────────────────
-
-const TEASER_CHARS = 500;
-
 // ── Orchestrator entry point ─────────────────────────────────────────────────
 
 /**

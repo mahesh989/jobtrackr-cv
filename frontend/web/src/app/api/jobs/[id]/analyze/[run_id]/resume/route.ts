@@ -21,6 +21,7 @@ import { startAnalysis, CvBackendError } from "@/lib/cv/backend";
 import { consumeTailoredCv, linkUsageEvent, releaseUsageEvent } from "@/lib/billing/entitlements";
 import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 import { jsonError, withUser } from "@/lib/api-utils";
+import { resolveThresholds } from "@/lib/atsThresholds";
 
 export const runtime     = "nodejs";
 export const maxDuration = 30;
@@ -144,7 +145,15 @@ export const POST = withUser(async (
   }
   const usageEventId = cvGate.eventId ?? null;
   // Link to the (existing) run row so the status trigger commits/voids it.
-  if (usageEventId) await linkUsageEvent(usageEventId, runId);
+  // Non-fatal: the run already exists — a link failure means this one
+  // reservation won't auto-reconcile, not that the resume failed.
+  if (usageEventId) {
+    try {
+      await linkUsageEvent(usageEventId, runId);
+    } catch (err) {
+      console.error("[analyze/resume] linkUsageEvent failed — reservation stuck pending:", err);
+    }
+  }
 
   // ── 3. Reset the skipped steps + flip the run back to running ─────────────
   const resetSteps = { ...stepStatus };
@@ -176,6 +185,12 @@ export const POST = withUser(async (
       resume:            true,
       skip_initial_gate: true,
       target_vertical:   resumeTargetVertical,
+      // Without this the payload falls back to cv-backend's schema default
+      // (70), so a healthcare/nursing resume used the wrong final gate and
+      // silently skipped the auto cover letter that the normal analyze path
+      // would have generated for the same score. Must match the vertical
+      // this same request already resolved above.
+      min_final_ats:     resolveThresholds([resumeTargetVertical]).final,
     });
   } catch (err) {
     console.error("[/api/jobs/:id/analyze/:run_id/resume] cv-backend rejected:", err);

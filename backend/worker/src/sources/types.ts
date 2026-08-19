@@ -26,8 +26,6 @@ export interface SearchProfile {
   // user_visa_status.
   user_work_types?: string[];
   adzuna_title_keywords?: string;
-  adzuna_exact_phrase?: string;
-  adzuna_any_keywords?: string;
   adzuna_exclude_keywords?: string;
   adzuna_salary_min?: number;
   adzuna_salary_max?: number;
@@ -40,7 +38,6 @@ export interface SearchProfile {
   // When non-empty, also activates teaser rescue (first 500 chars of
   // description scanned for title-rejects).
   must_include_phrases?: string[];
-  is_manual_run?: boolean;
 
   // Set by the orchestrator per run, read by date-aware adapters (Adzuna, SEEK,
   // Careerjet) to fetch deep on the first run then do incremental top-ups:

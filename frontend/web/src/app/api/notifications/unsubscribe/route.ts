@@ -9,7 +9,18 @@ import { rateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 // HMAC envelope) — reused here so no new env var is needed. Worker
 // counterpart (link builder): backend/worker/src/notifications/engagementEmails.ts.
 function hmacSig(userId: string): string {
-  const key = process.env.JOBTRACKR_HMAC_SECRET ?? "";
+  // C67: was `?? ""` — a missing env var silently computed an HMAC keyed by
+  // an EMPTY string instead of failing. That's not a missing-secret error,
+  // it's a PUBLICLY COMPUTABLE signature: anyone can produce
+  // HMAC-SHA256("", uid) themselves with no knowledge of any actual secret,
+  // letting them forge a valid unsubscribe link for any user if this env
+  // var were ever unset/misconfigured. cvBackend.ts/cvBackendHmac.ts (the
+  // same shared secret's other two call sites) both already fail loudly —
+  // this one diverged. verifySig's existing try/catch turns this throw
+  // into a clean "invalid signature" deny, same response shape as any
+  // other bad sig.
+  const key = process.env.JOBTRACKR_HMAC_SECRET;
+  if (!key) throw new Error("JOBTRACKR_HMAC_SECRET is not set");
   return createHmac("sha256", key).update(userId).digest("hex");
 }
 

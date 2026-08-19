@@ -51,6 +51,7 @@ export async function cancelRun(runId: string, profileId: string) {
       error_message: "Cancelled by user",
     })
     .eq("id", runId)
+    .eq("profile_id", profileId)
     .eq("status", "running");
 
   revalidatePath(`/profiles/${profileId}/runs`);

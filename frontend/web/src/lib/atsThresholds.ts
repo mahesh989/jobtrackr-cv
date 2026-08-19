@@ -12,9 +12,14 @@
  *   2. FINAL gate (after tailoring + rescoring):
  *        tailored_match_score >= MIN_FINAL_ATS ? auto-cover-letter : skip
  *
- * cv-backend's AnalyzeRequest schema defaults to the same values. Web +
- * worker no longer send these in the analyse payload — cv-backend uses
- * the defaults.
+ * cv-backend's AnalyzeRequest schema has its own (different) fallback
+ * defaults, but both live callers — lib/analyze/start.ts and the worker's
+ * automation/triggerAutoAnalyze.ts — always send min_initial_ats/
+ * min_final_ats explicitly via resolveThresholds() below, so those schema
+ * defaults are a safety net, never the effective value. The one exception
+ * was the resume route, which omitted min_final_ats and silently fell back
+ * to the schema default (70) instead of the vertical's real gate — fixed to
+ * send it explicitly too.
  */
 export const MIN_INITIAL_ATS = 60;
 export const MIN_FINAL_ATS   = 70;

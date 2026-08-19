@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { triggerScheduleSync } from "@/lib/actions/_helpers";
 import { jsonError, withUser } from "@/lib/api-utils";
@@ -58,7 +59,13 @@ export const POST = withUser(async (_req, _ctx, { user }) => {
     .update({ inactivity_warned_at: null })
     .eq("user_id", user.id);
 
-  if (resumed > 0) triggerScheduleSync();
+  if (resumed > 0) {
+    triggerScheduleSync();
+    // getCachedProfiles (lib/queryCache.ts) caches is_active for 30s — without
+    // this the dashboard can keep showing the profile as paused right after a
+    // successful resume, reading as a failed click.
+    revalidateTag(`profiles-${user.id}`, "default");
+  }
 
   return NextResponse.json({ resumed, total: profileIds.length });
 });

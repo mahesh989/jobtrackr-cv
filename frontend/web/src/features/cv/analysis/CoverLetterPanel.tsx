@@ -140,7 +140,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
         statusRef.current === "failed"    ||
         statusRef.current === "picking"
       ) return;
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("cover_letters")
         .select(
           "id, status, generation_status, pass_3_final, burstiness_score, " +
@@ -151,6 +151,10 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
         )
         .eq("id", letterId)
         .single();
+      // C67: error was discarded — a persistent failure (RLS denial, the
+      // row being deleted, etc.) made this poll silently no-op forever,
+      // every 3s, with zero signal anywhere that anything was wrong.
+      if (error) console.error("[CoverLetterPanel] poll failed:", error.message);
       if (data && active) setLetter(data as unknown as CoverLetterRow);
     }
 
@@ -500,7 +504,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
             </button>
           )}
           {!letter && (
-            <button onClick={() => handleGenerate(false)} disabled={loading} className="rounded bg-brand px-3 py-1.5 text-label font-medium text-white hover:opacity-90 disabled:opacity-50">
+            <button onClick={() => handleGenerate(false)} disabled={loading} className="rounded bg-brand px-3 py-1.5 text-label font-medium text-brand-fg hover:opacity-90 disabled:opacity-50">
               {loading ? "Generating options…" : "Generate cover letter"}
             </button>
           )}
@@ -560,7 +564,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
             <button
               onClick={() => handleGenerate(false)}
               disabled={loading}
-              className="rounded bg-brand px-3 py-1.5 text-label font-medium text-white hover:opacity-90 disabled:opacity-50"
+              className="rounded bg-brand px-3 py-1.5 text-label font-medium text-brand-fg hover:opacity-90 disabled:opacity-50"
             >
               {loading ? "Generating options…" : "Generate cover letter"}
             </button>
@@ -588,7 +592,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
                 <button
                   onClick={() => handlePick(variant.id)}
                   disabled={pickingId !== null}
-                  className="rounded bg-brand px-3 py-1.5 text-label font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+                  className="rounded bg-brand px-3 py-1.5 text-label font-medium text-brand-fg hover:opacity-90 disabled:opacity-50 transition-opacity"
                 >
                   {pickingId === variant.id ? "Confirming…" : "Use this opener"}
                 </button>
@@ -657,6 +661,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
             const flags = (letter.quality_flags ?? {}) as {
               unsupported_claims?: string[];
               honesty_inconclusive?: boolean;
+              honesty_degraded?: boolean;
               honesty_retried?: boolean;
               honesty_passed_after_retry?: boolean;
               low_quality_company_research?: boolean;
@@ -694,6 +699,12 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
                 {claims.length === 0 && flags.honesty_inconclusive && (
                   <p className="text-caption text-text-3">
                     Note: honesty check was inconclusive — give the letter a quick read before sending.
+                  </p>
+                )}
+                {claims.length === 0 && !flags.honesty_inconclusive && flags.honesty_degraded && (
+                  <p className="text-caption text-text-3">
+                    Note: the honesty check couldn&apos;t run (a temporary issue on our end) — this
+                    letter&apos;s claims were not verified against your CV. Give it a careful read before sending.
                   </p>
                 )}
               </>
@@ -779,7 +790,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
               <button
                 onClick={handleDownloadPDF}
                 disabled={downloading}
-                className="rounded bg-brand px-3 py-1.5 text-label font-medium text-white hover:opacity-90 disabled:opacity-50"
+                className="rounded bg-brand px-3 py-1.5 text-label font-medium text-brand-fg hover:opacity-90 disabled:opacity-50"
               >
                 {downloading ? "Generating…" : "Download"}
               </button>

@@ -50,7 +50,7 @@ export function CardMenu({
         disabled={pending}
         aria-label="More actions"
         size="sm"
-        icon={<MoreHorizontal className="w-3.5 h-3.5" />}
+        icon={<MoreHorizontal className="w-[15px] h-[15px]" />}
       />
       {open && pos && typeof document !== "undefined" && createPortal(
         <div
@@ -68,7 +68,14 @@ export function CardMenu({
                 try {
                   const run_id = await triggerReanalyze(job.id);
                   router.push(`/jobs/${job.id}/analyze/${run_id}`);
-                } catch { /* ignore */ } finally { setReanalysePending(false); }
+                } catch (e) {
+                  // C67: was silently ignored — the menu item just reverted
+                  // from "Starting…" back to "Re-analyze" with zero
+                  // indication anything went wrong. Matches the error
+                  // handling DetailHeader.tsx's own onReanalyze already
+                  // does for the same triggerReanalyze() call.
+                  window.alert(e instanceof Error ? e.message : "Could not start re-analysis. Please try again.");
+                } finally { setReanalysePending(false); }
               }}
               disabled={reanalysePending}
             >

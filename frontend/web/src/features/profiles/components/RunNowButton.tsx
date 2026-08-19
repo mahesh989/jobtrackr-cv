@@ -19,6 +19,7 @@ export function RunNowButton({
   const router = useRouter();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedAtRef = useRef<number | null>(null);
+  const pendingRequestRef = useRef<{ id: string; fullRefresh: boolean } | null>(null);
 
   // Poll while running or stopping to detect when the run ends
   useEffect(() => {
@@ -48,20 +49,45 @@ export function RunNowButton({
   }, [state, profileId, router]);
 
   async function handleRun(fullRefresh = false) {
+    const pending = pendingRequestRef.current ?? {
+      id: crypto.randomUUID(),
+      fullRefresh,
+    };
+    pendingRequestRef.current = pending;
     setState("running");
     startedAtRef.current = Date.now();
-    const res = await fetch(`/api/profiles/${profileId}/run`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fullRefresh }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`/api/profiles/${profileId}/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullRefresh: pending.fullRefresh,
+          requestId: pending.id,
+        }),
+      });
+    } catch {
+      setState("error");
+      return;
+    }
     if (res.status === 402) {
+      pendingRequestRef.current = null;
       // Run cap / read-only — send the user to billing with the reason.
       const reason = await res.json().then((d) => d.reason as string | undefined).catch(() => undefined);
       router.push(`/billing?denied=${reason ?? "run_cap"}`);
       return;
     }
-    if (!res.ok) { setState("error"); return; }
+    if (!res.ok) {
+      if (res.status === 409) {
+        pendingRequestRef.current = {
+          id: crypto.randomUUID(),
+          fullRefresh: pending.fullRefresh,
+        };
+      }
+      setState("error");
+      return;
+    }
+    pendingRequestRef.current = null;
     // RunNotifier (mounted once at the dashboard layout, so it survives
     // navigation) polls run_logs on its own schedule — every 4s while it
     // already knows a run is active, but only every 180s while idle, since

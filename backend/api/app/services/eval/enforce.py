@@ -23,8 +23,8 @@ import re
 from typing import List, Optional, Tuple
 
 # Per-line caps: (line 1 technical/clinical/core, line 2 soft, line 3 other).
-# Soft + Other hard-capped at 6 — recruiter scanability is the goal; a CV
-# with 8+ soft skills reads padded. Other Skills line is dropped entirely
+# Soft + Other hard-capped at 10 — recruiter scanability is the goal; a CV
+# with too many soft skills reads padded. Other Skills line is dropped entirely
 # when empty (see enforce_skills_section's `kept` check), so a candidate
 # with no tools/credentials worth surfacing won't get a dangling label.
 DEFAULT_SKILL_CAPS: Tuple[int, int, int] = (15, 10, 10)

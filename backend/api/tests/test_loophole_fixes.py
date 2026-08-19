@@ -147,7 +147,7 @@ class TestVerifyMatchEvidence:
 
 
 class TestFormattingScoreRealWorldCV:
-    """Production regression (Rashmi's CV): the strict-anchor regex required
+    """Production regression (Jane's CV): the strict-anchor regex required
     headings to END a line ($), but PDF-extracted layouts often glue the
     heading word to the next bit of content on the same line. Real CVs were
     scoring 60% on formatting because only 1 of 3 sections matched. The
@@ -157,8 +157,8 @@ class TestFormattingScoreRealWorldCV:
 
     def test_pdf_extracted_heading_glued_to_content(self):
         cv = (
-            "Rashmi Poudel\n"
-            "NSW | 0403760681 | rashmipoudel756@gmail.com | LinkedIn\n"
+            "Jane Citizen\n"
+            "NSW | 0400000000 | jane.citizen@example.com | LinkedIn\n"
             "\n"
             "Experience Uniting Leichhardt NSW Australia\n"
             "Assistant in Nursing (Casual) Mar 2026 - Present\n"
@@ -187,7 +187,7 @@ class TestFormattingScoreRealWorldCV:
         assert score >= 0.85 * _FORMATTING_MAX
 
     def test_skills_variants_recognised(self):
-        """Production regression (Rashmi Run 2): 2/3 sections matched -> 80%
+        """Production regression (Jane's Run 2): 2/3 sections matched -> 80%
         formatting. Likely culprit was a 'Skills' variant (Key/Core/Technical)
         that the strict regex missed."""
         variants = [
@@ -303,7 +303,8 @@ class TestBridgeGating:
         out = _apply_setting_bridge(
             _RESIDENTIAL_S1, _SETTING_NDIS, cv_text=_RESIDENTIAL_S1,
         )
-        assert "disability support" not in out.lower()
+        # Bridge phrase "experience in aged care and disability support settings" not added
+        assert "aged care and disability support settings" not in out.lower()
 
     def test_ndis_bridge_applied_with_evidence(self):
         cv = _RESIDENTIAL_S1 + "Worked with NDIS participants providing disability support.\n"
@@ -315,8 +316,8 @@ class TestBridgeGating:
         out = _apply_setting_bridge(
             _RESIDENTIAL_S1, _SETTING_THEATRE, cv_text=_RESIDENTIAL_S1,
         )
-        # Bridge phrase "aged care and healthcare settings" not added
-        assert "healthcare settings" not in out
+        # Bridge phrase "experience in aged care and healthcare settings" not added
+        assert "aged care and healthcare settings" not in out
 
     def test_theatre_bridge_applied_with_evidence(self):
         cv = _RESIDENTIAL_S1 + "Perioperative experience in operating theatre.\n"
@@ -385,7 +386,8 @@ class TestOffSettingDemotion:
     across aged care, disability, and mental health services' into Required
     Care Skills, blowing up the required-match rate from 100% to 66.7%.
     The deterministic demoter moves off-setting domain keywords from
-    required → preferred when the JD's classified setting is RESIDENTIAL."""
+    required → preferred when the JD's classified setting has an entry in
+    _OFF_SETTING_DOMAIN_KEYWORDS (currently RESIDENTIAL and HOME_COMMUNITY)."""
 
     def _jd(self, required_dk, preferred_dk=None):
         return {
@@ -431,11 +433,34 @@ class TestOffSettingDemotion:
         assert "home care" not in out["required_skills"]["domain_knowledge"]
         assert "home care" in out["preferred_skills"]["domain_knowledge"]
 
-    def test_no_demotion_on_home_setting(self):
-        """Home-care JD: 'disability support' / 'mental health' should stay
-        put — we only demote on RESIDENTIAL today. Conservative."""
-        jd = self._jd(["disability support", "mental health support"])
+    def test_off_setting_keywords_demoted_on_home_community(self):
+        """C67: the classifier's real setting value is 'home_community'
+        (see writers/bridges.py _SETTING_HOME), but _OFF_SETTING_DOMAIN_
+        KEYWORDS previously keyed this entry as 'home' — a dict lookup
+        that could never match, silently disabling the entire home-care
+        off-setting rule (acute/hospital, disability, mental-health-only
+        brand-prose leakage) despite the rule being fully written out with
+        its own reasoning comment. Fixed by keying it 'home_community'."""
+        jd = self._jd([
+            "personal care", "disability support", "mental health support", "acute care",
+        ])
         out = demote_off_setting_keywords(jd, "home_community")
+        req = out["required_skills"]["domain_knowledge"]
+        pref = out["preferred_skills"]["domain_knowledge"]
+        assert "disability support" not in req
+        assert "disability support" in pref
+        assert "mental health support" not in req
+        assert "mental health support" in pref
+        assert "acute care" not in req
+        assert "acute care" in pref
+        # Real home-care skills stay in required.
+        assert "personal care" in req
+
+    def test_no_demotion_on_unclassified_setting(self):
+        """A setting string with no dict entry at all (not 'residential' or
+        'home_community') is still a no-op — conservative by default."""
+        jd = self._jd(["disability support", "mental health support"])
+        out = demote_off_setting_keywords(jd, "hospital")
         assert "disability support" in out["required_skills"]["domain_knowledge"]
         assert "mental health support" in out["required_skills"]["domain_knowledge"]
 

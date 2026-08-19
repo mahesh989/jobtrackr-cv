@@ -23,13 +23,14 @@
  * the meter (eventId = null → nothing to link/void). Fails CLOSED on RPC error.
  */
 import { db } from "../db/client.js";
+import { ADMIN_ROLES as ADMIN_ROLES_LIST } from "../lib/adminRoles.js";
 
-const ADMIN_ROLES = new Set(["founder", "admin"]);
+const ADMIN_ROLES = new Set<string>(ADMIN_ROLES_LIST);
 
 // CV caps per plan — typed mirror of PLAN_LIMITS (plans.ts) / migration 051
 // seed. null = unlimited for that dimension. Fallback only; the plans table is
-// authoritative and read first.
-const PLAN_CV_LIMITS: Record<string, { unique: number | null; total: number | null }> = {
+// authoritative and read first. Exported for billing.test.ts's parity guard.
+export const PLAN_CV_LIMITS: Record<string, { unique: number | null; total: number | null }> = {
   trial:     { unique: 3,    total: 3    },
   weekly:    { unique: 50,   total: 75   },
   monthly:   { unique: 250,  total: 375  },
@@ -42,6 +43,13 @@ export interface CvReservation {
   reason?: string;
   /** null when the user bypasses the meter (admin/unlimited) — nothing to link/void. */
   eventId: string | null;
+}
+
+/** Commit a manual-run reservation before starting its paid pipeline work. */
+export async function commitRunUsageEvent(eventId: string): Promise<void> {
+  const { data, error } = await db.rpc("commit_run_usage", { p_event: eventId });
+  if (error) throw new Error(`run usage commit failed: ${error.message}`);
+  if (data !== true) throw new Error("run usage commit failed: event is not pending or committed");
 }
 
 export async function reserveTailoredCv(userId: string, jobId: string): Promise<CvReservation> {

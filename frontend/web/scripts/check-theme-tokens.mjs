@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Theme token guard — structural edition, REPORT-ONLY (Phase 0).
+ * Theme token guard — structural edition. Hard CI gate (exits 1 on findings).
  *
  * docs/UI_IMPROVEMENT_2026-08-06.md §2 diagnoses why the theme system has
  * 559+ hardcoded-colour violations: there was a correct vocabulary
@@ -23,12 +23,25 @@
  *   3. `dark:` variants — this app's "dark" themes are class-based
  *      (`.theme-aurora-dark`, `.theme-gilded-noir`), not OS-preference-
  *      based, so an OS-keyed `dark:` class is simply wrong here.
- *   4. `text-white` / `text-black` co-occurring with `bg-[var(--brand)]`
- *      in the same className — the `--brand-fg` token exists precisely
- *      so button/pill labels stay legible across all seven themes;
- *      hardcoding white assumes --brand is always dark, which is false
- *      on Classic/Clay/Gilded Noir/Notion (see the Phase 0 contrast
- *      fixes in themeContrast.test.ts for two themes where it wasn't).
+ *   4. `text-white` / `text-black` co-occurring with a --brand/--success/
+ *      --warning/--danger/--info background — either the arbitrary-value
+ *      form (`bg-[var(--brand)]`) or the Tailwind alias form (`bg-brand`)
+ *      — in the same className. The matching `-fg` token (`--brand-fg`,
+ *      `--success-fg`, `--warning-fg`, ...) exists precisely so button/
+ *      pill labels stay legible across all seven themes; hardcoding
+ *      white/black assumes the background is always one fixed lightness,
+ *      which is false on 2-3 of 7 themes per token (see the Phase 0 /
+ *      C37-C38 contrast fixes in themeContrast.test.ts).
+ *
+ *      Known remaining gap, NOT closed by this category (audit finding
+ *      #48): a bare `bg-white`/`bg-black` used as a CHILD element's own
+ *      background against a PARENT element's brand/status background
+ *      (e.g. a toggle-switch knob) is invisible to this scan, which only
+ *      looks at co-occurrence within one className string. Closing that
+ *      needs real JSX-structural (parent/child) analysis, not a regex
+ *      scan over class strings — a naive "flag every bg-white anywhere"
+ *      rule would false-positive on every legitimate white surface.
+ *      Left for a dedicated follow-up rather than guessed at here.
  *
  * *** ENFORCING as of 2026-08-07 (Phase 6) — this fails the build. ***
  * It ran report-only through Phase 5 while the 630-finding backlog was
@@ -65,6 +78,8 @@ const ALLOWLIST = {
     "terminal emulator — the GitHub-dark console palette is the point, not a theme surface",
   "features/auth/components/brand.tsx":
     "Google's brand SVG — the four-colour mark is trademark-fixed and must not be recoloured",
+  "lib/ai/models.ts":
+    "PROVIDER_META.color is each AI provider's own real-world brand colour (Anthropic/OpenAI/DeepSeek), not an app UI theme surface — same trademark-fixed rationale as brand.tsx. Also a false positive of INLINE_STYLE_HEX_RE specifically: it's a plain data-object field named `color`, not a JSX style prop, and the regex can't tell those apart from source text alone.",
 };
 
 // ── Category patterns ────────────────────────────────────────────────────
@@ -74,11 +89,13 @@ const ALLOWLIST = {
 // following `:`, quote, space, brace, paren or backtick means "start of a
 // class token" for every way these appear in TSX (plain strings, template
 // literals, conditional expressions, `dark:`/`hover:` modifier chains).
-const PALETTE_RE =
-  /\b(bg|text|border|ring|fill|stroke|from|to|via)-(red|green|emerald|amber|yellow|blue|sky|teal|purple|violet|indigo|pink|rose|orange|slate|gray|zinc)-(50|100|200|300|400|500|600|700|800|900)\b/g;
+export const PALETTE_RE =
+  /\b(bg|text|border|ring|fill|stroke|from|to|via|shadow|divide|outline|accent|placeholder|decoration)-(red|green|emerald|amber|yellow|blue|sky|teal|purple|violet|indigo|pink|rose|orange|slate|gray|zinc|neutral|stone|lime|cyan|fuchsia)-(50|100|200|300|400|500|600|700|800|900|950)\b/g;
 
-// Arbitrary hex in class position.
-const ARBITRARY_HEX_RE = /\b(bg|text|border|ring)-\[#[0-9a-fA-F]{3,8}\]/g;
+// Arbitrary literal colours in class position. The utility prefix is kept
+// generic so a new Tailwind colour-bearing utility cannot bypass the guard.
+export const ARBITRARY_HEX_RE =
+  /\b[a-z][\w-]*-\[(?:#[0-9a-fA-F]{3,8}|(?:rgb|hsl)a?\([^\]\r\n]*\))\]/g;
 
 // `dark:` variant — this app has no OS-preference-based dark mode.
 const DARK_VARIANT_RE = /\bdark:/g;
@@ -98,10 +115,20 @@ const INLINE_STYLE_HEX_RE =
 // a regex scan over class strings, not an exhaustive AST-level check.
 const CLASSNAME_VALUE_RE = /className\s*=\s*(?:"([^"]*)"|'([^']*)'|\{\s*`([^`]*)`\s*\})/g;
 
-function countMatches(re, text) {
+export function countMatches(re, text) {
   const matches = text.match(re);
   return matches ? matches.length : 0;
 }
+
+// Brand/status background: either the arbitrary-value form
+// (bg-[var(--brand)]) or the Tailwind alias form (bg-brand) — for any of
+// the five semantic families that ship a matching -fg contrast token.
+// Negative lookahead stops the alias form matching a LONGER class it's a
+// prefix of (bg-brand-fg, bg-success-subtle, bg-warning-border, ...) —
+// those are either the fix itself or a different, paler background this
+// category isn't about.
+const BRAND_STATUS_BG_RE =
+  /\bbg-\[var\(--(brand|success|warning|danger|info)\)\]|\bbg-(brand|success|warning|danger|info)(?![\w-])/;
 
 function countBrandWhiteOnBlack(text) {
   let count = 0;
@@ -109,7 +136,7 @@ function countBrandWhiteOnBlack(text) {
   CLASSNAME_VALUE_RE.lastIndex = 0;
   while ((m = CLASSNAME_VALUE_RE.exec(text))) {
     const value = m[1] ?? m[2] ?? m[3] ?? "";
-    if (value.includes("bg-[var(--brand)]") && (/\btext-white\b/.test(value) || /\btext-black\b/.test(value))) {
+    if (BRAND_STATUS_BG_RE.test(value) && (/\btext-white\b/.test(value) || /\btext-black\b/.test(value))) {
       count++;
     }
   }
@@ -121,7 +148,7 @@ function walk(dir) {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name);
     if (statSync(p).isDirectory()) out.push(...walk(p));
-    else if (name.endsWith(".tsx")) out.push(p);
+    else if (name.endsWith(".tsx") || name.endsWith(".ts")) out.push(p);
   }
   return out;
 }
@@ -200,4 +227,3 @@ if (perFile.length > 0) {
 }
 
 console.log("PASS — no raw palette classes, arbitrary hex, or dark: variants outside the allowlist.\n");
-process.exit(0);

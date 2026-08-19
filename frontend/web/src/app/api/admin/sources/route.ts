@@ -18,9 +18,15 @@ type Tier = SourceTier;
 
 export const GET = withAdmin(async (_req: NextRequest, _ctx, { admin }) => {
 
-  const { data: rows } = await admin
+  const { data: rows, error } = await admin
     .from("platform_source_tiers")
     .select("tier, enabled_sources, adzuna_method, seek_method");
+
+  // A discarded error here previously looked identical to "no rows saved
+  // yet" — the admin UI would render TIER_DEFAULTS as if they were the
+  // live config, and the next Save would upsert those defaults over the
+  // real saved values. Fail loud instead.
+  if (error) return jsonError(error.message, 500);
 
   const result: Record<string, unknown> = { ...TIER_DEFAULTS };
   for (const row of (rows ?? []) as Array<{ tier: string; enabled_sources: string[] | null; adzuna_method: string | null; seek_method: string | null }>) {

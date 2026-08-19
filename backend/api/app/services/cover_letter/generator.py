@@ -41,13 +41,14 @@ from typing import Any, Callable, Coroutine, Dict, List, Optional
 
 from app.database import get_supabase
 from app.database import COVER_LETTERS, supabase_update, utcnow_iso
-from app.enums import CoverLetterStatus, Provider
+from app.enums import CoverLetterStatus
 from app.schemas.cover_letter import GenerateCoverLetterRequest
 from app.services.cover_letter.company_name import normalise_company_in_body
 from app.services.ai.client import (
     AIClient,
     AIBillingError,
     AIClientError,
+    DEFAULT_MODELS,
     make_ai_client,
 )
 from app.services.ai.prompts.cover_letter.gate_1_honesty import (
@@ -67,9 +68,19 @@ from app.services.ai.prompts.cover_letter.generate import (
 logger = logging.getLogger(__name__)
 
 _AU_UNIT_CODE_INLINE_RE = re.compile(
-    r"\b(?:HLT|CHC|BSB|FSK|SIT|CPP|AHC|HLTHPS|HLTAID|HLTINF|HLTWHS)[A-Z0-9]{2,6}\b",
+    r"\b(?:HLT|CHC|BSB|FSK|SIT|CPP|AHC|HLTHPS|HLTAID|HLTINF|HLTWHS)([A-Z0-9]{2,6})\b",
     re.IGNORECASE,
 )
+
+
+def _strip_if_genuine_code(match: "re.Match[str]") -> str:
+    """Only strip the match if its captured suffix contains a digit — every
+    genuine AU VET unit/qualification code does (CHC43015, HLTAID011,
+    SITXFSA005…), while an ordinary English word that happens to start with
+    a listed prefix (sites/sitting/situation/sitters all start "sit") never
+    does. Leaves non-code matches completely untouched so the surrounding
+    sentence structure survives."""
+    return "" if any(c.isdigit() for c in match.group(1)) else match.group(0)
 
 
 def strip_vet_codes_from_cover_letter(text: str) -> str:
@@ -83,7 +94,7 @@ def strip_vet_codes_from_cover_letter(text: str) -> str:
     # 1. Strip "(CODE)" form first, e.g. "Certificate IV in Ageing Support (CHC43015)"
     out = re.sub(
         r"\s*\(\s*" + _AU_UNIT_CODE_INLINE_RE.pattern + r"\s*\)",
-        "",
+        _strip_if_genuine_code,
         text,
         flags=re.IGNORECASE
     )
@@ -91,7 +102,7 @@ def strip_vet_codes_from_cover_letter(text: str) -> str:
     # 2. Strip "CODE - " or "CODE: " or "CODE – " form, e.g. "CHC43015 - Certificate IV"
     out = re.sub(
         r"\b" + _AU_UNIT_CODE_INLINE_RE.pattern + r"\b\s*[-–—:]\s*",
-        "",
+        _strip_if_genuine_code,
         out,
         flags=re.IGNORECASE
     )
@@ -99,7 +110,7 @@ def strip_vet_codes_from_cover_letter(text: str) -> str:
     # 3. Strip " - CODE" or " – CODE" form, e.g. "Certificate IV - CHC43015"
     out = re.sub(
         r"\s*[-–—:]\s*\b" + _AU_UNIT_CODE_INLINE_RE.pattern + r"\b",
-        "",
+        _strip_if_genuine_code,
         out,
         flags=re.IGNORECASE
     )
@@ -107,7 +118,7 @@ def strip_vet_codes_from_cover_letter(text: str) -> str:
     # 4. Strip bare CODE, e.g. "CHC43015 Certificate IV"
     out = re.sub(
         r"\b" + _AU_UNIT_CODE_INLINE_RE.pattern + r"\b\s*",
-        "",
+        _strip_if_genuine_code,
         out,
         flags=re.IGNORECASE
     )
@@ -140,15 +151,6 @@ def _generation_temperature(model: str) -> float:
     if model.lower().startswith("gpt-5"):
         return 1.0
     return 0.7
-
-# Fallback model per provider when the user's integration has no model set.
-# Chosen as the best generally-available model for each provider — the user's
-# integration choice always wins; this is the "they did not pick" branch.
-_PROVIDER_DEFAULT_MODEL: Dict[Provider, str] = {
-    Provider.ANTHROPIC: "claude-opus-4-7",
-    Provider.OPENAI:    "gpt-4o",
-    Provider.DEEPSEEK:  "deepseek-chat",
-}
 
 
 # ── Supabase persistence ──────────────────────────────────────────────────────
@@ -187,11 +189,19 @@ async def _run_honesty_gate(
     client: AIClient,
     letter_text: str,
     cv_text: str,
-) -> tuple[bool, List[str]]:
+) -> tuple[bool, List[str], bool]:
     """
     Verify every factual claim in the letter against the CV.
-    Returns (passed, unsupported_claims). On AI failure, returns (True, [])
-    so a transient gate problem does not block the user from seeing output.
+    Returns (passed, unsupported_claims, gate_ran). On AI failure, returns
+    (True, [], False) so a transient gate problem does not block the user
+    from seeing output — but `gate_ran=False` lets the caller record that
+    the letter was NEVER ACTUALLY VERIFIED, distinct from a genuine pass
+    (C54, AUDIT-REPORT.md: the comparable CV-path verifier in eval/verify.py
+    deliberately sets `degraded=True` on the same failure shape, with the
+    comment "honesty gate did not run — surface it, don't claim verified";
+    this gate previously had no equivalent signal, so a letter whose gate
+    call hit a transient 529/overload shipped indistinguishable from one
+    that was genuinely verified clean).
     """
     user = GATE_1_USER_TEMPLATE.format(
         letter_text=letter_text,
@@ -212,7 +222,7 @@ async def _run_honesty_gate(
             if isinstance(raw_unsupported, list)
             else []
         )
-        return passed, unsupported
+        return passed, unsupported, True
     except Exception as exc:  # noqa: BLE001 — gate must NEVER crash a generated letter
         # Broadened from AIClientError: a raw transient (e.g. an h2
         # ConnectionTerminated the client didn't classify) was escaping to the
@@ -220,7 +230,7 @@ async def _run_honesty_gate(
         # 'failed' — the exact ATS-Above-vs-pool gap. The honesty gate is pure
         # verification; on ANY failure treat as pass so the letter still ships.
         logger.warning("honesty gate call failed (%s) — treating as pass", exc)
-        return True, []
+        return True, [], False
 
 
 # ── Main generation call ──────────────────────────────────────────────────────
@@ -329,7 +339,7 @@ async def _generate_with_retry(
 async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None:
     """Execute the single-call cover letter pipeline. Never raises."""
     letter_id = payload.letter_id
-    model = payload.ai_model or _PROVIDER_DEFAULT_MODEL.get(payload.ai_provider, "")
+    model = payload.ai_model or DEFAULT_MODELS.get(payload.ai_provider, "")
 
     if not model:
         await supabase_update(COVER_LETTERS, letter_id, {
@@ -345,6 +355,8 @@ async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None
             api_key=payload.ai_api_key,
             model=model,
         )
+        client.operation = "generate_cover_letter"
+        client.user_id = payload.user_id
     except AIClientError as exc:
         logger.error("cover letter %s: AI client init failed: %s", letter_id, exc)
         await supabase_update(COVER_LETTERS, letter_id, {
@@ -418,9 +430,11 @@ async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None
             "generation_status": {"generate": CoverLetterStatus.COMPLETED, "honesty": CoverLetterStatus.RUNNING},
         })
 
-        passed, unsupported = await _run_honesty_gate(client, body, payload.cv_text)
+        passed, unsupported, gate_ran = await _run_honesty_gate(client, body, payload.cv_text)
         quality_flags: Dict[str, Any] = {}
         honesty_ok = passed
+        if not gate_ran:
+            quality_flags["honesty_degraded"] = True
 
         if not passed and unsupported:
             # One retry with the unsupported claims fed back into the prompt.
@@ -450,12 +464,14 @@ async def run_cover_letter_pipeline(payload: GenerateCoverLetterRequest) -> None
                 body = normalise_company_in_body(body, payload.company_name)
                 body = strip_vet_codes_from_cover_letter(body)
                 await supabase_update(COVER_LETTERS, letter_id, {"pass_3_final": body})
-                passed_2, unsupported_2 = await _run_honesty_gate(
+                passed_2, unsupported_2, gate_ran_2 = await _run_honesty_gate(
                     client, body, payload.cv_text,
                 )
                 quality_flags["honesty_retried"] = True
                 quality_flags["honesty_passed_after_retry"] = passed_2
                 honesty_ok = passed_2
+                if not gate_ran_2:
+                    quality_flags["honesty_degraded"] = True
                 if not passed_2 and unsupported_2:
                     # Decision (b): accept output, surface warning in flags.
                     quality_flags["unsupported_claims"] = unsupported_2

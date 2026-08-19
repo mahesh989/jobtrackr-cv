@@ -21,7 +21,7 @@ import uuid
 from typing import Optional
 
 from app.config import get_settings
-from app.database import ANALYSIS_RUNS
+from app.database import ANALYSIS_RUNS, delete_storage_object, supabase_update
 from app.enums import StepName, StepState
 from app.services.automation.auto_cover_letter import auto_generate_cover_letter
 from app.database import get_supabase
@@ -40,6 +40,7 @@ from app.services.pipeline.progress import (
     mark_run_failed,
     mark_run_running,
     mark_step,
+    save_artifact_if_active,
     save_step_result,
 )
 from app.services.pipeline.steps.ai_recommendations import run_ai_recommendations
@@ -214,6 +215,8 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
             # categories. A wrong guess degrades to the base prompt's
             # behaviour. Built from the cleaned text (boilerplate stripped)
             # to avoid alias matches in company prose.
+            # Deferred: avoids loading role_families' vertical config modules
+            # unless this branch actually runs.
             from app.services.eval.role_families import resolve_vertical
             # Use the explicit vertical from the job search profile when set
             # (avoids alias-based misclassification). Fall back to auto-detect
@@ -271,7 +274,11 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
             await mark_step(run_id, step_status, StepName.ATS_SCORING, StepState.COMPLETED)
         else:
             await mark_step(run_id, step_status, StepName.ATS_SCORING, StepState.RUNNING)
-            ats = run_ats_scoring(payload.cv_text, jd_analysis, matching)
+            # C67: offloaded to a thread — a synchronous, CPU-bound (regex/
+            # keyword) deterministic scorer previously ran directly on the
+            # event loop, blocking every other concurrent pipeline run and
+            # API request this process was serving for its full duration.
+            ats = await asyncio.to_thread(run_ats_scoring, payload.cv_text, jd_analysis, matching)
             await save_step_result(run_id, "ats_scoring_result", ats)
             await save_step_result(run_id, "match_score", ats.get("overall_score"))
 
@@ -311,7 +318,11 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
 
         # ── Step 4 — Input recommendations (deterministic) ─────────────────────
         await mark_step(run_id, step_status, StepName.INPUT_RECOMMENDATIONS, StepState.RUNNING)
-        input_recs = run_input_recommendations(payload.cv_text, jd_analysis, matching, ats)
+        # C67: offloaded to a thread — same event-loop-blocking concern as
+        # run_ats_scoring above.
+        input_recs = await asyncio.to_thread(
+            run_input_recommendations, payload.cv_text, jd_analysis, matching, ats,
+        )
         await save_step_result(run_id, "input_recommendations", input_recs)
         await mark_step(run_id, step_status, StepName.INPUT_RECOMMENDATIONS, StepState.COMPLETED)
 
@@ -359,6 +370,8 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
             # so it adds only the composition + verify calls. Same storage path
             # and (markdown, storage_path) contract as the legacy writer.
             logger.info("run %s: tailoring via w8_verified writer", run_id)
+            # Deferred: avoids loading the writers package (large — regex
+            # rewriters, honesty guard, etc.) unless this branch actually runs.
             from app.services.eval.writers import run_tailored_cv_w8_verified
             tailored_md, tailored_storage_path = await run_tailored_cv_w8_verified(
                 ai_client, payload.user_id, run_id, payload.cv_text, payload.jd_text,
@@ -372,11 +385,28 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
                 jd_analysis, recs_md, feasibility,
                 contact_details=payload.contact_details,
             )
-        await save_step_result(run_id, "tailored_cv_storage_path", tailored_storage_path)
+        # Persist the markdown artifact ONLY if the run hasn't already been
+        # cancelled. A user's Stop click can land while the writer — often
+        # the single longest step in the pipeline — is still in flight.
+        # Without this guard, the already-generated CV gets recorded on a
+        # row whose paid reservation the Stop click's DB trigger already
+        # voided, and stays downloadable via the user's own SELECT +
+        # storage policies despite the refund. The conditional UPDATE makes
+        # the check-and-write atomic — no separate read-then-write race
+        # window. See finding — C3b.
+        if not await save_artifact_if_active(run_id, "tailored_cv_storage_path", tailored_storage_path):
+            logger.info("run %s: cancelled before tailored CV could be persisted — discarding artifact", run_id)
+            await asyncio.to_thread(
+                delete_storage_object, get_settings().SUPABASE_TAILORED_CV_BUCKET, tailored_storage_path,
+            )
+            raise _CancelledByUser()
 
         # ── Step 6 (PDF) — render markdown → PDF, upload alongside the .md ─────
         # Non-fatal — if PDF render fails we keep the markdown only; user can
-        # still copy the markdown out of the UI.
+        # still copy the markdown out of the UI. A cancellation must still
+        # propagate though (see the `except _CancelledByUser: raise` below) —
+        # it is not a render failure, it is the same C3b guard as the
+        # markdown save above, just for the PDF artifact.
         #
         # Stop is only observed at these checkpoints, and the tailored-CV step is
         # by far the longest stretch between them: writer → PDF → re-score →
@@ -388,8 +418,15 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
             pdf_path = await render_and_upload_tailored_pdf(
                 str(payload.user_id), str(run_id), tailored_md,
             )
-            await save_step_result(run_id, "tailored_pdf_storage_path", pdf_path)
+            if not await save_artifact_if_active(run_id, "tailored_pdf_storage_path", pdf_path):
+                logger.info("run %s: cancelled before tailored PDF could be persisted — discarding artifact", run_id)
+                await asyncio.to_thread(
+                    delete_storage_object, get_settings().SUPABASE_TAILORED_CV_BUCKET, pdf_path,
+                )
+                raise _CancelledByUser()
             logger.info("run %s: tailored PDF rendered → %s", run_id, pdf_path)
+        except _CancelledByUser:
+            raise
         except Exception as exc:
             logger.exception("run %s: tailored PDF render failed (non-fatal): %s", run_id, exc)
 
@@ -405,8 +442,11 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
         # non-deterministic call could push the tailored score BELOW the
         # original — the "bizarre regression" bug.) Identical to the beta
         # /analyze-eval harness, so beta and production agree exactly.
-        rescore = run_tailored_rescoring(
-            tailored_md, jd_analysis, matching, feasibility, ats,
+        # C67: offloaded to a thread — same event-loop-blocking concern as
+        # run_ats_scoring above; this is the tailored-CV re-score pass over
+        # the full generated markdown.
+        rescore = await asyncio.to_thread(
+            run_tailored_rescoring, tailored_md, jd_analysis, matching, feasibility, ats,
         )
         tailored_ats_scored = rescore["tailored_ats_scoring_result"]
         tailored_score = rescore["tailored_match_score"]
@@ -420,8 +460,11 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
         )
 
         # ── Step 6.6 — Deterministic structural validation ─────────────────────
-        structural_report = run_tailored_structural_validation(
-            tailored_md, payload.cv_text, jd_analysis=jd_analysis,
+        # C67: offloaded to a thread — same event-loop-blocking concern as
+        # run_ats_scoring above; this runs all 17 structural-validation
+        # gates over the full generated markdown.
+        structural_report = await asyncio.to_thread(
+            run_tailored_structural_validation, tailored_md, payload.cv_text, jd_analysis=jd_analysis,
         )
         tailored_ats_payload = dict(tailored_ats_scored)
         tailored_ats_payload["structural_report"] = structural_report
@@ -500,14 +543,9 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
                 "(gate uses the tailored score, not the initial ATS score)",
                 run_id, final_score, payload.min_final_ats,
             )
-            try:
-                await asyncio.to_thread(
-                    lambda: get_supabase().table(ANALYSIS_RUNS).update(
-                        {"cover_letter_status": "skipped:below_gate"}
-                    ).eq("id", run_id).execute()
-                )
-            except Exception as exc:  # noqa: BLE001 — best effort
-                logger.warning("orchestrator: could not record below_gate outcome on run %s: %s", run_id, exc)
+            ok = await supabase_update(ANALYSIS_RUNS, run_id, {"cover_letter_status": "skipped:below_gate"})
+            if not ok:
+                logger.warning("orchestrator: could not record below_gate outcome on run %s", run_id)
 
     except _CancelledByUser:
         # User clicked Stop on the analysis run page; the row was already

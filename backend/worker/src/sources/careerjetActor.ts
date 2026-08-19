@@ -4,7 +4,9 @@
 // Careerjet v4 API (careerjet.ts); the worker filters/dedups to survivors;
 // then this runs the JD-fetcher actor on only the careerjet.com.au survivors
 // to get full descriptions over a residential proxy (datacenter is Turnstile-
-// blocked — verified 2026-06-22). Mirrors seek.ts enrichWithFullJDs.
+// blocked — verified 2026-06-22). SEEK's own JD enrichment is direct-only
+// now (seekDirect.ts's enrichWithDirectJDs) — the Apify JD-fetcher fallback
+// that used to mirror was removed; this file's actor path is Careerjet-only.
 //
 // Bound to the user's per-user Apify token (same integration as SEEK).
 
@@ -66,12 +68,18 @@ export async function enrichCareerjetJDsViaActor(
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       console.error(`[careerjet-jd] Apify ${res.status}: ${body.slice(0, 300)}`);
-      return { jobs, costUsd: COST_PER_RUN_USD, merged: 0, fetched: targets.length };
+      // C67: was billing COST_PER_RUN_USD and reporting `fetched:
+      // targets.length` on a run that produced ZERO merged descriptions —
+      // charging for a failure and, worse, reporting it to source_methods
+      // (the diagnostic dashboard for paid-tier source failures) as if it
+      // had succeeded, masking the very failure that dashboard exists to
+      // surface.
+      return { jobs, costUsd: 0, merged: 0, fetched: 0 };
     }
     items = (await res.json()) as JdItem[];
   } catch (err) {
     console.error(`[careerjet-jd] actor call failed: ${err instanceof Error ? err.message : err}`);
-    return { jobs, costUsd: COST_PER_RUN_USD, merged: 0, fetched: targets.length };
+    return { jobs, costUsd: 0, merged: 0, fetched: 0 };
   }
 
   const descByUrl = new Map<string, string>();

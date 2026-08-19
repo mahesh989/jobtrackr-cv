@@ -43,6 +43,7 @@ import { buildDefaultEmailDraft } from "@/lib/email/draftBody";
 import { fetchEmailDraft } from "@/lib/email/emailDraft";
 import { loadCvInputs } from "@/features/applications/lib/cvPdfClient";
 import { renderTailoredCvBlob } from "@/lib/cv/pdfRender";
+import { MAX_APPLICATION_BODY_LEN } from "@/lib/constants";
 import type { BoardJob } from "../../lib/jobFilters";
 
 /** Generation is a one-shot AI cost, so it polls rather than subscribing —
@@ -145,7 +146,7 @@ export function ApplyModal({
   // it is a fresh closure every render, and depending on it would re-run the
   // request on every keystroke in the message box.
   const onChangedRef = useRef(onChanged);
-  onChangedRef.current = onChanged;
+  useEffect(() => { onChangedRef.current = onChanged; }, [onChanged]);
 
   // Only ever runs when the payload had no stored body — the first time this
   // job's message is needed. Everything after that is served from state.
@@ -178,18 +179,29 @@ export function ApplyModal({
   /** Persist the message so the Applied record shows what the user actually
    *  used, and so `/email-draft` stops re-rewriting it (POST /review sets
    *  `reviewed_at`, which is that route's "the user approved this" signal).
-   *  Best-effort: a failure here must not block applying. */
+   *  Best-effort: a failure here must not block applying.
+   *
+   *  C67: the "nothing is lost either way" claim below only holds for
+   *  sendEmail()'s caller — that path passes subject/body as an EXPLICIT
+   *  override to /send-email, so even a failed persist here doesn't affect
+   *  what actually gets sent. copyMessage() and openListing() have no such
+   *  compensating step: this fetch is the ONLY place the user's edited
+   *  wording is saved for those two flows. A silent failure there loses
+   *  the edit for good — the Applications history and a later re-open of
+   *  this modal would show the stale default text, not what was actually
+   *  copied/opened. Still deliberately non-blocking (must not stop the
+   *  user from applying), but now at least logged instead of invisible. */
   async function persistMessage(): Promise<void> {
     if (!effectiveLetterId || !body.trim()) return;
     try {
-      await fetch(`/api/applications/${effectiveLetterId}/review`, {
+      const res = await fetch(`/api/applications/${effectiveLetterId}/review`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ subject: subject.trim() || defaultSubject, body }),
       });
-    } catch {
-      // Non-fatal — the send below carries the same text as an explicit
-      // override, so nothing the user typed is lost either way.
+      if (!res.ok) console.error(`[ApplyModal] failed to persist the edited message: HTTP ${res.status}`);
+    } catch (e) {
+      console.error("[ApplyModal] failed to persist the edited message:", e);
     }
   }
 
@@ -233,7 +245,8 @@ export function ApplyModal({
       throw new Error(startJson.error ?? `Could not start (${startRes.status})`);
     }
 
-    const newLetterId = startJson.letter_id as string;
+    if (typeof startJson.letter_id !== "string") throw new Error("No letter_id came back — try again.");
+    const newLetterId = startJson.letter_id;
     if (startJson.status === "picking") {
       const variants = Array.isArray(startJson.variants) ? startJson.variants : [];
       const firstVariant = variants[0];
@@ -504,7 +517,7 @@ export function ApplyModal({
                   value={body}
                   onChange={(e) => setBody(e.target.value)}
                   rows={12}
-                  maxLength={20_000}
+                  maxLength={MAX_APPLICATION_BODY_LEN}
                   spellCheck
                   className="w-full rounded-[10px] border border-border bg-surface text-text px-3.5 py-3 text-[13.5px] leading-relaxed resize-y focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
                 />
@@ -705,7 +718,7 @@ export function ApplyModal({
                           type="button"
                           onClick={confirmApplied}
                           disabled={!!busy}
-                          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-success py-2 text-body font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-success py-2 text-body font-medium text-success-fg transition-opacity hover:opacity-90 disabled:opacity-50"
                         >
                           {busy === "source"
                             ? <Loader2 className="h-4 w-4 animate-spin" />

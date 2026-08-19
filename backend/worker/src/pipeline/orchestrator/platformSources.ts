@@ -1,4 +1,5 @@
 import { db } from "../../db/client.js";
+import { ADMIN_ROLES } from "../../lib/adminRoles.js";
 import type { SubscriptionTier, PlatformSources } from "./types.js";
 
 export function planToTier(planId: string | null | undefined, status: string | null | undefined): SubscriptionTier {
@@ -30,7 +31,7 @@ export async function loadPlatformSources(userId: string): Promise<PlatformSourc
       .select("role")
       .eq("id", userId)
       .maybeSingle();
-    if (userRow?.role === "founder" || userRow?.role === "admin") {
+    if (userRow?.role && (ADMIN_ROLES as readonly string[]).includes(userRow.role)) {
       tier = "unlimited";
     } else {
       const { data: sub } = await db

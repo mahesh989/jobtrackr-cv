@@ -48,29 +48,45 @@ export const GET = withUser(async (
   // Service-role bypasses RLS, so scoping by user_id + job_id here is the only
   // gate — without it, any user could read another user's letter by pairing
   // their own jobId with a victim's letterId.
-  const { data: letter } = await admin
+  const { data: letter, error: letterErr } = await admin
     .from("cover_letters")
     .select("id, pass_3_final, job_id")
     .eq("id", letterId)
     .eq("user_id", user.id)
     .eq("job_id", jobId)
     .maybeSingle();
+  // Fails closed on all three reads below (correct direction for an
+  // ownership gate) — but a transient read failure previously returned
+  // the same 404/403 as a genuine miss/forbidden, making the "View PDF"
+  // link look permanently broken instead of retryable.
+  if (letterErr) {
+    console.error("[cover-letter/download] letter ownership read failed:", letterErr.message);
+    return jsonError("Could not load letter, try again", 500);
+  }
   if (!letter) return jsonError("Letter not found", 404);
 
   // Job ownership chain (job → profile → user) as defence-in-depth. The letter
   // gate above is authoritative; this also loads the fields we render.
-  const { data: job } = await admin
+  const { data: job, error: jobErr } = await admin
     .from("jobs")
     .select("id, profile_id, company, location, hiring_manager, company_address")
     .eq("id", jobId)
     .maybeSingle();
+  if (jobErr) {
+    console.error("[cover-letter/download] job ownership read failed:", jobErr.message);
+    return jsonError("Could not load job, try again", 500);
+  }
   if (!job) return jsonError("Job not found", 404);
 
-  const { data: profile } = await admin
+  const { data: profile, error: profileErr } = await admin
     .from("search_profiles")
     .select("user_id")
     .eq("id", job.profile_id)
     .maybeSingle();
+  if (profileErr) {
+    console.error("[cover-letter/download] profile ownership read failed:", profileErr.message);
+    return jsonError("Could not load job, try again", 500);
+  }
   if (!profile || profile.user_id !== user.id) {
     return jsonError("Forbidden", 403);
   }

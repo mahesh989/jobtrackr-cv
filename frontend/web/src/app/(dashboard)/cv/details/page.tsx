@@ -30,6 +30,16 @@ export default async function DetailsPage() {
   const cvs = (cvsExt.data ?? []) as Array<{ id: string; is_active: boolean }>;
   const activeCv = cvs.find((c) => c.is_active) ?? cvs[0] ?? null;
 
+  // Finding #40 — a transient read failure here used to fall through to an
+  // empty {} form. The autosave then replace-writes contact_details on the
+  // next keystroke, permanently overwriting the user's real name, phone,
+  // email, address, credentials, and referees with blanks. Throw instead
+  // and let the dashboard's error.tsx boundary handle it — never render a
+  // form seeded from a failed read as if it were the user's real (empty)
+  // profile.
+  if (prefsRes.error) {
+    throw new Error(`Failed to load contact details: ${prefsRes.error.message}`);
+  }
   const contactDetails = (prefsRes.data?.contact_details ?? {}) as ContactDetails;
 
   const rawVisaStatus = (prefsRes.data?.contact_details as { visa_status?: string } | null)?.visa_status;

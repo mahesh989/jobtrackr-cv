@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, HttpUrl
 
-from app.enums import Provider, SkillCategory
+from app.enums import SkillCategory
 from app.schemas._byok import BYOK
 from app.schemas.stories import ExtractStoriesResponse  # noqa: F401 — re-exported
 from app.schemas.voice import VoiceFingerprint

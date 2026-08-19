@@ -4,6 +4,7 @@ import asyncio
 import logging
 
 from fastapi import APIRouter, HTTPException, status
+from storage3.exceptions import StorageApiError
 
 from app.config import get_settings
 from app.database import get_supabase
@@ -56,13 +57,38 @@ async def extract_cv_text(body: ExtractCvTextRequest) -> ExtractCvTextResponse:
     def _download() -> bytes:
         return get_supabase().storage.from_(bucket).download(storage_key)
 
+    # #8 (audit): every download failure — including a transient Supabase 5xx
+    # or a network timeout — used to be caught by a blanket `except Exception`
+    # and reported as 404 with the raw exception text echoed into the
+    # response. A transient outage told the user their just-uploaded CV does
+    # not exist, and the caller (this is an internal, HMAC-signed endpoint,
+    # but still) got backend implementation details in a user-facing string.
+    # StorageApiError.status carries the REAL upstream status — only a
+    # genuine 404 from Storage is reported as 404; everything else (other
+    # StorageApiError statuses, or a raw network/timeout exception that never
+    # reached Storage at all) is a 502, matching what actually happened —
+    # storage was unreachable/erroring, not "this file doesn't exist".
     try:
         file_bytes = await asyncio.to_thread(_download)
-    except Exception as exc:
-        logger.warning("extract-cv-text: download failed for %s: %s", storage_key, exc)
+    except StorageApiError as exc:
+        logger.warning(
+            "extract-cv-text: download failed for %s: status=%s code=%s message=%s",
+            storage_key, exc.status, exc.code, exc.message,
+        )
+        if exc.status == 404:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="CV file not found.",
+            ) from exc
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Could not fetch CV file: {exc}",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Could not fetch CV file — storage service error.",
+        ) from exc
+    except Exception as exc:
+        logger.warning("extract-cv-text: unexpected error downloading %s: %s", storage_key, exc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Could not fetch CV file — storage service error.",
         ) from exc
 
     # Size cap — see Settings.MAX_CV_UPLOAD_BYTES for rationale.
@@ -105,7 +131,7 @@ async def extract_cv_text(body: ExtractCvTextRequest) -> ExtractCvTextResponse:
     return ExtractCvTextResponse(cv_text=cv_text, word_count=word_count)
 
 
-# ── /internal/scrape-jd ──────────────────────────────────────────────────────
+# ── /internal/categorise-cv ──────────────────────────────────────────────────
 
 @router.post("/categorise-cv", response_model=CategoriseCvResponse)
 async def categorise_cv(body: CategoriseCvRequest) -> CategoriseCvResponse:
@@ -114,7 +140,7 @@ async def categorise_cv(body: CategoriseCvRequest) -> CategoriseCvResponse:
     domain_knowledge — extracted from the provided CV text by the AI provider
     the user has connected. JobTrackr calls this once at CV upload time.
     """
-    ai_client = build_ai_client_or_422(body)
+    ai_client = build_ai_client_or_422(body, operation="categorise_cv")
 
     try:
         result = await categorise_cv_skills(ai_client, body.cv_text)
@@ -144,7 +170,7 @@ async def extract_cv_references_route(
     {name, job_title, company, email}. Called on-demand from the web UI
     when a user clicks "Extract from active CV" in the References section.
     """
-    ai_client = build_ai_client_or_422(body)
+    ai_client = build_ai_client_or_422(body, operation="extract_cv_references")
 
     try:
         referees = await extract_cv_references(ai_client, body.cv_text)
@@ -172,7 +198,7 @@ async def structurize_cv_route(body: StructurizeCvRequest) -> StructurizeCvRespo
     the result is stored on cv_versions.structured_cv and edited in the
     review form. Dates are extracted verbatim (never inferred).
     """
-    ai_client = build_ai_client_or_422(body)
+    ai_client = build_ai_client_or_422(body, operation="structurize_cv")
 
     try:
         structured = await structurize_cv(ai_client, body.cv_text)

@@ -89,7 +89,18 @@ _TITLE_AI_SUFFIX_RE = re.compile(
 
 
 def _section_bounds(lines: List[str], heading_pred) -> tuple[int, int] | None:
-    start = next((i for i, ln in enumerate(lines) if heading_pred(ln.strip())), None)
+    # C22f: strip a trailing colon the AI writer sometimes emits on a
+    # heading line ("## Skills:") before handing it to `heading_pred` —
+    # every current callback does an exact/membership match on the heading
+    # text and is defeated by an unstripped colon (same pattern as C22b's
+    # fix one layer up, in enforce_w8.py). Fixed ONCE here at the shared
+    # entry point, covering every caller (_strip_ai_skills, _strip_ai_projects,
+    # clamp_two_sentences, strip_off_vertical_preamble) instead of patching
+    # each predicate separately.
+    def _norm(ln: str) -> str:
+        s = ln.strip()
+        return s.rstrip(":") if s.startswith("## ") else s
+    start = next((i for i, ln in enumerate(lines) if heading_pred(_norm(ln))), None)
     if start is None:
         return None
     end = len(lines)
@@ -205,154 +216,6 @@ def clamp_two_sentences(md: str) -> str:
     for i in prose_idx:
         lines[i] = ""
     lines[prose_idx[0]] = clamped
-    return "\n".join(lines)
-
-
-# ---------------------------------------------------------------------------
-# Summary S1↔S2 de-duplication
-# ---------------------------------------------------------------------------
-
-# Filler adjectives/adverbs that carry no distinct competency on their own — we
-# ignore them when deciding whether an S2 clause merely restates S1.
-_SUMMARY_FILLER_WORDS = {
-    "comprehensive", "extensive", "thorough", "detailed", "holistic", "ongoing",
-    "various", "varied", "strong", "excellent", "effective", "efficient", "broad",
-    "general", "advanced", "quality", "daily", "regular", "consistent", "dedicated",
-    "compassionate", "solid", "sound", "proven", "demonstrated", "professional",
-    "exceptional", "outstanding", "robust", "reliable", "diverse", "wide",
-    "extensively", "experienced", "skilled", "providing", "provided", "delivering",
-    "delivered", "supporting", "support", "including", "across", "within", "while",
-    "with", "and", "the", "for", "their", "them", "that", "this", "these", "those",
-    "from", "into", "onto", "over", "under", "throughout", "where", "which", "who",
-    "whom", "whose", "when", "what", "also", "both", "each", "every", "such", "very",
-    "more", "most", "much", "many", "some", "any", "all", "well",
-}
-
-_SUMMARY_WORD_RE = re.compile(r"[a-z][a-z'\-]*")
-
-
-def _summary_content_words(text: str) -> List[str]:
-    """Lowercased content tokens (≥4 chars, not filler), hyphens split out so
-    'person-centred' contributes both 'person' and 'centred'."""
-    out: List[str] = []
-    for tok in _SUMMARY_WORD_RE.findall(text.lower()):
-        for part in tok.split("-"):
-            part = part.strip("'")
-            if len(part) >= 4 and part not in _SUMMARY_FILLER_WORDS:
-                out.append(part)
-    return out
-
-
-def _word_covered_by(word: str, pool: List[str]) -> bool:
-    """A content word is 'covered' if `pool` holds a word sharing its 4-char
-    prefix (handles support/supporting, residents/residential, care/caring)."""
-    p = word[:4]
-    return any(w[:4] == p for w in pool)
-
-
-def _tidy_clause(s: str) -> str:
-    """Repair a sentence after an 'at <employer>' span was excised: collapse
-    whitespace, reattach punctuation, drop any now-dangling leading connector,
-    re-capitalise, and guarantee terminal punctuation."""
-    s = re.sub(r"\s{2,}", " ", s).strip()
-    s = re.sub(r"\s+([,.;:!?])", r"\1", s)          # " ," -> ","
-    s = re.sub(r"^(?:and|or|but|,|;)\s+", "", s, flags=re.IGNORECASE)
-    s = re.sub(r"\s+(?:and|or)\s*([.!?])", r"\1", s)  # "… and ." -> "…."
-    s = re.sub(r",\s*,", ", ", s)
-    s = s.strip()
-    if s:
-        s = s[0].upper() + s[1:]
-    if s and s[-1] not in ".!?":
-        s += "."
-    return s
-
-
-# ---------------------------------------------------------------------------
-# Summary-vs-Skills de-duplication.
-# ---------------------------------------------------------------------------
-
-_SKILLS_CATEGORY_LINE_RE = re.compile(r"^(\s*(?:[-*•]\s+)?\*\*[^*]+:\*\*\s*)(.*)$")
-
-
-def _skills_section_pool(md: str) -> List[str]:
-    """Content words from every entry in every ## Skills category line."""
-    lines = md.split("\n")
-    bounds = _section_bounds(lines, lambda s: s.strip() == "## Skills")
-    if not bounds:
-        return []
-    start, end = bounds
-    pool: List[str] = []
-    for i in range(start + 1, end):
-        m = _SKILLS_CATEGORY_LINE_RE.match(lines[i])
-        if not m:
-            continue
-        pool.extend(_summary_content_words(m.group(2)))
-    return pool
-
-
-def enforce_summary_skills_dedup(md: str) -> str:
-    """Drop S2 clauses where EVERY content word is already in the ## Skills section."""
-    lines = md.split("\n")
-    bounds = _section_bounds(
-        lines,
-        lambda s: s.startswith("## ") and s[3:].strip().lower() in _HIGHLIGHT_HEADINGS,
-    )
-    if not bounds:
-        return md
-    start, end = bounds
-
-    prose_idx = [
-        i for i in range(start + 1, end)
-        if lines[i].strip() and not re.match(r"^\s*[-*•]", lines[i])
-    ]
-    if not prose_idx:
-        return md
-    full = " ".join(lines[i].strip() for i in prose_idx).strip()
-    sentences = [s.strip() for s in _SENT_SPLIT_RE.split(full) if s.strip()]
-    if len(sentences) < 2:
-        return md
-
-    s1, s2 = sentences[0], sentences[1]
-    if ";" in s2:
-        return md
-
-    raw_clauses = [c.strip() for c in s2.rstrip(".!?").split(",")]
-    clauses = [re.sub(r"^(?:and|or)\s+", "", c, flags=re.IGNORECASE).strip() for c in raw_clauses]
-    clauses = [c for c in clauses if c]
-    if len(clauses) < 2:
-        return md
-
-    skills_pool = _skills_section_pool(md)
-    if not skills_pool:
-        return md
-
-    kept: List[str] = []
-    dropped = 0
-    for c in clauses:
-        cwords = _summary_content_words(c)
-        all_in_skills = bool(cwords) and all(_word_covered_by(w, skills_pool) for w in cwords)
-        if all_in_skills and dropped < len(clauses) - 1:
-            dropped += 1
-            continue
-        kept.append(c)
-
-    if not dropped or not kept:
-        return md
-
-    if len(kept) == 1:
-        new_s2 = kept[0]
-    elif len(kept) == 2:
-        new_s2 = f"{kept[0]} and {kept[1]}"
-    else:
-        new_s2 = ", ".join(kept[:-1]) + f", and {kept[-1]}"
-    new_s2 = _tidy_clause(new_s2)
-
-    rest = sentences[2:] if len(sentences) > 2 else []
-    new_prose = " ".join([s1, new_s2] + rest)
-
-    for i in prose_idx:
-        lines[i] = ""
-    lines[prose_idx[0]] = new_prose
     return "\n".join(lines)
 
 

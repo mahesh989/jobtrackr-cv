@@ -33,7 +33,7 @@ _EXP_SECTION_RE = re.compile(
 )
 
 
-def _extract_employers_from_cv(cv_text: str, min_months: int = 2) -> list[str]:
+def _extract_employers_from_cv(cv_text: str) -> list[str]:
     """Return employer names from the CV's Experience section that have
     continuous multi-month tenure (i.e. a date range like 'May 2025 – Jun 2026'
     or 'Mar 2026 – Present'). True placement entries (lines containing 'placement'
@@ -109,7 +109,7 @@ def _enforce_company_anchor(markdown: str, cv_text: str = "") -> str:
                      "at <E1> and <E2>." to S2 (legacy behaviour).
       • PARTIAL    — exactly one of top-2 is named (the cherry-pick case
                      that produced the recent "...have served as a primary
-                     Medication Assistant" Rashmi example): append a
+                     Medication Assistant" Jane example): append a
                      semicolon-joined clause naming the missing employer
                      so BOTH appear, and convert a trailing "..., and have
                      <verb>" present-perfect tail into simple past (rule:

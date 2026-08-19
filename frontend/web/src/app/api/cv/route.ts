@@ -87,17 +87,27 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
   const admin = createAdminClient();
 
   // Reject duplicate POSTs for the same cv_id (e.g. user double-clicks Upload).
-  const { data: dup } = await admin
+  const { data: dup, error: dupErr } = await admin
     .from("cv_versions").select("id").eq("id", cv_id).maybeSingle();
+  // A discarded error here previously let the route fall through to the
+  // INSERT, which then fails on the PK conflict with a generic 500 AND
+  // deletes the just-uploaded storage object — for what may just be a
+  // duplicate double-click. Surface it before touching Storage.
+  if (dupErr) return jsonError(dupErr.message, 500);
   if (dup) {
     return jsonError("This CV is already saved", 409);
   }
 
   // ── 1. Verify the Storage object actually exists at the claimed path.
   //      Avoid the race where a malicious client POSTs without uploading.
-  const { data: head } = await admin
+  const { data: head, error: headErr } = await admin
     .storage.from("cvs")
     .list(`${user.id}`, { limit: 1000, search: `${cv_id}.` });
+  // A discarded error here previously made a Storage API outage
+  // indistinguishable from "you never uploaded" — the browser had already
+  // successfully uploaded the file, so telling the user to do it again is
+  // both wrong and leaves the real object orphaned in the bucket.
+  if (headErr) return jsonError("Could not verify upload, try again", 502);
   const exists = (head ?? []).some((o) => o.name === `${cv_id}.${ext}`);
   if (!exists) {
     return NextResponse.json(
@@ -136,11 +146,17 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
   }
 
   // ── 3. Decide is_active — first upload becomes active automatically.
-  const { count: activeCount } = await admin
+  const { count: activeCount, error: activeCountErr } = await admin
     .from("cv_versions")
     .select("id", { count: "exact", head: true })
     .eq("user_id", user.id)
     .eq("is_active", true);
+  // A discarded error here previously defaulted shouldActivate to true —
+  // for a user who already has an active CV, that violates the partial
+  // unique index on cv_versions(user_id) WHERE is_active (CLAUDE.md
+  // Non-Negotiable #8), the INSERT fails, and the failure handler at
+  // §5 deletes the just-uploaded storage object. Fail before the insert.
+  if (activeCountErr) return jsonError(activeCountErr.message, 500);
   const shouldActivate = (activeCount ?? 0) === 0;
 
   // ── 4. Structurize + categorise in TWO AI calls. Skills are extracted by a

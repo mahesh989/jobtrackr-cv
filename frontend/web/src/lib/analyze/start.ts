@@ -8,7 +8,7 @@
  * billing reserve → per-vertical thresholds → cv-backend /internal/analyze.
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
 import { startAnalysis, scrapeJd, CvBackendError, renderCanonicalCv } from "@/lib/cv/backend";
@@ -25,6 +25,10 @@ import { jsonError } from "@/lib/api-utils";
 
 const JD_FULL_THRESHOLD  = 1000;   // chars — below this we try a fresh scrape. Aligned to MANUAL_JD_MIN_CHARS + jd_quality classifier (migration 062). Was 1400, was 2000.
 const JD_MIN_USABLE      = 200;    // chars — below this we fail the run
+                                    // (deliberately stricter than coverLetter/
+                                    // start.ts's JD_MIN_CHARS=50: this gates a
+                                    // full scoring/tailoring run, which needs
+                                    // more JD context than a cover letter does)
 
 // Referees are single-sourced from the ACTIVE CV's structured_cv (the review
 // form is the only referee editor — see Fix 2, docs/design.md). The profile
@@ -210,12 +214,15 @@ export async function analyzeJob(
         normalizedText = fresh;
         if (wasStale) {
           // Best-effort self-heal so the next run + other read paths match.
-          try {
-            await admin
-              .from("cv_versions")
-              .update({ normalized_cv_text: fresh })
-              .eq("id", cv.id);
-          } catch { /* column absent (pre-059) or write denied — ignore */ }
+          // supabase-js resolves {error} rather than throwing, so this is
+          // checked directly rather than via try/catch.
+          const { error: selfHealErr } = await admin
+            .from("cv_versions")
+            .update({ normalized_cv_text: fresh })
+            .eq("id", cv.id);
+          if (selfHealErr) {
+            console.warn("[analyze/start] normalized_cv_text self-heal failed (ignored):", selfHealErr.message);
+          }
         }
       }
     } catch {
@@ -301,15 +308,12 @@ export async function analyzeJob(
     );
   }
 
-  // ── 3. Mark prior runs as stale ──────────────────────────────────────────
-  await admin
-    .from("analysis_runs")
-    .update({ is_stale: true })
-    .eq("user_id", user.id)
-    .eq("job_id", jobId)
-    .eq("is_stale", false);
-
-  // ── 4. Create the new run row (pending) ──────────────────────────────────
+  // ── 3. Create the new run row (pending) ──────────────────────────────────
+  // C67: this used to mark every prior run stale BEFORE this insert. If the
+  // insert then failed (step 4's guard below), the user was left with ZERO
+  // non-stale runs for this job — the old, perfectly valid analysis was
+  // already staled, and no new run took its place. Insert first; only stale
+  // the old runs once the new one actually exists to replace them.
   const { data: newRun, error: insertErr } = await admin
     .from("analysis_runs")
     .insert({
@@ -330,9 +334,32 @@ export async function analyzeJob(
     return jsonError("Failed to create analysis run", 500);
   }
 
+  // ── 4. Mark prior runs as stale ──────────────────────────────────────────
+  // Non-fatal by design: the new run above is already valid and the response
+  // below reflects it — a failure here only means a stale old run briefly
+  // still reads as "current" in the UI, not a lost analysis.
+  const { error: staleErr } = await admin
+    .from("analysis_runs")
+    .update({ is_stale: true })
+    .eq("user_id", user.id)
+    .eq("job_id", jobId)
+    .eq("is_stale", false)
+    .neq("id", newRun.id);
+  if (staleErr) {
+    console.error("[/api/jobs/:id/analyze] failed to stale prior runs:", staleErr.message);
+  }
+
   // Link the reservation to the run so the analysis_runs trigger can commit it
-  // on 'completed' or void it on 'failed'.
-  if (usageEventId) await linkUsageEvent(usageEventId, newRun.id);
+  // on 'completed' or void it on 'failed'. Non-fatal: the run itself already
+  // exists and is proceeding — a link failure means this one reservation
+  // won't auto-reconcile (worth loud logging), not that the analysis failed.
+  if (usageEventId) {
+    try {
+      await linkUsageEvent(usageEventId, newRun.id);
+    } catch (err) {
+      console.error("[/api/jobs/:id/analyze] linkUsageEvent failed — reservation stuck pending:", err);
+    }
+  }
 
   // Projects are already in the CV text (rendered from structured_cv), so no
   // separate merge is needed.
@@ -394,11 +421,15 @@ export async function analyzeJob(
   }
 
   // Emit activity event (fire-and-forget — never blocks the response).
-  void emitEvent({
+  // C67: `after()` instead of a bare `void` — a serverless runtime can
+  // freeze execution right after the response is sent, silently dropping an
+  // un-awaited promise; `after()` keeps the invocation alive until this
+  // completes without delaying the response itself.
+  after(() => emitEvent({
     userId: user.id,
     eventType: "analysis_started",
     metadata: { run_id: newRun.id, job_id: jobId, provider: chosen, model: aiModel ?? undefined },
-  });
+  }));
 
   return NextResponse.json({ run_id: newRun.id, provider: chosen });
 }

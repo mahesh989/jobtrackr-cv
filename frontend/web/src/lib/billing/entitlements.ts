@@ -45,6 +45,8 @@ export interface ConsumeResult {
   allowed: boolean;
   reason?: DenyReason;
   eventId?: string;
+  requestConflict?: boolean;
+  alreadyCommitted?: boolean;
 }
 
 const UNLIMITED: PlanLimits = {
@@ -179,16 +181,47 @@ export async function assertCanCreateProfile(userId: string): Promise<ConsumeRes
   return { allowed: true };
 }
 
-/** Run cap = per-period event count. Committed immediately (enqueue is sync). */
-export async function consumeRun(userId: string): Promise<ConsumeResult> {
+/** Reserve a run credit, idempotently keyed by the browser request UUID. */
+export async function consumeRun(
+  userId: string,
+  requestId: string,
+  profileId: string,
+  fullRefresh: boolean,
+): Promise<ConsumeResult> {
   const ent = await getEntitlement(userId);
   if (ent.access === "read_only") return { allowed: false, reason: "no_subscription" };
   if (ent.limits.maxRuns !== null && ent.periodStart) {
-    const res = await rpcConsume(userId, "run", null, null, ent.limits.maxRuns, ent.periodStart);
-    if (!res.allowed) return { allowed: false, reason: "run_cap" };
-    // Runs don't fail-async like analyses — commit right away.
-    if (res.eventId) await commitEvent(res.eventId);
-    return { allowed: true, eventId: res.eventId };
+    const admin = createAdminClient();
+    const { data, error } = await admin.rpc("reserve_run_usage", {
+      p_user: userId,
+      p_request: requestId,
+      p_profile: profileId,
+      p_full_refresh: fullRefresh,
+      p_max_total: ent.limits.maxRuns,
+      p_period_start: ent.periodStart,
+    });
+    if (error) {
+      console.error("[entitlements] reserve_run_usage error:", error.message);
+      // The database may have committed before the HTTP acknowledgement was
+      // lost. Let the route return 503 so the browser keeps this request UUID.
+      throw new Error(`run usage reservation uncertain: ${error.message}`);
+    }
+    const row = Array.isArray(data) ? data[0] : data;
+    const res = {
+      allowed: !!row?.allowed,
+      reason: row?.reason ?? "error",
+      eventId: row?.event_id ?? undefined,
+    };
+    if (!res.allowed) {
+      return {
+        allowed: false,
+        reason: "run_cap",
+        requestConflict: res.reason === "request_conflict",
+      };
+    }
+    return res.reason === "existing_committed"
+      ? { allowed: true, eventId: res.eventId, alreadyCommitted: true }
+      : { allowed: true, eventId: res.eventId };
   }
   return { allowed: true };
 }
@@ -223,21 +256,45 @@ export async function consumeCoverLetter(userId: string, jobId: string): Promise
 
 // ── Reservation lifecycle ───────────────────────────────────────────────────
 
-/** Link a pending reservation to the artifact row so triggers can commit/void it. */
+/**
+ * Link a pending reservation to the artifact row so triggers can commit/void
+ * it. C67: this update's result — including any error — used to be
+ * discarded entirely, unlike every sibling in this reservation lifecycle
+ * (release/commit both check and throw below). A silent failure here left
+ * the reservation stuck "pending" with no ref_id forever: the commit/void
+ * trigger keys off ref_id, so it would never fire, and if pending
+ * reservations count toward the usage cap (they do — that's the point of
+ * reserving before consuming), this silently and permanently burns one of
+ * the user's credits for nothing.
+ */
 export async function linkUsageEvent(eventId: string, refId: string): Promise<void> {
   const admin = createAdminClient();
-  await admin.from("usage_events").update({ ref_id: refId }).eq("id", eventId);
+  const { error } = await admin.from("usage_events").update({ ref_id: refId }).eq("id", eventId);
+  if (error) throw new Error(`usage event link failed: ${error.message}`);
 }
 
 /** Void a reservation when the action fails before the artifact row exists. */
 export async function releaseUsageEvent(eventId: string): Promise<void> {
   const admin = createAdminClient();
-  await admin.from("usage_events").update({ status: "voided" }).eq("id", eventId).eq("status", "pending");
+  const { error } = await admin.from("usage_events")
+    .update({ status: "voided" }).eq("id", eventId).eq("status", "pending");
+  if (error) throw new Error(`usage event release failed: ${error.message}`);
 }
 
-async function commitEvent(eventId: string): Promise<void> {
+/** Commit a pending reservation after its paid action has started successfully. */
+export async function commitUsageEvent(eventId: string): Promise<void> {
   const admin = createAdminClient();
-  await admin.from("usage_events").update({ status: "committed" }).eq("id", eventId).eq("status", "pending");
+  const { error } = await admin.from("usage_events")
+    .update({ status: "committed" }).eq("id", eventId).eq("status", "pending");
+  if (error) throw new Error(`usage event commit failed: ${error.message}`);
+}
+
+/** Commit a run reservation, failing if it was voided/missing/wrong-kind. */
+export async function commitRunUsageEvent(eventId: string): Promise<void> {
+  const admin = createAdminClient();
+  const { data, error } = await admin.rpc("commit_run_usage", { p_event: eventId });
+  if (error) throw new Error(`run usage commit failed: ${error.message}`);
+  if (data !== true) throw new Error("run usage commit failed: event is not pending or committed");
 }
 
 async function rpcConsume(

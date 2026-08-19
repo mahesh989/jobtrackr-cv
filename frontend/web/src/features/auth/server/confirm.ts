@@ -5,7 +5,7 @@
  */
 
 import { headers } from "next/headers";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { emitEvent, parseDevice } from "@/lib/admin/events";
 
@@ -97,7 +97,12 @@ export async function handleAuthConfirm(request: NextRequest): Promise<NextRespo
     return NextResponse.redirect(`${origin}/auth/update-password`);
   }
 
-  // Emit login event for admin activity tracking (fire-and-forget).
+  // Emit login event for admin activity tracking (fire-and-forget, but
+  // C67: a bare `void emitEvent(...)` races the function's response — on
+  // Vercel/serverless, the runtime can freeze execution the moment the
+  // response is sent, silently dropping an in-flight, un-awaited promise.
+  // `after()` registers the callback to run to completion before the
+  // invocation tears down, without blocking the response the user sees.
   const { data: { user: sessionUser } } = await supabase.auth.getUser();
   if (sessionUser) {
     const reqHeaders = await headers();
@@ -105,13 +110,13 @@ export async function handleAuthConfirm(request: NextRequest): Promise<NextRespo
     const ua     = reqHeaders.get("user-agent") ?? null;
     const device = parseDevice(ua) ?? undefined;
     // Country/city could be added via ip-api.com lookup here in a future phase
-    void emitEvent({
+    after(() => emitEvent({
       userId:    sessionUser.id,
       eventType: "login",
       metadata:  { type: otpType ?? "magiclink" },
       ip,
       device,
-    });
+    }));
   }
 
   // OAuth callbacks (Google) arrive here with `code` but no `type` param —

@@ -1295,7 +1295,10 @@ create trigger cover_letters_usage_sync
   after update of status on public.cover_letters
   for each row execute function public.sync_usage_from_artifact();
 
--- Allow authenticated users to call consume_usage (SECURITY DEFINER does the work).
+-- Historical grant only — superseded by 008_admin_views_and_rpc_grants.sql, which revokes
+-- EXECUTE from public/anon/authenticated (the function has no ownership check, so the
+-- authenticated grant below was unsafe; all real callers use the service-role client).
+-- Left as-is per this repo's additive-only migration rule; do not treat this line as current.
 grant execute on function public.consume_usage(uuid, text, uuid, int, int, timestamptz) to authenticated, service_role;
 
 -- ============================================================

@@ -19,6 +19,18 @@ from app.services.eval.writers.awards_parsing import (
 
 logger = logging.getLogger(__name__)
 
+# C22q: ensure_awards and _strip_ungrounded_credentials each independently
+# defined their own "extract the lead phrase before any separator" regex —
+# ensure_awards recognised the middle-dot (·) separator (matching
+# contact_line.py's build_credentials_line, which joins stamped credential
+# parts with " · "), _strip_ungrounded_credentials didn't. Currently
+# harmless (found during C22j's independent review — no known live case
+# feeds a ·-separated entry through the grounding gate's own path), but two
+# independently-maintained copies of the same pattern is exactly how this
+# family's C22c/C22e/C22i/C22j alias-gap bugs kept happening — consolidated
+# into one shared constant so they can't drift again.
+_LEAD_PHRASE_SPLIT_RE = re.compile(r"\s[–—·-]\s|\(|,")
+
 def _is_description_only_entry(entry: dict) -> bool:
     """An entry is description-only when:
       - its name starts with description language (Recognised for / Awarded / …)
@@ -223,6 +235,26 @@ def _registration_section_text(markdown: str) -> str:
         "registration & licences", "registration and licences",
         "registration", "registrations", "licences", "licenses",
         "licences and registrations", "credentials & checks",
+        # C22e: enforce_w8.py::_relabel_registration renames this section to
+        # "Checks & Clearances" for nursing CVs with only clearances (no
+        # genuine AHPRA/RN/EN registration) and no saved credentials yet to
+        # restore the heading via stamp_credentials (which reverts it back
+        # to "Registration & Licences" once it does). Without this alias,
+        # this function returned "" for exactly those CVs, silently
+        # disabling the dedupe below and letting a credential appear twice
+        # (once under Checks & Clearances, once under a separate
+        # Certifications entry). Also add "certifications & checks" — the
+        # manual role family's own restored heading name (C23), which this
+        # function's caller, split_awards_and_certifications, has no family
+        # gate against.
+        #
+        # C22i: paired with the "&" forms above, matching this file's own
+        # _GROUNDED_SECTION_WORDS (below), which already lists BOTH
+        # "checks & clearances" and "checks and clearances" — evidence an
+        # "&"->"and" LLM typography normalisation is plausible for this
+        # exact phrase elsewhere in this same file, not a new assumption.
+        "checks & clearances", "checks and clearances",
+        "certifications & checks", "certifications and checks",
     }
     lines = markdown.split("\n")
     out: list[str] = []
@@ -247,7 +279,17 @@ def _credential_already_in_registration(entry: str, registration_blob: str) -> b
     "First Aid (HLTAID011)")."""
     if not registration_blob:
         return False
-    t = entry.lower()
+    # C86 (#15): strip apostrophes (straight and curly) from BOTH sides
+    # before matching — "Driver's Licence" is the standard AU spelling, but
+    # the anchors below only enumerated the apostrophe-less forms
+    # ("driver licence"/"drivers license"), so the apostrophe alone
+    # defeated the dedup and let the same credential appear twice (once in
+    # Registration & Licences, once as a separate Certifications entry).
+    def _norm(s: str) -> str:
+        return s.lower().replace("'", "").replace("’", "")
+
+    t = _norm(entry)
+    blob = _norm(registration_blob)
     # Canonical credential anchors — if entry contains one AND registration
     # also contains it, treat as duplicate. Keeps the check tight (avoids
     # over-matching on generic words).
@@ -258,7 +300,7 @@ def _credential_already_in_registration(entry: str, registration_blob: str) -> b
         "vaccination", "police clearance", "work rights",
     )
     for anchor in anchors:
-        if anchor in t and anchor in registration_blob:
+        if anchor in t and anchor in blob:
             return True
     return False
 
@@ -325,16 +367,34 @@ def split_awards_and_certifications(markdown: str) -> str:
                 flush()
                 current = []
                 continue
-            is_continuation = (
-                bl[:1] in (" ", "\t")            # indented
-                or stripped[:1] in ("-", "*", "•")  # bullet → could be either,
-                # but bullet items lead a NEW entry only when current is empty
-            )
+            is_indented = bl[:1] in (" ", "\t")
+            is_bullet = stripped[:1] in ("-", "*", "•")
+            is_continuation = is_indented or is_bullet
+
             # Special-case: if the line starts with a bullet AND current is
             # empty, treat as a new entry (e.g. "- Award Name").
-            if stripped[:1] in ("-", "*", "•") and not current:
+            if is_bullet and not is_indented and not current:
                 current.append(bl)
                 continue
+
+            # C22h: a non-indented bullet line immediately following ANOTHER
+            # bullet-started entry, with no blank line between them, is a
+            # SEPARATE entry — not a continuation. Each top-level bullet is
+            # its own distinct award/cert (the common LLM output shape); the
+            # old code merged every following bullet into the SAME entry as
+            # the first whenever `current` was non-empty, so one
+            # duplicate-credential match against the merged blob dropped
+            # every bullet in the run, including genuinely distinct ones.
+            # Only a genuinely INDENTED line (a real wrapped continuation of
+            # the entry above it) still merges — see the `is_continuation`
+            # branch below.
+            if is_bullet and not is_indented and current and (
+                current[0].strip()[:1] in ("-", "*", "•")
+            ):
+                flush()
+                current = [bl]
+                continue
+
             if is_continuation and current:
                 current.append(bl)
             else:
@@ -457,6 +517,9 @@ _CRED_KEYWORDS = {
     "clearances", "clearance", "checks", "check", "licences", "licence",
     "licenses", "license", "registration", "registrations", "achievements",
     "achievement", "credential", "credentials", "development",
+    # C86 round-2 review: the all-of-tokens tightening for #14 lost recall
+    "training", "trainings", "courses", "course", "memberships", "membership",
+    "police", "working", "children", "national", "screening", "screenings",
 }
 # Other common CV headings — used to detect where a credentials section ends.
 _OTHER_SECTION_WORDS = {
@@ -464,6 +527,14 @@ _OTHER_SECTION_WORDS = {
     "clinical experience", "skills", "summary", "professional summary",
     "profile", "projects", "references", "interests", "languages", "contact",
     "objective", "career highlights", "registration & licences",
+}
+
+# C86 (#14): connective/generic words allowed alongside a _CRED_KEYWORDS
+# token in a bare-label heading ("Awards & Recognition", "Licences, Checks
+# & Clearances", "Other Certifications") without disqualifying it.
+_CRED_HEADING_CONNECTORS = {
+    "and", "or", "of", "the", "amp", "other", "professional", "additional",
+    "key", "current", "with",
 }
 
 
@@ -476,7 +547,31 @@ def _is_cred_heading(heading: str, is_explicit: bool = False) -> bool:
             return False
         if len(h.split()) > 5:
             return False
+        if h.rstrip().endswith("."):
+            return False
     tokens = re.findall(r"\b\w+\b", h)
+    if not is_explicit:
+        # C86 (#14): a bare-label heading is a short LABEL ("Certifications",
+        # "Awards & Recognition") whose EVERY word is a credential keyword,
+        # a connector, or a bare number/date — not an ordinary sentence
+        # that merely CONTAINS one credential-ish word somewhere. The
+        # original any()-of-tokens check let a plain Experience-section
+        # sentence ("Recognition program participant, 2019") get
+        # misclassified as a new section start whenever it happened to
+        # contain a stray _CRED_KEYWORDS token ("recognition",
+        # "development", "check", ...); collecting=True then swept every
+        # following line — including unrelated prose — into what
+        # _extract_original_credentials treats as credential entries,
+        # ready to be fabricated verbatim into a new Awards/Certifications
+        # bullet by ensure_awards.
+        # Round-3 review: also require at least one GENUINE credential
+        # keyword — without this, a line made entirely of connector words
+        # ("Professional", "Other", "Current", "Key") wrongly returned
+        # True with zero credential-domain content.
+        return bool(tokens) and any(t in _CRED_KEYWORDS for t in tokens) and all(
+            t in _CRED_KEYWORDS or t in _CRED_HEADING_CONNECTORS or t.isdigit()
+            for t in tokens
+        )
     return any(t in _CRED_KEYWORDS for t in tokens)
 
 
@@ -555,7 +650,7 @@ def ensure_awards(markdown: str, original_cv_text: str) -> str:
         # Split at any common award-name separator: spaced dash/en-dash, (date),
         # comma, OR the middle-dot (·) style — "Award · Org · Date". Extract the
         # part before the first separator as the canonical core to match against.
-        core = re.split(r"\s[–—·-]\s|\(|,", e)[0].strip().lower()
+        core = _LEAD_PHRASE_SPLIT_RE.split(e)[0].strip().lower()
         if (core and core in awards_text) or e.lower() in awards_text:
             continue
         missing.append(e)
@@ -598,6 +693,17 @@ _GROUNDED_SECTION_WORDS = {
     "checks and clearances", "clearances", "checks", "licences", "licenses",
     "registration", "registrations", "registration & licences",
     "professional development",
+    # C22j: restore_and_order (_impl.py step 4) runs BEFORE this gate
+    # (step 4a) and, for the manual role family, its _rename_headings pass
+    # renames "## Certifications" back to "## Certifications & Checks"
+    # (_TO_CANONICAL["manual"]'s reverse mapping — a real, prescribed
+    # section_order heading for that family, not hypothetical). Without
+    # this alias, the exact-match heading lookup below never entered this
+    # branch for exactly the CVs this relabel targets, so a fabricated
+    # credential entry under that heading was never checked against the
+    # original CV at all and always survived — confirmed via an actual
+    # executed repro, not just reasoning.
+    "certifications & checks", "certifications and checks",
 }
 _PLACEHOLDER_RE = re.compile(
     r"\[[^\]]*\]|not\s+specified|not\s+provided|tbc|to\s+be\s+confirmed",
@@ -626,7 +732,6 @@ def _strip_ungrounded_credentials(markdown: str, original_cv_text: str) -> str:
             body = lines[i + 1:j]
             kept: list[str] = []
             dropped = 0
-            kept_bullet = False
             for bl in body:
                 stripped = bl.strip()
                 is_bullet = stripped[:1] in ("-", "*", "•")
@@ -634,22 +739,30 @@ def _strip_ungrounded_credentials(markdown: str, original_cv_text: str) -> str:
                     kept.append(bl)
                     continue
                 entry = stripped.lstrip("-*•").strip()
-                core = re.split(r"\s[–—-]\s|\(|,", entry)[0].strip().lower()
+                core = _LEAD_PHRASE_SPLIT_RE.split(entry)[0].strip().lower()
                 grounded = bool(core) and core in cv_low
                 if _PLACEHOLDER_RE.search(entry) or not grounded:
                     dropped += 1
                     continue
                 kept.append(bl)
-                kept_bullet = True
             if dropped:
                 logger.info(
                     "w8: dropped %d ungrounded credential entr(ies) from %s",
                     dropped, line[3:].strip(),
                 )
-            if kept_bullet:
+            # C22n: survival must be judged on ANY real kept content, not
+            # just a surviving BULLET — a section written as plain prose (no
+            # bullet markers) is never individually grounding-checked above
+            # (prose lines are always unconditionally kept), so a
+            # `kept_bullet`-only flag was permanently False for a
+            # 100%-legitimate prose-only section, wrongly deleting it in
+            # its entirety. A section with only blank lines, or one where
+            # every bullet was dropped as ungrounded, still correctly drops
+            # (`kept` then contains nothing but blank/whitespace strings).
+            if any(k.strip() for k in kept):
                 out.append(line)
                 out.extend(kept)
-            # else: section had no grounded bullets → drop heading + body.
+            # else: nothing survived → drop heading + body.
             i = j
             continue
         out.append(line)

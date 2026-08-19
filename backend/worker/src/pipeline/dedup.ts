@@ -22,7 +22,7 @@ import {
   companyShortcode,
   bucketKey,
 } from "./normalise/keys.js";
-import { scoreJob } from "./normalise/winner.js";
+import { scoreJob, SOURCE_BONUS } from "./normalise/winner.js";
 
 function sha256(input: string): string {
   return createHash("sha256").update(input).digest("hex");
@@ -55,12 +55,27 @@ interface ExistingJob {
 }
 
 async function fetchExistingJobsForProfile(profileId: string): Promise<ExistingJob[]> {
-  const { data } = await db
+  // C67: this had no .order() before .limit(5000) — PostgREST's row choice
+  // for an unordered LIMIT is unspecified (same class of bug fixed in
+  // bucket.ts's serve query, execution chunk C58), so a profile with more
+  // than 5000 non-duplicate jobs got an ARBITRARY, run-to-run-unstable 5000
+  // instead of a consistent one, silently missing real duplicates against
+  // whichever rows didn't make the cut that run. Ordered most-recent-first
+  // so a truncation drops the oldest (least likely to still be actively
+  // re-scraped) rows, not a random subset. The query's own error was also
+  // previously discarded — a failed fetch silently returned an empty
+  // "existing" set, meaning EVERY job that run would look brand new to L1
+  // dedup, defeating cross-run dedup entirely with no error anywhere.
+  const { data, error } = await db
     .from("jobs")
     .select("id, url_hash, title, company, location, source, description")
     .eq("profile_id", profileId)
     .neq("dedup_status", "duplicate")  // already-dropped rows shouldn't influence new dedup
+    .order("created_at", { ascending: false })
     .limit(5000);
+  if (error) {
+    console.error(`[dedup] fetchExistingJobsForProfile failed — cross-run dedup skipped this run: ${error.message}`);
+  }
   return (data ?? []) as ExistingJob[];
 }
 
@@ -187,17 +202,14 @@ export async function dedup(
   return { kept, l1Dropped, l2Dropped, l2WeakMarked };
 }
 
-function scoreOf(m: { kind: "new"; job: NormalisedJob } | { kind: "existing"; job: ExistingJob }): number {
+export function scoreOf(m: { kind: "new"; job: NormalisedJob } | { kind: "existing"; job: ExistingJob }): number {
   if (m.kind === "new") return scoreJob(m.job);
-  // Existing rows: minimal info, use a simplified scorer
+  // Existing rows: minimal info, use a simplified scorer. Source bonus is
+  // shared with scoreJob's — SOURCE_BONUS is the single source of truth so
+  // this can't drift out of sync again (it did: careerjet was hardcoded
+  // here at its old 1800 after winner.ts demoted it to 300, and agedcare
+  // was missing entirely, silently falling through to a 0 bonus).
   const desc = (m.job.description ?? "").length;
-  const src  = m.job.source;
-  const srcBonus =
-    src === "seek"        ? 2000 :
-    src === "greenhouse"  ? 1500 :
-    src === "lever"       ? 1500 :
-    src === "careerjet"   ? 1800 :
-    src === "adzuna"      ?  400 :
-    src === "jora"        ?  100 : 0;
+  const srcBonus = SOURCE_BONUS[m.job.source] ?? 0;
   return Math.min(desc, 5000) + srcBonus;
 }

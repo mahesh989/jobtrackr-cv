@@ -30,8 +30,8 @@ from .grounding import _ground_norm
 # doesn't accidentally match.  Route to sidecar["credential"].
 _QUAL_PATTERN = re.compile(
     r"^(?:"
-    r"certificate\s+(?:i{1,4}|iv|[1-4]|in\b|of\b)|"     # certificate III/IV/in
-    r"cert\.?\s+(?:i{1,4}|iv|[1-4]|in\b)|"               # cert III / cert. IV
+    r"certificate\s+(?:(?:i{1,4}|iv|[1-4])\b|in\b|of\b)|"  # certificate III/IV/in
+    r"cert\.?\s+(?:(?:i{1,4}|iv|[1-4])\b|in\b)|"          # cert III / cert. IV
     r"diploma\s+of\b|"
     r"advanced\s+diploma\b|"
     r"bachelor\s+(?:of|degree)\b|"
@@ -44,7 +44,7 @@ _QUAL_PATTERN = re.compile(
     r"completed\s+(?:"
         r"(?:first|second|third|fourth|final|1st|2nd|3rd|4th)\s+year\b|"
         r"year\s+(?:one|two|three|four|1|2|3|4)\b|"
-        r"certificate\b|cert\.?\s+(?:i{1,4}|iv|[1-4]|in\b)|"
+        r"certificate\b|cert\.?\s+(?:(?:i{1,4}|iv|[1-4])\b|in\b)|"
         r"diploma\b|advanced\s+diploma\b|"
         r"bachelor\b|master\b|graduate\b|"
         r"nursing\s+course\b|nursing\s+degree\b|nursing\s+studies\b"
@@ -487,18 +487,19 @@ def _trim_qual_phrase(phrase_lower: str) -> str:
     walks the tail after the matched portion and stops at the first stop word,
     yielding "cert iii and or iv" instead.
 
-    The pattern's alternation (``i{1,4}`` before ``iv``) can stop mid-word
-    (matching "i" from "iv"), so we first advance to the nearest word boundary
-    before inspecting the tail.
+    Roman numerals and numeric levels in ``_QUAL_PATTERN`` are word-boundary
+    guarded. A second attached level (``III/IV`` or ``III-IV``) is retained
+    explicitly without consuming arbitrary prose that merely starts with ``i``.
     """
     m = _QUAL_PATTERN.match(phrase_lower)
     if not m:
         return phrase_lower
-    # Advance to the end of the current token (handles regex stopping mid-word,
-    # e.g. matching "certificate i" from "certificate iv").
     end = m.end()
-    while end < len(phrase_lower) and phrase_lower[end] not in " \t":
-        end += 1
+    attached_level = re.match(
+        r"[/-](?:i{1,4}|iv|[1-4])\b", phrase_lower[end:], re.IGNORECASE
+    )
+    if attached_level:
+        end += attached_level.end()
     base = phrase_lower[:end]
     tail_words = phrase_lower[end:].strip().split()
     allowed: list = []
@@ -752,7 +753,9 @@ def extract_credentials_from_jd(
     for line in jd_text.splitlines():
         # Strip a leading bullet glyph (incl. the ✔/✓/✅ family the emoji
         # normaliser leaves) so it never bleeds into a captured credential.
-        line_stripped = _LEADING_BULLET_RE.sub("", line.strip())
+        line_stripped = re.sub(
+            r"\s+", " ", _LEADING_BULLET_RE.sub("", line.strip())
+        )
         if not line_stripped:
             continue
         line_lower = line_stripped.lower()
@@ -800,7 +803,7 @@ def extract_credentials_from_jd(
             # cover multi-word credentials like "certificate iii in individual
             # support (ageing)".
             words = scan_text.split()
-            found_phrases: List[str] = []
+            found_phrases: List[Tuple[str, str]] = []
             for start in range(len(words)):
                 for end in range(start + 1, min(start + 9, len(words) + 1)):
                     phrase = " ".join(words[start:end])

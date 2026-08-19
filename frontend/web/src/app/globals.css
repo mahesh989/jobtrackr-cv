@@ -68,6 +68,17 @@
   --teal:        #1B7C83;
   --teal-light:  #D1ECF1;
 
+  /* Contrast fix (audit finding #41, execution chunk C37/C38): a --brand-fg
+     token already exists for exactly this problem on brand buttons, but
+     --success/--warning CTAs (bg-success/bg-warning + white label) had no
+     equivalent — white on --green/--amber fails WCAG on any theme where
+     those hues are bright rather than dark (measured: 1.4-1.9:1 on Gilded
+     Noir and Aurora Dark, both need a min of 4.5:1). Default #1A7F37/
+     #9A6700 are dark enough that white clears here (5.08:1 / 4.87:1) — see
+     the per-theme overrides below for the two themes that don't. */
+  --success-fg:  #FFFFFF;
+  --warning-fg:  #FFFFFF;
+
   /* Pipeline running gradient — single-hue blue shimmer (matches the running
      box's blue bg/brand accent); animates motion without shifting colour. */
   --pipeline-grad: linear-gradient(90deg,
@@ -175,6 +186,13 @@
   --amber-light: #3F2D08;
   --purple:      #C4B5FD;
   --purple-light:#1F1A3A;
+
+  /* Both --green/--amber are bright here — white fails badly (1.74:1 /
+     1.44:1). Reusing this theme's own --brand-fg dark value clears both
+     with room to spare (7.54:1 / 9.11:1), same fix shape as --brand-fg
+     itself two blocks up. */
+  --success-fg:  #3C2F00;
+  --warning-fg:  #3C2F00;
 
   --pipeline-grad: linear-gradient(90deg,
     #F2CA50 0%, #D4AF37 33%, #C49B2A 66%, #F2CA50 100%);
@@ -346,10 +364,17 @@
   --success:        var(--green);
   --success-subtle: var(--green-light);
   --success-border: color-mix(in srgb, var(--green) 35%, transparent);
+  /* Pinned alongside --green/--amber above for the same reason: without
+     this, a signed-out user whose last theme was Gilded Noir or Aurora
+     Dark would inherit that theme's dark --success-fg/--warning-fg here,
+     where --green/--amber are pinned back to Classic's dark values —
+     dark-on-dark. */
+  --success-fg:     #FFFFFF;
 
   --warning:        var(--amber);
   --warning-subtle: var(--amber-light);
   --warning-border: color-mix(in srgb, var(--amber) 35%, transparent);
+  --warning-fg:     #FFFFFF;
 
   --danger:        var(--red);
   --danger-subtle: var(--red-light);
@@ -400,10 +425,12 @@
   --color-success:        var(--success);
   --color-success-subtle: var(--success-subtle);
   --color-success-border: var(--success-border);
+  --color-success-fg:     var(--success-fg);
 
   --color-warning:        var(--warning);
   --color-warning-subtle: var(--warning-subtle);
   --color-warning-border: var(--warning-border);
+  --color-warning-fg:     var(--warning-fg);
 
   --color-danger:        var(--danger);
   --color-danger-subtle: var(--danger-subtle);
@@ -516,12 +543,16 @@ html[data-density="spacious"] { --ui-scale: 1.09; }
   font-family: var(--font-sans-active), system-ui, sans-serif;
 }
 
-/* ─── Scrollbar — uses brand colour so each theme gets its own tint ─ */
+/* ─── Scrollbar — invisible at rest, brand-tinted only while the pointer
+   is over the scrollable area. Scrolling itself is unaffected either way —
+   this only controls whether the thumb is drawn when idle. A permanently
+   visible tinted pill (the old default here) read as a floating UI symbol
+   sitting on top of content that had nothing to do with it. ─ */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb {
+::-webkit-scrollbar-thumb { background: transparent; border-radius: 3px; }
+*:hover::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--brand) 35%, transparent);
-  border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: color-mix(in srgb, var(--brand) 65%, transparent);
@@ -539,7 +570,18 @@ html[data-density="spacious"] { --ui-scale: 1.09; }
 /* Entry */
 @keyframes slideInUp {
   from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
+  /* `transform: none` (not `translateY(0)`) on purpose: with
+     `animation-fill-mode: both` below, whatever this end-state transform
+     is stays applied to the element forever after the animation settles.
+     Any non-`none` transform — even an identity translateY(0) — opens a
+     new containing block for `position: fixed` descendants per spec, so
+     an `.anim-in` ancestor (e.g. #jobs-board) was silently turning the
+     board detail pane's `fixed inset-y-0 right-0` into something
+     positioned relative to that scrolling ancestor instead of the
+     viewport — the pane scrolled with the page instead of staying
+     pinned to the screen. `none` never establishes that containing
+     block, so descendants stay truly fixed to the viewport. */
+  to   { opacity: 1; transform: none; }
 }
 .anim-in {
   animation: slideInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -560,6 +602,24 @@ html[data-density="spacious"] { --ui-scale: 1.09; }
   background: var(--pipeline-grad);
   background-size: 200% 100%;
   animation: pipelineFlow 2s linear infinite;
+}
+
+/* Demo `.pulse-dot`: a status dot with its own expanding ring, independent
+   of `.dot-ping` above (that one scales the dot itself; this one keeps the
+   dot solid and animates a separate ::after ring around it). */
+@keyframes pulseRing {
+  0%   { transform: scale(0.5); opacity: 0.5; }
+  70%  { transform: scale(1.8); opacity: 0; }
+  100% { opacity: 0; }
+}
+.pulse-dot { position: relative; }
+.pulse-dot::after {
+  content: "";
+  position: absolute; inset: -3px;
+  border-radius: 9999px;
+  background: currentColor;
+  opacity: 0.5;
+  animation: pulseRing 1.6s ease-out infinite;
 }
 
 /* Status dot ping */
@@ -1016,6 +1076,12 @@ input[type="radio"] {
   --amber:       #FBBF24; --amber-light: #2C2310;
   --purple:      #A78BFA; --purple-light:#1F1A36;
   --teal:        #2DD4BF; --teal-light:  #0E2B28;
+
+  /* Same fix as Gilded Noir above: --green/--amber are bright here too
+     (white fails at 1.92:1 / 1.67:1); this theme's own --brand-fg dark
+     value clears both (8.63:1 / 9.94:1). */
+  --success-fg:  #04231F;
+  --warning-fg:  #04231F;
 
   --pipeline-grad: linear-gradient(90deg,#19E3C8 0%,#8B7BFF 40%,#22D3EE 70%,#19E3C8 100%);
   --aurora-grad:   linear-gradient(135deg,#19E3C8 0%,#8B7BFF 55%,#22D3EE 100%);

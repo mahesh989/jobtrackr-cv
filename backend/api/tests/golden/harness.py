@@ -171,15 +171,59 @@ def _normalise_set(items: List[str]) -> set:
     return {(s or "").strip().lower() for s in items if isinstance(s, str) and s.strip()}
 
 
+def _score_categories(
+    expected_required: Dict[str, List[str]],
+    actual_required: Dict[str, List[str]],
+) -> Tuple[float, float, List[Tuple[str, str]], List[Tuple[str, str]], Dict[str, List[str]]]:
+    """Compare expected vs actual required-skill buckets per category.
+
+    Returns (precision, recall, hallucinations, missed, actual_for_report).
+
+    Precision/recall are averaged macro across categories that have any
+    expected item — an empty expected bucket contributes no meaningful
+    ratio to that average, so it's skipped there, same as before.
+
+    Hallucinations are tracked for EVERY category, including ones with no
+    expected items (C67 fix, 2026-08-19). An empty expected bucket is valid
+    ground truth ("nothing belongs here"), and anything actual produces
+    there is exactly what a hallucination gate exists to catch — the
+    previous `continue` skipped fp computation before it ran, so a
+    hallucination landing entirely in an empty-expected category was
+    invisible to every downstream test asserting zero hallucinations.
+    """
+    precisions: List[float] = []
+    recalls: List[float] = []
+    hallucinations: List[Tuple[str, str]] = []
+    missed: List[Tuple[str, str]] = []
+    actual_for_report: Dict[str, List[str]] = {}
+
+    for cat in _CATEGORIES:
+        exp_set = _normalise_set(expected_required.get(cat) or [])
+        act_set = _normalise_set(actual_required.get(cat) or [])
+        actual_for_report[cat] = sorted(act_set)
+        fp = act_set - exp_set
+        hallucinations.extend((cat, s) for s in sorted(fp))
+        if not exp_set:
+            continue
+        tp = exp_set & act_set
+        fn = exp_set - act_set
+        prec = (len(tp) / (len(tp) + len(fp))) if (tp or fp) else 1.0
+        rec = (len(tp) / (len(tp) + len(fn))) if (tp or fn) else 1.0
+        precisions.append(prec)
+        recalls.append(rec)
+        missed.extend((cat, s) for s in sorted(fn))
+
+    precision = (sum(precisions) / len(precisions)) if precisions else 1.0
+    recall = (sum(recalls) / len(recalls)) if recalls else 1.0
+    return precision, recall, hallucinations, missed, actual_for_report
+
+
 def evaluate(jd: GoldenJd, raw_jd_analysis: Dict[str, Any]) -> EvalResult:
     """Run the deterministic post-process chain on the recorded LLM output
     and compare against the JD's hand-labelled expected set.
 
     Precision = |actual ∩ expected| / |actual|, recall = |actual ∩ expected| /
-    |expected|. Both are averaged macro across the categories that have any
-    expected item — empty expected buckets are skipped (we don't gate on them
-    because their ground truth is "none expected" and precision is trivially
-    1.0).
+    |expected|. See ``_score_categories`` for exact per-category semantics.
     """
     # Make sure jd_text and role_family are wired correctly for the chain.
     jd_text = jd.body
@@ -193,33 +237,11 @@ def evaluate(jd: GoldenJd, raw_jd_analysis: Dict[str, Any]) -> EvalResult:
     chained = post_process_jd_analysis(chained, role_family_id=jd.role_family)
 
     actual_required = chained.get("required_skills") or {}
-
     expected_required = jd.expected_required
-    precisions: List[float] = []
-    recalls: List[float] = []
-    hallucinations: List[Tuple[str, str]] = []
-    missed: List[Tuple[str, str]] = []
 
-    actual_for_report: Dict[str, List[str]] = {}
-
-    for cat in _CATEGORIES:
-        exp_set = _normalise_set(expected_required.get(cat) or [])
-        act_set = _normalise_set(actual_required.get(cat) or [])
-        actual_for_report[cat] = sorted(act_set)
-        if not exp_set:
-            continue
-        tp = exp_set & act_set
-        fp = act_set - exp_set
-        fn = exp_set - act_set
-        prec = (len(tp) / (len(tp) + len(fp))) if (tp or fp) else 1.0
-        rec = (len(tp) / (len(tp) + len(fn))) if (tp or fn) else 1.0
-        precisions.append(prec)
-        recalls.append(rec)
-        hallucinations.extend((cat, s) for s in sorted(fp))
-        missed.extend((cat, s) for s in sorted(fn))
-
-    precision = (sum(precisions) / len(precisions)) if precisions else 1.0
-    recall = (sum(recalls) / len(recalls)) if recalls else 1.0
+    precision, recall, hallucinations, missed, actual_for_report = _score_categories(
+        expected_required, actual_required,
+    )
 
     return EvalResult(
         jd_id=jd.id,

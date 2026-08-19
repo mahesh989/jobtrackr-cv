@@ -19,7 +19,7 @@ Session 2026-05-22 end state — code complete, partial user-verification, three
 PENDING USER ACTION (next session must verify or guide user through):
   (a) DEPLOY commit adc078b: `cd web && vercel deploy --prod` — fixes 'job lookup failed' on Letter download and 'Job has no contact email' on Send button (Quantium card)
   (b) APPLY migrations 037 + 038 in Supabase SQL editor — 037 unblocks Phase E-2 from silently crashing, 038 makes thin-JD jobs visible in UI
-  (c) USER TESTING incomplete: Letter download retry, Send email retry to rashmipoudel756@gmail.com, end-to-end bulk send via H-3 confirmation modal, EditLetter modal save round-trip. The Quantium letter is the test fixture in /dashboard/applications → To review (already moved to email tab after user pasted email).
+  (c) USER TESTING incomplete: Letter download retry, Send email retry to a test user's email, end-to-end bulk send via H-3 confirmation modal, EditLetter modal save round-trip. The Quantium letter is the test fixture in /dashboard/applications → To review (already moved to email tab after user pasted email).
 
 NEXT PRIORITIES (after user verification passes):
   (E-3) Per-profile daily_application_limit enforcement — Redis counter at worker autoAnalyzeBatch level. Currently letters auto-generate with no cap; if a scrape returns 50 matches all pass the gate, all 50 letters get queued. Default cap 10/day. Simple counter at worker pre-trigger.

@@ -16,8 +16,7 @@ import { getActiveAiCredentials }    from "@/lib/ai/activeProvider";
 import { voiceRewriteEmail }         from "@/lib/cv/backend";
 import type { ContactDetails }       from "@/lib/types";
 import { jsonError, withUser } from "@/lib/api-utils";
-
-const TAILORED_CV_BUCKET = "tailored-cvs";
+import { TAILORED_CV_BUCKET } from "@/lib/constants";
 
 export const GET = withUser(async (
   _req: NextRequest,
@@ -50,6 +49,12 @@ export const GET = withUser(async (
       .maybeSingle(),
   ]);
 
+  // Fails closed either way — but a transient read failure previously
+  // returned the same 404 as "doesn't exist", misleading and non-retryable.
+  if (letterRes.error) {
+    console.error("[email-draft] letter read failed:", letterRes.error.message);
+    return jsonError("Could not load letter, try again", 500);
+  }
   const letter = letterRes.data;
   if (!letter || letter.user_id !== user.id) {
     return jsonError("Letter not found", 404);
@@ -106,6 +111,10 @@ export const GET = withUser(async (
       .maybeSingle(),
   ]);
 
+  if (jobRes.error) {
+    console.error("[email-draft] job read failed:", jobRes.error.message);
+    return jsonError("Could not load job, try again", 500);
+  }
   const job = jobRes.data;
   if (!job) {
     return jsonError("Job not found", 404);

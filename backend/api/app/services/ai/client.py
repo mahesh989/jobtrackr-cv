@@ -1,9 +1,10 @@
 """
 Unified AI client supporting Anthropic + OpenAI.
 
-cv-backend is **BYOK** — JobTrackr supplies the user's API key with each
-/internal/analyze request, and the key is held only in memory for the
-duration of the pipeline run. cv-backend never persists user keys.
+cv-backend never persists AI keys. JobTrackr decrypts the platform's
+admin-configured AI key (platform_ai_settings) and supplies it with each
+/internal/analyze request; the key is held only in memory for the
+duration of the pipeline run. BYOK (per-user keys) was removed 2026-06-16.
 
 Usage:
     client = make_ai_client(provider="anthropic", api_key="sk-ant-...")
@@ -23,7 +24,6 @@ import time as _time
 
 from json_repair import repair_json
 
-from app.config import get_settings
 from app.enums import Provider
 from app.services.ai import usage_tracker
 
@@ -285,6 +285,7 @@ class AIClient:
         temperature: float = 0.1,
         no_training: bool = False,
         max_attempts: int = 3,
+        operation: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Return a parsed JSON object.
@@ -301,6 +302,16 @@ class AIClient:
         other AIClientError variants propagate immediately (a regen wouldn't
         help and would waste the user's tokens). Raises the last
         AIJSONParseError if every attempt fails.
+
+        operation — override the operation label for this specific call,
+        same as complete()'s own parameter. Falls back to self.operation.
+        Added C67: this parameter was previously silently dropped, unlike
+        complete()'s identical one — every complete_json() call (the
+        majority of this codebase's AI calls: JD analysis, CV
+        structurization, skills categorisation, ...) was attributed to
+        self.operation's constructor-time default in the ai_calls
+        telemetry table regardless of what the caller actually wanted
+        logged.
         """
         json_system = (
             system
@@ -314,6 +325,7 @@ class AIClient:
                 # to 0.0 to bias toward strict, well-formed JSON.
                 temperature=temperature if attempt == 1 else 0.0,
                 no_training=no_training,
+                operation=operation,
             )
             try:
                 return _extract_json(raw)
@@ -368,6 +380,7 @@ class AIClient:
             for attempt in range(_MAX_RETRIES + 1):
                 try:
                     _t0 = _time.monotonic()
+                    include_temperature = True
                     try:
                         response = await _call(max_tokens)
                     except Exception as exc:
@@ -383,16 +396,21 @@ class AIClient:
                                 "Anthropic model %s rejected temperature; retrying without it.",
                                 self.model,
                             )
+                            include_temperature = False
                             response = await _call(max_tokens, include_temperature=False)
                         else:
                             raise
-                    # Auto-retry once on max_tokens truncation
+                    # Auto-retry once on max_tokens truncation. Reuse
+                    # include_temperature learned above — if the model just
+                    # rejected temperature, re-sending it here would fail
+                    # again, and this call sits outside the except block
+                    # above so that failure would be fatal instead of retried.
                     if getattr(response, "stop_reason", None) == "max_tokens":
                         logger.info(
                             "Anthropic hit max_tokens (%d) for model %s; retrying with doubled cap.",
                             max_tokens, self.model,
                         )
-                        response = await _call(max_tokens * 2)
+                        response = await _call(max_tokens * 2, include_temperature=include_temperature)
                     break  # success
                 except Exception as exc:
                     # Billing failures (Anthropic invalid_request_error with
@@ -426,6 +444,9 @@ class AIClient:
                         continue
                     raise _classify_provider_error(Provider.ANTHROPIC, exc) from exc
             else:
+                # Unreachable while the guard above holds: every iteration
+                # either breaks (success), continues (retry), or raises —
+                # the loop can never exhaust normally.
                 raise _classify_provider_error(Provider.ANTHROPIC, last_exc) from last_exc
 
             # Emit usage record — fire-and-forget, never delays the caller.
@@ -613,6 +634,8 @@ class AIClient:
                         continue
                     raise _classify_provider_error(self.provider, exc) from exc
             else:
+                # Unreachable while the guard above holds — see the matching
+                # comment on the Anthropic-only retry loop above.
                 raise _classify_provider_error(self.provider, last_exc) from last_exc
 
             # Emit usage record — fire-and-forget.
@@ -647,8 +670,13 @@ class AIClient:
 
 # Sensible default model per provider when JobTrackr does not specify one.
 # Mirrors frontend/web/src/lib/ai/models.ts DEFAULT_MODELS — keep in sync.
-_DEFAULT_MODELS: Dict[Provider, str] = {
-    Provider.ANTHROPIC: "claude-sonnet-4-6",
+# Public (no leading underscore): this is the ONE default-model map for
+# backend/api — services/cover_letter/generator.py imports it rather than
+# keeping its own copy, after the two drifted (client.py had claude-sonnet-4-6,
+# generator.py had claude-opus-4-7 — same failure class as config.py's unrelated,
+# unused DEFAULT_AI_MODEL, which still points at a retired 2024 snapshot).
+DEFAULT_MODELS: Dict[Provider, str] = {
+    Provider.ANTHROPIC: "claude-sonnet-5",
     Provider.OPENAI:    "gpt-5.1",
     Provider.DEEPSEEK:  "deepseek-chat",
 }
@@ -671,7 +699,7 @@ def make_ai_client(
     if provider not in (Provider.ANTHROPIC, Provider.OPENAI, Provider.DEEPSEEK):
         raise AIClientError(f"Unsupported AI provider: {provider}")
 
-    chosen_model = model or _DEFAULT_MODELS[provider]
+    chosen_model = model or DEFAULT_MODELS[provider]
     return AIClient(provider=provider, model=chosen_model, api_key=api_key)
 
 
@@ -730,17 +758,28 @@ def _extract_json(text: str) -> Dict[str, Any]:
     """
     stripped = _FENCE_RE.sub("", text).strip()
 
-    # 2. Strict parse of the whole string.
+    # 2. Strict parse of the whole string. Must still be a dict — json.loads
+    #    happily parses a top-level list/string/number as "valid JSON", but
+    #    this function's contract (and every caller's `.get(...)` usage) is
+    #    a dict. Returning anything else here would silently skip
+    #    complete_json's regenerate-on-failure retry instead of triggering
+    #    it (C67).
     try:
-        return json.loads(stripped)
+        parsed = json.loads(stripped)
+        if isinstance(parsed, dict):
+            return parsed
     except json.JSONDecodeError:
         pass
 
-    # 3. Strict parse of the first balanced { ... } block.
+    # 3. Strict parse of the first balanced { ... } block. Always a dict by
+    #    construction (the block starts at the first "{"), but keep the
+    #    check for defense-in-depth / consistency with step 2.
     candidate = _first_balanced_object(stripped)
     if candidate is not None:
         try:
-            return json.loads(candidate)
+            parsed = json.loads(candidate)
+            if isinstance(parsed, dict):
+                return parsed
         except json.JSONDecodeError:
             pass
 

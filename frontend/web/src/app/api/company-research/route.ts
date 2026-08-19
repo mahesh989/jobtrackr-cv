@@ -60,15 +60,17 @@ export const POST = withUser(async (req: NextRequest, _ctx, { user }) => {
 
   const admin = createAdminClient();
 
+  // Rate limit first — before any DB work — so a rate-limited caller can't
+  // still burn cache-lookup query capacity. Company research spends the
+  // system Tavily key + an AI call and triggers an outbound homepage fetch
+  // once past the cache, so per-user request volume is capped here.
+  const rl = await rateLimit(`company-research:${user.id}`, 15, 60);
+  if (!rl.allowed) return jsonError(RATE_LIMIT_MESSAGE, 429);
+
   // ── 4. Cache lookup ───────────────────────────────────────────────────────────
   // (auth already resolved by withUser before the handler ran)
   const { data: existing, error: lookupErr } =
     await admin.from("company_research").select("*").eq("company_id", companyId).maybeSingle();
-
-  // Rate limit: company research spends the system Tavily key + an AI call and
-  // triggers an outbound homepage fetch — cap per-user request volume.
-  const rl = await rateLimit(`company-research:${user.id}`, 15, 60);
-  if (!rl.allowed) return jsonError(RATE_LIMIT_MESSAGE, 429);
 
   if (lookupErr) {
     console.error("[/api/company-research] lookup error:", lookupErr.message);

@@ -28,20 +28,21 @@ export interface ToolbarCountInputs {
   sortCol:      string;
   employment?:  string;
   eligibleOnly?: string;
+  postedWithin?: string;
 }
 
 export function useToolbarCounts(jobs: BoardJob[], f: ToolbarCountInputs) {
   const {
     stage, triage, jd, notApplied, minKeywords, maxDistance, minDistance,
-    sortCol, employment = "", eligibleOnly = "",
+    sortCol, employment = "", eligibleOnly = "", postedWithin = "",
   } = f;
 
   const atsCountBase = useMemo(
     () => filterJobs(jobs, {
       stage, triage, jd, notApplied, ats: "", minKeywords, maxDistance, minDistance,
-      sort: sortCol, employment, eligibleOnly,
+      sort: sortCol, employment, eligibleOnly, postedWithin,
     }),
-    [jobs, stage, triage, jd, notApplied, minKeywords, maxDistance, minDistance, sortCol, employment, eligibleOnly],
+    [jobs, stage, triage, jd, notApplied, minKeywords, maxDistance, minDistance, sortCol, employment, eligibleOnly, postedWithin],
   );
 
   const atsCounts = useMemo<Record<AtsBand, number>>(() => {
@@ -52,5 +53,18 @@ export function useToolbarCounts(jobs: BoardJob[], f: ToolbarCountInputs) {
 
   const viewCounts = useMemo(() => countAllViews(jobs), [jobs]);
 
-  return { atsCounts, viewCounts };
+  // DATE segment badges: same one-dimension-released rule as atsCounts, with
+  // the date window as the released dimension. `any` = the current view with
+  // no date window at all.
+  const postedWithinCounts = useMemo<Record<string, number>>(() => {
+    const out: Record<string, number> = {
+      any: filterJobs(jobs, { ...f, ats: "", postedWithin: "" }).length,
+    };
+    for (const d of [1, 3, 7]) {
+      out[String(d)] = filterJobs(jobs, { ...f, ats: "", postedWithin: String(d) }).length;
+    }
+    return out;
+  }, [jobs, f]);
+
+  return { atsCounts, viewCounts, postedWithinCounts };
 }

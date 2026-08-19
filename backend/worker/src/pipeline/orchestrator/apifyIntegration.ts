@@ -1,5 +1,6 @@
 import { db } from "../../db/client.js";
 import { decryptApiKey } from "../../lib/crypto.js";
+import { ADMIN_ROLES } from "../../lib/adminRoles.js";
 import { createSeekAdapter } from "../../sources/seek.js";
 import type { UserIntegration } from "./types.js";
 
@@ -53,7 +54,7 @@ export async function loadApifyIntegration(userId: string): Promise<UserIntegrat
   const { data: admins } = await db
     .from("users")
     .select("id")
-    .in("role", ["founder", "admin"]);
+    .in("role", ADMIN_ROLES);
   const adminIds = (admins ?? []).map((u: { id: string }) => u.id);
   if (adminIds.length === 0) return null;
 

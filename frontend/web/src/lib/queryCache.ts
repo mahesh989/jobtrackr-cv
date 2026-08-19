@@ -12,8 +12,11 @@
  *
  * Tags:
  *   profiles-<userId>      — bust on createProfile / updateProfile / deleteProfile
- *   cv-versions-<userId>   — bust on CV upload / activate
- *   preferences-<userId>   — bust on preferences PATCH
+ *                             / resume-paused. Currently the only wrapper below.
+ *
+ * (cv-versions-<userId> and preferences-<userId> were planned but never
+ * built — no unstable_cache wrapper reads either tag. Add the tag here
+ * alongside the wrapper, not before it exists.)
  *
  * Important: use createAdminClient() here, NOT the SSR cookie-based client.
  * The cookie-based client is request-scoped and cannot be captured inside

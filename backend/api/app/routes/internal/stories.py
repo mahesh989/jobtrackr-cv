@@ -41,7 +41,7 @@ async def extract_stories_endpoint(
     NOTE: body.cv_text must not appear in logs. If request-body logging is
     ever added to this service, add cv_text to the redaction list.
     """
-    ai_client = build_ai_client_or_422(body)
+    ai_client = build_ai_client_or_422(body, operation="extract_stories", user_id=body.user_id)
 
     try:
         result = await extract_stories(ai_client, body.cv_text)

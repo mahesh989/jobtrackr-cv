@@ -159,6 +159,13 @@ const PAIRS: Pair[] = [
   { label: "--text-2 on --surface", fg: "--text-2", bg: "--surface", min: 4.5 },
   { label: "--text-3 on --surface", fg: "--text-3", bg: "--surface", min: 3.0 },
   { label: "--brand-fg on --brand", fg: "--brand-fg", bg: "--brand", min: 4.5 },
+  // Tested against the raw hue tokens (--green/--amber), not the semantic
+  // --success/--warning aliases — those always resolve to a literal
+  // `var(--green)` string, which resolveHex skips rather than evaluates
+  // (see its own doc comment), so asserting against the alias would
+  // silently no-op every theme instead of actually checking anything.
+  { label: "--success-fg on --green (CTA label on bg-success)", fg: "--success-fg", bg: "--green", min: 4.5 },
+  { label: "--warning-fg on --amber (CTA label on bg-warning)", fg: "--warning-fg", bg: "--amber", min: 4.5 },
   { label: "--green on --green-light", fg: "--green", bg: "--green-light", min: 4.5 },
   { label: "--amber on --amber-light", fg: "--amber", bg: "--amber-light", min: 4.5 },
   { label: "--red on --red-light", fg: "--red", bg: "--red-light", min: 4.5 },

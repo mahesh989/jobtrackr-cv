@@ -55,7 +55,15 @@ from app.services.skills.classifier import (
 # at them so a future refactor can consolidate without surprise.
 
 _EXPERIENCE_HEADING_RE = re.compile(
-    r"^##\s+(Experience|Work Experience|Professional Experience)\s*$", re.IGNORECASE
+    # C22g: "Clinical Experience" was nursing's own section_order heading
+    # until commit e4a20824 (2026-05-30) renamed it to plain "Experience" —
+    # several other modules (see pdf_generator/parsing.py's C22d fix) never
+    # got cleaned up after the rename and still recognise the old phrase;
+    # this regex didn't, so a CV headed this way silently produced an empty
+    # experience list here (ATS tenure/vertical-alignment sub-scores zeroed,
+    # honesty_guard's fabrication checks became no-ops).
+    r"^##\s+(Experience|Work Experience|Professional Experience|Clinical Experience)\s*$",
+    re.IGNORECASE,
 )
 # Plain-text (pypdf) section headers — all-caps variants for experience sections
 _PLAIN_EXPERIENCE_SECTION_RE = re.compile(
@@ -73,52 +81,168 @@ _MONTH_TO_NUM: Dict[str, int] = {
     "oct": 10, "october": 10, "nov": 11, "november": 11, "dec": 12, "december": 12,
 }
 _DATE_TOKEN_RE = re.compile(r"\b([A-Za-z]{3,9})\s+(?:\d{1,2}\s*,?\s*)?(\d{4})\b")
+# Finding #26 (chunk C21): a bare year with no month name ("2019 - 2023") is a
+# common CV date format that _DATE_TOKEN_RE alone can't see — it requires a
+# month name. Fall back to a plain 4-digit year, defaulting to January so a
+# range built from two bare years doesn't overclaim tenure (e.g. "2019 -
+# 2023" resolves to Jan 2019 - Jan 2023, not Jan 2019 - Dec 2023).
+#
+# Independent review: an earlier draft matched a bare year ANYWHERE in a
+# line (`\b(19\d{2}|20\d{2})\b`). Because _parse_role_date_range is used as
+# the PREDICATE that finds date-anchor lines in the plaintext parser (not
+# just to parse a line already known to be a date), that unanchored match
+# turned ordinary CV prose into spurious date-anchor lines and corrupted
+# entry segmentation — an Australian postcode ("Sydney NSW 2000"), a metric
+# ("supported over 2000 residents"), or a bullet ("registered with AHPRA
+# since 2021") all falsely split entries and stole bullets from the real
+# one. Fixed two ways: (1) _BARE_YEAR_ONLY_RE requires the WHOLE trimmed
+# string to be just the year — used for the single-date whole-line fallback,
+# so a sentence merely containing a year never matches; (2) a range match
+# whose matched side is a bare year (no month name) must additionally sit at
+# the start of the line or right after a role/date-line separator — a
+# sentence like "...from 2019 to 2023." has "to" and two years, but nothing
+# but prose immediately before "2019", so it's correctly rejected.
+#
+# Round 2 of that same review: a PREFIX-only check still leaked a bare-year
+# range parenthesised or comma/colon-delimited mid-sentence — "Awarded
+# Employee of the Year (2021 - 2022) for ward leadership." has a safe
+# prefix ("(" right before "2021") but real prose AFTER the closing paren,
+# which the prefix check alone can't see. Added a symmetric SUFFIX check:
+# what follows the range must be nothing but an optional closing
+# bracket/terminal punctuation and whitespace, not more sentence.
+#
+# Round 3: the suffix check alone isn't enough either — "Total headcount
+# grew, 2019 - 2023." has an UNSAFE prefix (real prose before the comma)
+# but a safe-looking suffix (just a trailing "."), so it slipped through.
+# The prefix regex only ever looked at the single character immediately
+# before the match, not whether anything meaningful preceded THAT — so
+# ',' and ':' (which occur constantly inside ordinary sentences) were
+# wrongly treated as reliable as '|' (which practically never is).
+# Narrowed the safe-prefix set to characters that really are
+# CV-structural, not just common punctuation: '|' ("Role | Date"), '('
+# ("Role (Date)" — the matching suffix check already guards the case
+# where prose follows the closing paren), and a leading bullet marker.
+#
+# Round 4: the SAME class of bug, one layer down. '•'/'·' were blessed as
+# safe ANYWHERE in the prefix, not just as a genuine leading list marker —
+# a bullet line using '•' a second time as a decorative separator
+# ("• Employee of the Year • 2021 - 2022") has "•" right before the year
+# but is exactly the mid-sentence-prose case this whole guard exists to
+# reject. And '(' being optionally-closed in the suffix (`[)\]]?`) meant
+# an UNCLOSED paren ("• Employee of the Year (2021 - 2022", no closing
+# ")" anywhere — a plausible pypdf column-split artifact) looked just as
+# safe as a genuinely closed one, since an empty end-of-line suffix passed
+# either way. Fixed by: (a) a leading bullet/dash marker is only safe when
+# it's the ENTIRE prefix from the start of the line (not merely present
+# somewhere in it); (b) relying on '(' now REQUIRES an actual matching
+# ')' immediately in the suffix, not an optional one.
+_BARE_YEAR_ONLY_RE = re.compile(r"^(19\d{2}|20\d{2})$")
+_SAFE_DATE_PREFIX_LEADING_RE = re.compile(r"^\s*[•·\-*]?\s*$")
+_SAFE_DATE_PREFIX_PIPE_RE = re.compile(r"\|\s*$")
+_SAFE_DATE_PREFIX_PAREN_RE = re.compile(r"\(\s*$")
+_SAFE_DATE_SUFFIX_RE = re.compile(r"^[)\]]?\s*[.,;:]?\s*$")
+# Round 4's own independent review found a FIFTH leak, in a different
+# mechanism entirely: a line that is nothing but a bare year (no range at
+# all) skips every prefix/suffix guard above, because there's no range to
+# anchor. A pypdf column-split wrapping "Camperdown NSW" / "2050" across
+# two lines then makes the postcode line look identical to a genuine
+# standalone placement date. Used in _parse_plaintext_section_entries,
+# which — unlike _parse_role_date_range — can see the previous line.
+_AU_STATE_SUFFIX_RE = re.compile(
+    r"\b(?:NSW|VIC|QLD|SA|WA|TAS|NT|ACT)\s*$", re.IGNORECASE,
+)
+# Either side of a range may be "Mon YYYY" or a bare year — mixed forms
+# ("Mar 2019 - 2023") are real too, not just symmetric ones.
+_DATE_SIDE = r"(?:[A-Za-z]{3,9}\s+(?:\d{1,2}\s*,?\s*)?\d{4}|(?:19|20)\d{2})"
 _DATE_RANGE_RE = re.compile(
-    r"([A-Za-z]{3,9}\s+(?:\d{1,2}\s*,?\s*)?\d{4})"
-    r"\s*(?:[-–—]|to)\s*"
-    r"(Present|present|current|now|ongoing|[A-Za-z]{3,9}\s+(?:\d{1,2}\s*,?\s*)?\d{4})",
+    rf"({_DATE_SIDE})"
+    r"\s*(?:[-–—]|\bto\b)\s*"
+    rf"(Present|present|current|now|ongoing|{_DATE_SIDE})",
 )
 
 
 def _parse_month_year(s: str) -> Optional[Tuple[int, int]]:
-    m = _DATE_TOKEN_RE.search(s.strip())
-    if not m:
-        return None
-    month = _MONTH_TO_NUM.get(m.group(1).lower())
-    return (int(m.group(2)), month) if month else None
+    stripped = s.strip()
+    m = _DATE_TOKEN_RE.search(stripped)
+    if m:
+        month = _MONTH_TO_NUM.get(m.group(1).lower())
+        if month:
+            return (int(m.group(2)), month)
+    m2 = _BARE_YEAR_ONLY_RE.match(stripped)
+    if m2:
+        return (int(m2.group(1)), 1)
+    return None
+
+
+def _is_bare_year_side(side_text: str) -> bool:
+    return bool(_BARE_YEAR_ONLY_RE.match(side_text.strip()))
 
 
 def _parse_role_date_range(role_line: str):
     """Mirrors ``eval/writers/experience.py:_parse_role_date_range``. See that
     file for full design notes; inlined here to avoid the writers' import chain."""
-    m = _DATE_RANGE_RE.search(role_line)
-    if m:
-        start = _parse_month_year(m.group(1))
-        end_raw = m.group(2).strip().lower()
+    for m in _DATE_RANGE_RE.finditer(role_line):
+        left, right = m.group(1), m.group(2)
+        end_raw = right.strip().lower()
+        right_is_open = end_raw in ("present", "current", "now", "ongoing")
+        # A bare year (either side) must be anchored on BOTH sides — start
+        # of line / a separator before it, and end of line / a closing
+        # bracket or terminal punctuation after it — not embedded anywhere
+        # inside a longer sentence.
+        if _is_bare_year_side(left) or (not right_is_open and _is_bare_year_side(right)):
+            prefix = role_line[: m.start()]
+            suffix = role_line[m.end():]
+            if _SAFE_DATE_PREFIX_LEADING_RE.match(prefix) or _SAFE_DATE_PREFIX_PIPE_RE.search(prefix):
+                pass  # a leading marker or a "|" field separator — no closing bracket required
+            elif _SAFE_DATE_PREFIX_PAREN_RE.search(prefix):
+                # "(" only counts as safe if it's genuinely CLOSED — an
+                # unclosed paren (pypdf column-split artifact) must not
+                # look identical to a real "Role (Date)" line just because
+                # the optional ")" in the suffix regex happens to be absent.
+                if not suffix.startswith(")"):
+                    continue
+            else:
+                continue
+            if not _SAFE_DATE_SUFFIX_RE.match(suffix):
+                continue
+        start = _parse_month_year(left)
         if not start:
-            return None
-        if end_raw in ("present", "current", "now", "ongoing"):
+            continue
+        if right_is_open:
             return (start, "present")
-        end = _parse_month_year(end_raw)
-        return (start, end) if end else None
+        end = _parse_month_year(right)
+        if end:
+            return (start, end)
     d = _parse_month_year(role_line)
     return (d, d) if d else None
 
 
-def _find_experience_section(lines: List[str]) -> Optional[Tuple[int, int]]:
-    start = None
-    for i, ln in enumerate(lines):
-        if _EXPERIENCE_HEADING_RE.match(ln):
+def _find_experience_sections(lines: List[str]) -> List[Tuple[int, int]]:
+    """Find ALL markdown experience-heading sections, not just the first.
+
+    C22l: a CV can legitimately carry more than one heading matching
+    _EXPERIENCE_HEADING_RE — e.g. a separate "## Clinical Experience" for
+    placements and "## Work Experience" for paid roles. The old
+    single-section version `break`d on the first match, silently dropping
+    every entry under any subsequent matching heading. Mirrors
+    _find_plaintext_experience_sections' multi-section loop below, which
+    already collected all matches on the plaintext path.
+    """
+    sections: List[Tuple[int, int]] = []
+    i = 0
+    while i < len(lines):
+        if _EXPERIENCE_HEADING_RE.match(lines[i]):
             start = i
-            break
-    if start is None:
-        return None
-    end = len(lines)
-    for j in range(start + 1, len(lines)):
-        if lines[j].startswith("## "):
-            end = j
-            break
-    return (start, end)
+            end = len(lines)
+            for j in range(start + 1, len(lines)):
+                if lines[j].startswith("## "):
+                    end = j
+                    break
+            sections.append((start, end))
+            i = end
+        else:
+            i += 1
+    return sections
 
 
 def _split_into_entries(body_lines: List[str]) -> List[List[str]]:
@@ -176,8 +300,30 @@ def _parse_plaintext_section_entries(body_lines: List[str]) -> List["ExperienceE
     # Find all date-range lines — each marks one entry
     date_positions = []
     for i, ln in enumerate(body_lines):
-        if _parse_role_date_range(ln.strip()):
-            date_positions.append(i)
+        stripped = ln.strip()
+        if not _parse_role_date_range(stripped):
+            continue
+        if _BARE_YEAR_ONLY_RE.match(stripped):
+            # Chunk C21 round 4's own review: a line that is NOTHING but a
+            # bare year has no range to anchor against, so none of the
+            # prefix/suffix guards above apply to it at all. A pypdf
+            # column-split can wrap an address across two lines
+            # ("Camperdown NSW" / "2050") — that trailing postcode line
+            # then looks identical to a genuine standalone placement date
+            # ("2023" alone, which test_single_bare_year_placement_parses
+            # deliberately supports and this check must not break). This
+            # function — unlike _parse_role_date_range — sees the
+            # PREVIOUS line, so use it: an AU state abbreviation right
+            # before a bare year is a wrapped postcode, not a date.
+            prev = ""
+            for j in range(i - 1, -1, -1):
+                s = body_lines[j].strip()
+                if s:
+                    prev = s
+                    break
+            if _AU_STATE_SUFFIX_RE.search(prev):
+                continue
+        date_positions.append(i)
 
     if not date_positions:
         return []
@@ -412,12 +558,11 @@ def parse_cv_experience(cv_text: str) -> List[ExperienceEntry]:
     lines = cv_text.split("\n")
 
     # ── Markdown path ──────────────────────────────────────────────────────
-    section = _find_experience_section(lines)
-    if section:
-        start_i, end_i = section
+    sections = _find_experience_sections(lines)
+    entries: List[ExperienceEntry] = []
+    for start_i, end_i in sections:
         body = lines[start_i + 1: end_i]
         blocks = _split_into_entries(body)
-        entries: List[ExperienceEntry] = []
         for block in blocks:
             if not block:
                 continue
@@ -440,13 +585,19 @@ def parse_cv_experience(cv_text: str) -> List[ExperienceEntry]:
                 bullets=bullets,
                 vertical_hits=hits,
             ))
+    if entries:
         return entries
 
     # ── Plain-text (pypdf) fallback ────────────────────────────────────────
+    # C22m: also reached when a markdown heading matched but its section(s)
+    # yielded zero entries (e.g. a genuinely hybrid document — a markdown
+    # heading with no ### body, but real entries elsewhere in plaintext/
+    # pypdf shape). The old code returned [] unconditionally the moment ANY
+    # markdown heading matched, even an empty one, silently dropping
+    # entries the plaintext path would have found.
     plain_sections = _find_plaintext_experience_sections(lines)
     if not plain_sections:
         return []
-    entries = []
     for start_i, end_i in plain_sections:
         body = lines[start_i + 1: end_i]
         entries.extend(_parse_plaintext_section_entries(body))

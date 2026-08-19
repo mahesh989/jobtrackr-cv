@@ -4,8 +4,9 @@ name: CI
 # currently green against the tree. eslint (web-lint) became a hard gate on
 # 2026-07-08 after the inherited backlog (78 problems — 54 errors, 24
 # warnings; drifted from an original count of 66 errors as of 2026-06-11)
-# was cleared to zero — see git history for the cleanup
-# (chore/web-eslint-cleanup branch).
+# was cleared to zero errors — see git history for the cleanup
+# (chore/web-eslint-cleanup branch). Warnings are not gated (no
+# --max-warnings) and a small number have since reappeared.
 
 on:
   push:
@@ -42,14 +43,23 @@ jobs:
       # was ever saved, and the pipeline still logged "run complete". Nothing
       # compared the code, the migrations and the live database to each other.
       #
-      # Both SKIP (exit 0, with a loud notice) when the Supabase secrets are
-      # absent, so forks and secret-less runs are not blocked — a skip is
-      # visible in the log rather than being a silent pass.
+      # #29 (audit): for weeks after that, both guards SILENTLY SKIPPED on
+      # every run (exit 0) because the Supabase secrets they need had never
+      # actually been added to this repo — CI stayed green and the guards
+      # were decorative, the exact failure class they exist to catch. The
+      # secrets are now set (see graph.json G5), but a skip must never again
+      # look identical to a real pass: REQUIRE_SCHEMA_CREDS is true for a
+      # push or a same-repo PR (which always get repo secrets) and false
+      # only for an actual fork PR (which GitHub never hands secrets to) —
+      # so a trusted run with the secrets unexpectedly missing now fails
+      # loudly instead of skipping quietly, while a genuine fork
+      # contribution still degrades gracefully.
       - name: Code vs live schema
         run: node shared/supabase/scripts/check-code-schema.mjs
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          REQUIRE_SCHEMA_CREDS: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
       # Catches the OTHER half: a column hand-applied to the database and never
       # written into a migration. That is how the visa columns were lost — they
       # existed in the old Supabase project but in no file, so a new project
@@ -59,11 +69,25 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          REQUIRE_SCHEMA_CREDS: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
       # Proves the check-code-schema parser still detects the historical bug —
       # a guard whose detector silently breaks is worse than none, and this one
       # needs no credentials, so it runs everywhere.
       - name: Schema guard self-test
         run: node shared/supabase/scripts/check-code-schema.mjs --self-test
+      # C5b — proves check_user_auth_methods/replace_stories/consume_usage
+      # (chunk C5's exploit, #43/#44) stay unreachable by the anon role, so a
+      # future signature change (DROP+CREATE, not just CREATE OR REPLACE)
+      # can't silently reopen the grant via ALTER DEFAULT PRIVILEGES with no
+      # failing test. SKIPS until SUPABASE_ANON_KEY (the PUBLIC anon key,
+      # not a secret in the security sense) is added as a repo secret.
+      - name: RPC-grant guard self-test
+        run: node shared/supabase/scripts/check-rpc-grants.mjs --self-test
+      - name: RPC-grant guard (C5)
+        run: node shared/supabase/scripts/check-rpc-grants.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
   web-typecheck:
     name: web · typecheck
@@ -81,6 +105,31 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
 
+  # B2-P2 (audit): `next build` was never run by any CI gate — tsc/vitest/
+  # eslint all passing does not guarantee the production build actually
+  # succeeds (metadata exports, static-generation errors, build-time-only
+  # failures none of those three catch), and this repo's `main` auto-deploys
+  # straight to production with no separate promotion step. A broken build
+  # was previously caught for the first time only by Vercel's own deploy —
+  # in production. Confirmed locally this build needs zero env vars to
+  # succeed (temporarily removed .env.local, ran clean), so no new secret is
+  # required to wire this in.
+  web-build:
+    name: web · build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/web/package-lock.json
+      - run: npm ci
+      - run: npm run build
+
   api-tests:
     name: api · pytest
     runs-on: ubuntu-latest
@@ -96,6 +145,48 @@ jobs:
           cache-dependency-path: backend/api/requirements.txt
       - run: pip install -r requirements.txt pytest pytest-asyncio
       - run: pytest -q
+
+  # web's 5 vitest suites (theme-contrast WCAG, dashboard data derivation, the
+  # BUG-18 auth-recovery regression, CV review characterization) previously ran
+  # in no workflow at all — only deploy.yml's post-merge gate covered the
+  # worker/api suites. Mirrors web-lint below.
+  web-tests:
+    name: web · vitest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/web/package-lock.json
+      - run: npm ci
+      - run: npm test
+
+  # Worker previously had no PR gate at all — its typecheck+test only ran in
+  # deploy.yml, which triggers on push to main (= production, per CLAUDE.md).
+  # That caught regressions only after they were already merged. This job is
+  # unconditional (unlike deploy.yml's path-filtered gate-worker) to match how
+  # web-typecheck/api-tests already run on every PR regardless of what changed.
+  worker-gate:
+    name: worker · typecheck + test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/worker/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test
 
   web-lint:
     name: web · eslint

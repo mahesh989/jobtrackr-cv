@@ -108,17 +108,43 @@ _PAST_TO_PRESENT_VERBS: Dict[str, str] = {
 }
 # Invert for present → past lookup. The capitalised past tense is what gets
 # emitted at bullet start, so we store the inflected form.
-_PRESENT_TO_PAST_VERBS: Dict[str, str] = {
-    present.lower(): past.capitalize() for past, present in _PAST_TO_PRESENT_VERBS.items()
-}
+#
+# C87 (#20): a plain dict-comprehension inversion is order-dependent when
+# two past-tense keys map to the SAME present-tense value — "analysed" and
+# "analyzed" both invert to present "Analyse", and the LATER entry
+# ("analyzed", defined after "analysed" above) silently won the collision,
+# so every present-tense "Analyse" bullet converted to the American
+# "Analyzed" past tense instead of "Analysed" — inconsistent with this
+# codebase's own British/AU spelling convention (canonicalise_body_spelling
+# enforces it everywhere else). Built explicitly instead of via a bare
+# comprehension so a British/AU ("s") spelling is never overwritten by an
+# American ("z") spelling of the same present-tense form, regardless of
+# dict insertion order.
+_PRESENT_TO_PAST_VERBS: Dict[str, str] = {}
+for _past, _present in _PAST_TO_PRESENT_VERBS.items():
+    _key = _present.lower()
+    _existing = _PRESENT_TO_PAST_VERBS.get(_key)
+    if _existing and "z" not in _existing.lower() and "z" in _past.lower():
+        continue  # keep the existing British/AU spelling; skip the American duplicate
+    _PRESENT_TO_PAST_VERBS[_key] = _past.capitalize()
+del _past, _present, _key, _existing
 
 _DATE_TOKEN_RE = re.compile(
     r"\b([A-Za-z]{3,9})\s+(?:\d{1,2}\s*,?\s*)?(\d{4})\b"
 )
+# C87 (#21): re.IGNORECASE — the end-token alternation only listed lower-
+# case "current"/"now"/"ongoing" ("Present"/"present" were the only pair
+# spelled out explicitly), so a capitalised "Mar 2020 – Current" (a common
+# convention) failed to match at all, causing a still-current role to be
+# treated as ended in March 2020 and force-converting its bullets to past
+# tense. _parse_role_date_range already lowercases the captured end token
+# before checking membership, so IGNORECASE alone closes this — no other
+# logic depends on the source text's original case.
 _DATE_RANGE_RE = re.compile(
     r"([A-Za-z]{3,9}\s+(?:\d{1,2}\s*,?\s*)?\d{4})"
     r"\s*(?:[-–—]|to)\s*"
-    r"(Present|present|current|now|ongoing|[A-Za-z]{3,9}\s+(?:\d{1,2}\s*,?\s*)?\d{4})",
+    r"(present|current|now|ongoing|[A-Za-z]{3,9}\s+(?:\d{1,2}\s*,?\s*)?\d{4})",
+    re.IGNORECASE,
 )
 
 
@@ -209,13 +235,22 @@ def _split_into_entries(body_lines: list[str]) -> list[list[str]]:
 def _find_role_line(entry_block: list[str]) -> tuple[int, Optional[tuple]]:
     """Return (index_of_role_line, parsed_date_range) for an entry. The role
     line is the italic line `*Role | Dates*` that follows the H3 employer line.
-    Returns (-1, None) if no parseable date line found."""
+    Returns (-1, None) if no parseable date line found.
+
+    C87 (#19): once an italic role line is found, it is AUTHORITATIVE —
+    even if its own date range fails to parse, later lines (duty bullets)
+    must never be scanned as a substitute, or an unrelated date mentioned
+    in bullet prose ("...delivered training from Mar 2020 to Dec 2021...")
+    could be picked up as if it were the role's actual tenure. The
+    bullet-scanning fallback below only applies when no italic line exists
+    in the entry at all (a different production shape).
+    """
     for idx, ln in enumerate(entry_block):
         if ln.strip().startswith("*") and ln.strip().endswith("*"):
             parsed = _parse_role_date_range(ln)
-            if parsed:
-                return (idx, parsed)
-        # Fall back: any line with a date range pattern.
+            return (idx, parsed) if parsed else (-1, None)
+    # No italic line in this entry — fall back to scanning any line.
+    for idx, ln in enumerate(entry_block):
         if _DATE_RANGE_RE.search(ln) or _DATE_TOKEN_RE.search(ln):
             parsed = _parse_role_date_range(ln)
             if parsed:

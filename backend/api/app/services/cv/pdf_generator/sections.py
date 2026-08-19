@@ -51,12 +51,12 @@ def _render_contact_line(contact: str) -> List[Any]:
     fragments: List[str] = []
     for part in parts:
         if "@" in part and "." in part and " " not in part:
-            fragments.append(f'<a href="mailto:{part}" color="#000080">{_escape(part)}</a>')
+            fragments.append(f'<a href="mailto:{part}" color="{C_LINK.hexval()}">{_escape(part)}</a>')
         elif re.search(r'(linkedin\.com|github\.com|github\.io|behance|dribbble|https?://|www\.)', part, re.I):
             url = _ensure_https(part)
             label = _contact_label(url)
             fragments.append(
-                f'<a href="{url.replace("&", "&amp;")}" color="#000080">{_escape(label)}</a>'
+                f'<a href="{url.replace("&", "&amp;")}" color="{C_LINK.hexval()}">{_escape(label)}</a>'
             )
         else:
             fragments.append(_escape(part))
@@ -155,7 +155,6 @@ def _render_experience(items: List[Dict]) -> List[Any]:
             # Collect bullets for this entry
             bullet_start = i
             while i < len(items) and items[i]["type"] == "bullet":
-                fp = _norm(items[i]["text"])
                 # Note: bullet dedup is per-entry — duplicates would just be
                 # different recommendations, so we don't dedup bullets globally.
                 i += 1

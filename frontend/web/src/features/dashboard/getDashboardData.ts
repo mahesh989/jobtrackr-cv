@@ -29,6 +29,7 @@ import { deriveBoardJob } from "@/features/jobs/lib/boardDerivation";
 import type { PipelineLensData } from "@/features/dashboard/PipelineDonut";
 import type { FunnelCounts } from "@/features/jobs/components/PipelineFunnel";
 import type { createClient } from "@/lib/supabase/server";
+import { selectInChunked } from "@/lib/supabase/chunkedIn";
 
 /** The request-scoped Supabase client, as built by lib/supabase/server. */
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -132,6 +133,47 @@ export function readMyCvVerticals(prefRow: { contact_details?: unknown } | null)
   return (
     (prefRow?.contact_details as { role_families?: string[] | null } | null)?.role_families ?? []
   ).filter(Boolean);
+}
+
+const COUNT_ROWS_PAGE_SIZE = 1000;
+const COUNT_ROWS_MAX = 20_000;
+
+/**
+ * The countRows query (totalJobs/totalNew/totalApplied + every downstream
+ * count/id list derived from `allRows`) had no explicit .limit(), so it
+ * silently rode PostgREST's default row cap (1000) — an active account with
+ * more non-expired jobs than that across its profiles got quietly
+ * undercounted with no error anywhere. Paginate explicitly instead, ordered
+ * by id for a stable cursor across pages (Supabase query builders are
+ * single-use, so each page needs a fresh one from `buildQuery`).
+ */
+export async function fetchAllCountRows(
+  supabase: SupabaseClient,
+  ids: string[],
+  pageSize: number = COUNT_ROWS_PAGE_SIZE,
+  maxRows: number = COUNT_ROWS_MAX,
+): Promise<{ rows: AllCountRow[]; truncated: boolean }> {
+  if (ids.length === 0) return { rows: [], truncated: false };
+
+  const buildQuery = () =>
+    supabase
+      .from("jobs")
+      .select("id, seen_at, applied_at, dismissed_at, starred_at, profile_id, jd_quality, manual_jd_text, role_match, has_email, employment_types")
+      .in("profile_id", ids)
+      .eq("is_expired", false)
+      .eq("is_dead_link", false)
+      .order("id", { ascending: true });
+
+  const rows: AllCountRow[] = [];
+  let offset = 0;
+  while (offset < maxRows) {
+    const { data, error } = await buildQuery().range(offset, offset + pageSize - 1);
+    if (error || !data) break;
+    rows.push(...(data as AllCountRow[]));
+    if (data.length < pageSize) return { rows, truncated: false };
+    offset += pageSize;
+  }
+  return { rows, truncated: true };
 }
 
 /**
@@ -524,20 +566,15 @@ export async function getDashboardData(args: {
     { data: jobs },
     { data: dismissedJobs },
     { data: actionedJobs },
-    { data: countRows },
+    { rows: countRows, truncated: countRowsTruncated },
     { data: runLogData },
     { data: completedRuns },
-    { count: anyJobCount },
+    { count: anyJobCount, error: anyJobCountError },
   ] = await Promise.all([
     q,
     dq,
     aq,
-    supabase
-      .from("jobs")
-      .select("id, seen_at, applied_at, dismissed_at, starred_at, profile_id, jd_quality, manual_jd_text, role_match, has_email, employment_types")
-      .in("profile_id", ids)
-      .eq("is_expired", false)
-      .eq("is_dead_link", false),
+    fetchAllCountRows(supabase, ids),
     supabase
       .from("run_logs")
       .select("profile_id, jobs_fetched, jobs_after_dedup, jobs_saved, jobs_deduped, sources_saved")
@@ -553,8 +590,20 @@ export async function getDashboardData(args: {
       .limit(300),
     ids.length > 0
       ? supabase.from("jobs").select("id", { count: "exact", head: true }).in("profile_id", ids)
-      : Promise.resolve({ count: 0 }),
+      : Promise.resolve({ count: 0, error: null }),
   ]);
+
+  // A discarded error here previously fell straight into the first-run gate
+  // below (count ?? 0 -> 0 -> "empty") — a transient failure on this ONE
+  // query showed a real user with hundreds of jobs the "ready to scan"
+  // first-run screen, materially misrepresenting their account state. This
+  // is not a cosmetic badge (contrast Sidebar.tsx's log-and-degrade fix,
+  // C45) — thrown, caught by the existing (dashboard)/dashboard/error.tsx
+  // boundary, matching the fail-loud precedent set for C47 (audit finding,
+  // execution chunk C45).
+  if (anyJobCountError) {
+    throw new Error(`Failed to check whether the user has any jobs: ${anyJobCountError.message}`);
+  }
 
   // ── First-run gate ────────────────────────────────────────────────────────
   // Show the "ready to scan" empty state until jobs exist. The setup wizard
@@ -595,7 +644,10 @@ export async function getDashboardData(args: {
   );
   const jobIds          = jobList.map((j) => j.id);
   // Same work-type predicate as the board list so funnel counts agree.
-  const allRows         = ((countRows ?? []) as AllCountRow[]).filter((r) =>
+  if (countRowsTruncated) {
+    console.error(`getDashboardData: countRows hit the ${COUNT_ROWS_MAX}-row backstop for profiles [${ids.join(",")}] — counts may undercount`);
+  }
+  const allRows         = countRows.filter((r) =>
     r.applied_at || r.starred_at || passesWorkTypes(r, userWorkTypes),
   );
   const jobIdsForCounts = allRows.map((r) => r.id);
@@ -631,32 +683,43 @@ export async function getDashboardData(args: {
           .in("job_id", jobIds)
           .order("created_at", { ascending: false })
       : Promise.resolve({ data: [] as CoverLetterRef[] }),
-    jobIdsForCounts.length > 0
-      ? supabase.from("analysis_runs")
-          .select("job_id, tailored_cv_storage_path, tailored_pdf_storage_path, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate")
-          .eq("status", "completed")
-          .in("job_id", jobIdsForCounts)
-      : Promise.resolve({ data: [] }),
-    jobIdsForCounts.length > 0
-      ? supabase.from("cover_letters")
-          .select("job_id")
-          .eq("status", "completed")
-          .in("job_id", jobIdsForCounts)
-      : Promise.resolve({ data: [] }),
-    allActiveJobIds.length > 0
-      ? supabase.from("analysis_runs")
-          .select("job_id, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate, ats_lift, tailored_pdf_storage_path, tailored_cv_storage_path, created_at")
-          .in("job_id", allActiveJobIds)
-          .eq("is_stale", false)
-          .order("created_at", { ascending: false })
-      : Promise.resolve({ data: [] as DonutRunRow[] }),
-    allActiveJobIds.length > 0
-      ? supabase.from("cover_letters")
-          .select("job_id")
-          .in("job_id", allActiveJobIds)
-          .eq("is_stale", false)
-          .eq("status", "completed")
-      : Promise.resolve({ data: [] as DonutLetterRow[] }),
+    // jobIdsForCounts/allActiveJobIds below come from countRows (BATCH 1),
+    // which is deliberately uncapped — no .limit() — so these lists grow
+    // with a profile's full lifetime job history, not a page size. CHUNKED
+    // to avoid the unbounded-.in() silent-failure class (audit, execution
+    // chunk C44): unchunked, this previously risked under-reporting ATS/
+    // cover-letter completion counts with no error surfaced anywhere.
+    selectInChunked(jobIdsForCounts, (chunk) =>
+      supabase.from("analysis_runs")
+        .select("job_id, tailored_cv_storage_path, tailored_pdf_storage_path, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate")
+        .eq("status", "completed")
+        .in("job_id", chunk),
+    ).then((r) => ({ data: r.rows })),
+    selectInChunked(jobIdsForCounts, (chunk) =>
+      supabase.from("cover_letters")
+        .select("job_id")
+        .eq("status", "completed")
+        .in("job_id", chunk),
+    ).then((r) => ({ data: r.rows })),
+    // .order() kept PER CHUNK, not globally — sufficient here because
+    // chunking partitions by distinct job_id, so every row for a given
+    // job_id lands in exactly one chunk, and the downstream "keep first
+    // (=latest) row per job_id" dedup below only needs order to hold
+    // within a job_id's own rows, not across the merged array.
+    selectInChunked<DonutRunRow>(allActiveJobIds, (chunk) =>
+      supabase.from("analysis_runs")
+        .select("job_id, initial_ats_score, tailored_match_score, passed_initial_gate, passed_final_gate, ats_lift, tailored_pdf_storage_path, tailored_cv_storage_path, created_at")
+        .in("job_id", chunk)
+        .eq("is_stale", false)
+        .order("created_at", { ascending: false }),
+    ).then((r) => ({ data: r.rows })),
+    selectInChunked<DonutLetterRow>(allActiveJobIds, (chunk) =>
+      supabase.from("cover_letters")
+        .select("job_id")
+        .in("job_id", chunk)
+        .eq("is_stale", false)
+        .eq("status", "completed"),
+    ).then((r) => ({ data: r.rows })),
   ]);
 
   const runByJob    = indexLatestByJob((recentRuns    ?? []) as AnalysisRunRef[]);

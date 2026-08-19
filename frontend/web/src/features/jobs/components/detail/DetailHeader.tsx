@@ -1,8 +1,9 @@
 "use client";
 
 /**
- * Compact detail-pane header — title, meta line, one status chip + subtext
- * line, and the action row (Full analysis · primary action · ⋯ menu).
+ * Detail-pane header — title, meta line, always-visible open-listing/close
+ * icons, a Status/Analysed/Employment stat-tile row (demo `.fa-stats`), and
+ * stacked action buttons (primary + ⋯ menu, then Download/Full analysis).
  *
  * Deliberately does NOT reuse `AnalyzeJobButton`'s navigate-to-analysis-page
  * behaviour: the whole point of the master-detail redesign is staying on the
@@ -12,28 +13,26 @@
 
 import { useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Loader2, MoreHorizontal, StopCircle } from "lucide-react";
+import { ExternalLink, Loader2, MoreHorizontal, StopCircle, X } from "lucide-react";
 import { IconButton, MenuItem } from "@/components/ui";
 import { RunStatus } from "@/lib/constants";
+import { MIN_INITIAL_ATS, MIN_FINAL_ATS } from "@/lib/atsThresholds";
 import { markJobDismissed } from "@/lib/actions/jobs";
 import { cancelAnalysisRun } from "@/lib/actions/runs";
 import { triggerReanalyze } from "@/lib/analyzeJob";
 import { shallowSetParams } from "../../lib/shallowNav";
 import { JobEditModal } from "../JobEditModal";
 import { Distance } from "../FeedCards";
-import { PIPELINE_STATE_META, TONE_CLASSES } from "../../lib/pipelineState";
-import { relativeDate, formatSalary, EMPLOYMENT_CHIP_LABEL } from "../../lib/smartFeedUtils";
+import { PIPELINE_STATE_META } from "../../lib/pipelineState";
+import { relativeDate, EMPLOYMENT_CHIP_LABEL } from "../../lib/smartFeedUtils";
 import { useJobRunStatus } from "../../lib/useJobRunStatus";
 import { useIsDesktop } from "../../lib/useIsDesktop";
 import { AnalysisProgressModal } from "./AnalysisProgressModal";
 import { ApplyModal } from "./ApplyModal";
 import { DownloadMenu } from "./DownloadMenu";
+import { FullAnalysisModal } from "./FullAnalysisModal";
 import type { BoardJob } from "../../lib/jobFilters";
 import type { BoardDetailRun } from "../../lib/boardDetailTypes";
-
-const TONE_BADGE: Record<string, "green" | "amber" | "red" | "blue" | "gray"> = {
-  success: "green", warning: "amber", danger: "red", info: "blue", neutral: "gray",
-};
 
 export function DetailHeader({
   job, description = null, manualJdText = null, detailLoaded = false,
@@ -98,6 +97,7 @@ export function DetailHeader({
   const [unapplying, setUnapplying]   = useState(false);
   const [menuOpen, setMenuOpen]       = useState(false);
   const [error, setError]             = useState<string | null>(null);
+  const [showFullAnalysis, setShowFullAnalysis] = useState(false);
 
   // A card's Apply button hands off via `?job=<id>&apply=1` rather than
   // applying inline, so the popup (and its confirmation step) is the only way
@@ -206,7 +206,6 @@ export function DetailHeader({
   const showProgress = wasOpen && progressDismissed !== phase;
 
   const meta = PIPELINE_STATE_META[job.pipelineState ?? "discovered"];
-  const badgeVariant = TONE_BADGE[meta.tone] ?? "gray";
 
   async function onDismiss() {
     try { await markJobDismissed(job.id, job.profile_id); onClosed(); }
@@ -303,7 +302,7 @@ export function DetailHeader({
   const failed      = run ? run.status === "failed" : job.progress.latest_run_status === "failed";
   const notAnalysed = !hasAnalysis && !needsJd && !failed;
 
-  const thresholds = job.atsThresholds ?? { initial: 60, final: 70 };
+  const thresholds = job.atsThresholds ?? { initial: MIN_INITIAL_ATS, final: MIN_FINAL_ATS };
   // A score that hasn't cleared the final gate is what "Apply anyway" names.
   // pipelineState carries this for jobs the server already knew about; for one
   // analysed a moment ago the run's own score is the only source.
@@ -319,16 +318,30 @@ export function DetailHeader({
   // status line so "Ready to apply · ATS 67 → 81" gains a recency anchor.
   const lastAnalysedAt = job.progress.has_analysis ? job.progress.last_progress_at : null;
 
+  // Demo `.fa-stats` "Analysed"/"Employment" tiles.
+  const analysedText = lastAnalysedAt
+    ? relativeDate(lastAnalysedAt)
+    : needsJd ? "Needs JD"
+    : failed  ? "Failed"
+    : "Not yet";
+  const employmentTypesList = (job.employment_types ?? []).map((t) => EMPLOYMENT_CHIP_LABEL[t] ?? t);
+  const employmentText = employmentTypesList.length ? employmentTypesList.join(" / ") : "—";
+
+  // Demo `.fa-actions`: primary + Download/Full-analysis/Re-analyse only
+  // take up a second row when there's something to put in it.
+  const hasDownload     = job.progress.has_tailored_cv || job.progress.has_cover_letter || !!cvStoragePath || !!letterId;
+  const hasFullAnalysis = !!analysisHref;
+  const hasReanalyse    = job.progress.has_analysis && !!job.progress.latest_run_id;
+
   return (
     <div className="border-b border-border px-8 pt-4 pb-3">
       {/* flex-wrap + a guaranteed minimum width on the title column: the
-          action-button row doesn't shrink (there's nothing sensible to trim
-          off "Full analysis"/"Download"/"Applied"), so at narrower widths
+          persistent open/close icons don't shrink, so at narrower widths
           (this header now also renders full-width, unconstrained, in the
           Applied/Favourite accordion — see BoardDetailPanel's `inline` mode)
           it used to just take the space it needed and leave the flex-1 title
           column with 0px, wrapping the title one word per line. Wrapping the
-          actions onto their own row instead keeps the title readable. */}
+          icons onto their own row instead keeps the title readable. */}
       <div className="flex items-start gap-3 flex-wrap">
         <div className="min-w-[220px] flex-1">
           <a href={job.url} target="_blank" rel="noopener noreferrer" className="text-[19px] font-bold text-text hover:text-[var(--brand)] leading-tight tracking-tight">
@@ -343,100 +356,110 @@ export function DetailHeader({
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Always-visible running indicator. The action buttons below only
-              show "Analysing…" on the Analyse/Retry branches, which aren't
-              rendered for an already-analysed job — so without this,
-              re-analysing showed nothing at all. Doubles as the way back into
-              the progress popup after dismissing it. */}
-          {analysing && (
-            <span className="inline-flex items-center rounded-[9px] border border-[var(--brand)]/30 bg-[var(--brand)]/10 overflow-hidden">
-              <button
-                type="button"
-                onClick={() => { setWasOpen(true); setProgressDismissed(null); }}
-                title="Show analysis progress"
-                className="inline-flex items-center gap-1.5 px-[12px] py-[7px] text-[13px] font-semibold whitespace-nowrap text-[var(--brand)] hover:bg-[var(--brand)]/15 transition-colors"
-              >
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                Analysing…
-              </button>
-              <button
-                type="button"
-                onClick={stopAnalysis}
-                disabled={cancelling || !runId}
-                title="Stop this analysis — steps already finished are kept, the remaining ones won't run"
-                aria-label="Stop analysis"
-                className="inline-flex items-center gap-1 border-l border-[var(--brand)]/30 px-[10px] py-[7px] text-[13px] font-semibold text-danger hover:bg-danger-subtle transition-colors disabled:opacity-50"
-              >
-                {cancelling
-                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  : <StopCircle className="w-3.5 h-3.5" />}
-                Stop
-              </button>
-            </span>
-          )}
-          {analysisHref && (
-            <a href={analysisHref}
-              className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap bg-[var(--brand)]/10 text-[var(--brand)] border border-[var(--brand)]/25 hover:bg-[var(--brand)]/15 transition-colors"
-              title="Opens the full analysis page"
-            >Full analysis ↗</a>
-          )}
+        {/* Demo `.fa-top-actions`: open-listing + close are always visible
+            here, on every job — previously the only way to close the pane
+            on desktop was the scrim/Esc, and "open the listing" only lived
+            three clicks deep in the ⋯ menu. */}
+        <div className="flex items-center gap-1 shrink-0">
+          <IconButton
+            onClick={() => window.open(job.url, "_blank", "noopener,noreferrer")}
+            aria-label="Open listing"
+            title="Open listing"
+            size="md"
+            variant="ghost"
+            icon={<ExternalLink className="w-4 h-4" />}
+          />
+          <IconButton onClick={onClosed} aria-label="Close" title="Close" size="md" variant="ghost" icon={<X className="w-4 h-4" />} />
+        </div>
+      </div>
 
-          {/* Gated on the board's own progress flags, not the fetched payload,
-              so the control paints with the rest of the header instead of
-              popping in a beat later; individual items stay disabled until
-              `detailLoaded` gives them real storage paths. */}
-          {(job.progress.has_tailored_cv || job.progress.has_cover_letter || !!cvStoragePath || !!letterId) && (
-            <DownloadMenu
-              jobId={job.id}
-              company={job.company}
-              hiringManager={job.hiring_manager ?? null}
-              cvStoragePath={cvStoragePath}
-              letterId={letterId}
-              loaded={detailLoaded}
-            />
-          )}
+      {/* Always-visible running indicator. The action buttons below only
+          show "Analysing…" on the Analyse/Retry branches, which aren't
+          rendered for an already-analysed job — so without this,
+          re-analysing showed nothing at all. Doubles as the way back into
+          the progress popup after dismissing it. */}
+      {analysing && (
+        <span className="mt-3 inline-flex items-center rounded-[9px] border border-[var(--brand)]/30 bg-[var(--brand)]/10 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => { setWasOpen(true); setProgressDismissed(null); }}
+            title="Show analysis progress"
+            className="inline-flex items-center gap-1.5 px-[12px] py-[7px] text-[13px] font-semibold whitespace-nowrap text-[var(--brand)] hover:bg-[var(--brand)]/15 transition-colors"
+          >
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            Analysing…
+          </button>
+          <button
+            type="button"
+            onClick={stopAnalysis}
+            disabled={cancelling || !runId}
+            title="Stop this analysis — steps already finished are kept, the remaining ones won't run"
+            aria-label="Stop analysis"
+            className="inline-flex items-center gap-1 border-l border-[var(--brand)]/30 px-[10px] py-[7px] text-[13px] font-semibold text-danger hover:bg-danger-subtle transition-colors disabled:opacity-50"
+          >
+            {cancelling
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              : <StopCircle className="w-3.5 h-3.5" />}
+            Stop
+          </button>
+        </span>
+      )}
 
+      {/* Demo `.fa-stats`: Status / Analysed / Employment tiles, replacing
+          the old single state-chip + text status line. */}
+      <div className="grid grid-cols-3 gap-2 mt-3">
+        <StatTile k="Status">
+          <span className={`pulse-dot inline-block w-2 h-2 rounded-full bg-current ${DOT_COLOR[meta.tone] ?? DOT_COLOR.neutral}`} />
+          <span className="truncate">{meta.label}</span>
+        </StatTile>
+        <StatTile k="Analysed">{analysedText}</StatTile>
+        <StatTile k="Employment">{employmentText}</StatTile>
+      </div>
+      {extraNote(job, description, detailLoaded) && (
+        <p className="text-label text-text-2 mt-2">{extraNote(job, description, detailLoaded)}</p>
+      )}
+
+      {/* Demo `.fa-actions`: primary action full-width (+ the ⋯ menu beside
+          it), then Download / Full analysis stacked below as a second row —
+          not crammed into one row of small pills like before. */}
+      <div className="flex flex-col gap-2 mt-3">
+        <div className="flex items-center gap-2">
           {isApplied ? (
-            <span className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold bg-success-subtle text-success">✓ Applied</span>
+            <span className="flex-1 inline-flex items-center justify-center px-[14px] py-[10px] rounded-[8px] text-[13px] font-semibold bg-success-subtle text-success">✓ Applied</span>
           ) : needsJd ? (
             <button type="button" onClick={() => setShowEdit(true)}
-              className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90 transition-opacity"
+              className="flex-1 inline-flex items-center justify-center px-[14px] py-[10px] rounded-[8px] text-[13px] font-semibold bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90 transition-opacity"
             >Add job description</button>
           ) : failed && !analysing ? (
             <button type="button" onClick={() => runAnalyze()} disabled={analysing}
-              className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 px-[14px] py-[10px] rounded-[8px] text-[13px] font-semibold bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90 transition-opacity disabled:opacity-50"
             >
-              {analysing ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
+              {analysing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
               {analysing ? "Analysing…" : "Retry analysis"}
             </button>
           ) : notAnalysed && !analysing ? (
             <button type="button" onClick={() => runAnalyze()} disabled={analysing}
-              className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 px-[14px] py-[10px] rounded-[8px] text-[13px] font-semibold bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90 transition-opacity disabled:opacity-50"
             >
-              {analysing ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
+              {analysing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
               {analysing ? "Analysing…" : "Analyse this job"}
             </button>
           ) : (
             <button type="button" onClick={() => setShowApply(true)}
-              className="inline-flex items-center px-[14px] py-[8px] rounded-[9px] text-[13px] font-semibold whitespace-nowrap bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90 transition-opacity"
+              className="flex-1 inline-flex items-center justify-center px-[14px] py-[10px] rounded-[8px] text-[13px] font-semibold bg-[var(--brand)] text-[var(--brand-fg)] hover:opacity-90 transition-opacity"
             >
               {belowGate ? "Apply anyway" : "Apply now"}
             </button>
           )}
 
-          <div className="relative">
+          <div className="relative shrink-0">
             <IconButton onClick={() => setMenuOpen((v) => !v)} aria-label="More actions" size="lg" variant="outline" icon={<MoreHorizontal className="w-3.5 h-3.5" />} />
             {menuOpen && (
               <div className="absolute right-0 top-full mt-1 z-30 min-w-[180px] rounded-md border border-border bg-surface shadow-lg py-1 text-label" onMouseLeave={() => setMenuOpen(false)}>
                 <MenuItem onClick={() => { setMenuOpen(false); setShowEdit(true); }}>Edit job description…</MenuItem>
-                {job.progress.has_analysis && job.progress.latest_run_id && (
-                  <MenuItem onClick={() => { setMenuOpen(false); onReanalyze(); }} disabled={analysing}>Re-analyse</MenuItem>
-                )}
                 {(job.pipelineState === "below_initial" || job.pipelineState === "role_mismatch") && (
                   <MenuItem onClick={() => { setMenuOpen(false); runAnalyze("all"); }} disabled={analysing}>Force full analysis</MenuItem>
                 )}
-                <MenuItem onClick={() => { setMenuOpen(false); window.open(job.url, "_blank", "noopener,noreferrer"); }}>View job posting ↗</MenuItem>
                 {isApplied && (
                   <MenuItem onClick={() => { setMenuOpen(false); onUnapply(); }} disabled={unapplying}>
                     {unapplying ? "Undoing…" : "Mark as not applied"}
@@ -447,28 +470,51 @@ export function DetailHeader({
             )}
           </div>
         </div>
-      </div>
 
-      {/* Own row, spanning the full panel width — nesting this inside the title
-          column above only right-aligned "Last analysed" to that column's edge
-          (short of the actions on the right), not the panel's actual right
-          edge, and a long subtext line wrapped the two onto separate rows. */}
-      <div className="flex items-start gap-2 mt-2">
-        <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
-          <span className={`inline-flex items-center gap-[5px] text-[12px] font-semibold px-[10px] py-[3px] rounded-full border ${TONE_CLASSES[meta.tone]?.pill ?? ""}`}>
-            <span className={`inline-block w-[6px] h-[6px] rounded-full ${TONE_CLASSES[meta.tone]?.dot ?? ""}`} />
-            {meta.label}
-          </span>
-          <span className="text-label text-text-2">{statusSubtext(job, description, detailLoaded)}</span>
-        </div>
-        {lastAnalysedAt && (
-          <span
-            className="shrink-0 self-center text-caption text-text-3 whitespace-nowrap"
-            title={`Last analysed ${lastAnalysedAt}`}
-            suppressHydrationWarning
-          >
-            Last analysed {relativeDate(lastAnalysedAt)}
-          </span>
+        {(hasDownload || hasFullAnalysis || hasReanalyse) && (
+          <div className="flex flex-wrap gap-2">
+            {/* Gated on the board's own progress flags, not the fetched
+                payload, so the control paints with the rest of the header
+                instead of popping in a beat later; individual items stay
+                disabled until `detailLoaded` gives them real storage paths.
+                flex-wrap + flex-1 (not a fixed grid-cols) so this reads the
+                same whether one, two, or all three of these show up. */}
+            {hasDownload && (
+              <div className="flex-1 min-w-[140px]">
+                <DownloadMenu
+                  jobId={job.id}
+                  company={job.company}
+                  hiringManager={job.hiring_manager ?? null}
+                  cvStoragePath={cvStoragePath}
+                  letterId={letterId}
+                  loaded={detailLoaded}
+                  fullWidth
+                />
+              </div>
+            )}
+            {hasFullAnalysis && (
+              <button
+                type="button"
+                onClick={() => setShowFullAnalysis(true)}
+                className="flex-1 min-w-[140px] inline-flex items-center justify-center gap-1.5 px-[14px] py-[10px] rounded-[8px] text-[13px] font-semibold border border-[var(--brand)]/35 text-[var(--brand)] bg-transparent hover:bg-[var(--brand)]/6 transition-colors"
+                title="Opens the full analysis in a popup, without leaving the board"
+              >Full analysis ↗</button>
+            )}
+            {/* Previously buried in the ⋯ menu — re-analysing is common
+                enough (and important enough to not miss) that it belongs
+                next to Download/Full analysis instead of a click deeper. */}
+            {hasReanalyse && (
+              <button
+                type="button"
+                onClick={onReanalyze}
+                disabled={analysing}
+                className="flex-1 min-w-[140px] inline-flex items-center justify-center gap-1.5 px-[14px] py-[10px] rounded-[8px] text-[13px] font-semibold border border-[var(--brand)]/35 text-[var(--brand)] bg-transparent hover:bg-[var(--brand)]/6 transition-colors disabled:opacity-50"
+              >
+                {analysing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                Re-analyse
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -524,63 +570,64 @@ export function DetailHeader({
           }}
         />
       )}
+
+      {showFullAnalysis && latestRunId && (
+        <FullAnalysisModal
+          job={job}
+          runId={latestRunId}
+          onClose={() => setShowFullAnalysis(false)}
+        />
+      )}
     </div>
   );
 }
 
-function statusSubtext(
+// Demo `.fa-stat-v`'s dot colour — reused for `.pulse-dot`'s ring via
+// `background: currentColor`, so setting text colour here sets both at once.
+const DOT_COLOR: Record<string, string> = {
+  success: "text-success", warning: "text-warning", danger: "text-danger",
+  info: "text-info", neutral: "text-text-3",
+};
+
+function StatTile({ k, children }: { k: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0 rounded-[8px] border border-border bg-surface px-[10px] py-[8px]">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-3">{k}</p>
+      <p className="mt-[3px] flex items-center gap-1.5 text-[14px] font-semibold text-text truncate">{children}</p>
+    </div>
+  );
+}
+
+/**
+ * The extra signals that don't fit a stat tile — ATS score, salary and
+ * employment type now live in the Status/Employment tiles and the Match &
+ * score tab (repeating them here would be the exact redundancy the demo's
+ * design brief calls out), so this only ever surfaces genuinely additional
+ * context: what happened with the cover letter, a contact email on file, or
+ * why analysis stopped early.
+ */
+function extraNote(
   job: BoardJob,
   description: string | null,
   detailLoaded: boolean,
 ): string {
   const state = job.pipelineState ?? "discovered";
   const parts: string[] = [];
-  const hasBothScores = job.initial_ats_score != null && job.tailored_match_score != null && job.initial_ats_score !== job.tailored_match_score;
 
   if (state === "applied") {
-    if (hasBothScores) parts.push(`ATS ${job.initial_ats_score} → ${job.tailored_match_score}`);
-    else if (job.tailored_match_score != null) parts.push(`ATS ${job.tailored_match_score}`);
-    else if (job.initial_ats_score != null) parts.push(`ATS ${job.initial_ats_score}`);
     if (job.progress.has_tailored_cv) parts.push("Tailored CV + cover letter sent via listing");
-  } else if (state === "ready_to_apply" || state === "ready_to_send") {
-    if (hasBothScores) parts.push(`ATS ${job.initial_ats_score} → ${job.tailored_match_score}`);
-    else if (job.tailored_match_score != null) parts.push(`ATS ${job.tailored_match_score}`);
-    const types = (job.employment_types ?? []).map((t) => EMPLOYMENT_CHIP_LABEL[t] ?? t);
-    if (types.length) parts.push(types.join("/"));
-    const sal = formatSalary(job);
-    if (sal) parts.push(sal);
   } else if (state === "below_final" || state === "below_initial") {
-    if (hasBothScores) parts.push(`ATS ${job.initial_ats_score} → ${job.tailored_match_score} tailored`);
-    else if (job.initial_ats_score != null) parts.push(`ATS ${job.initial_ats_score}`);
-    const types = (job.employment_types ?? []).map((t) => EMPLOYMENT_CHIP_LABEL[t] ?? t);
-    if (types.length) parts.push(types.join(", "));
-    const sal = formatSalary(job);
-    if (sal) parts.push(sal);
-    if (!job.progress.has_cover_letter) parts.push("cover letter skipped");
+    if (!job.progress.has_cover_letter) parts.push("Cover letter skipped");
   } else if (state === "role_mismatch") {
-    if (job.initial_ats_score != null) parts.push(`ATS ${job.initial_ats_score}`);
-    parts.push("analysis stopped after scoring");
-    if (job.contact_email) parts.push("contact email on file");
-  } else if (state === "analysing") {
-    parts.push("Analysis in progress…");
+    parts.push("Analysis stopped after scoring");
   } else if (state === "needs_jd") {
-    const types = (job.employment_types ?? []).map((t) => EMPLOYMENT_CHIP_LABEL[t] ?? t);
-    if (types.length) parts.push(types.join(", "));
     // Only claim a length once the JD payload has actually arrived — before
     // that we'd assert "only 0 characters scraped" for every job.
     const descLen = (description ?? "").length;
-    if (detailLoaded && descLen > 0) parts.push(`only ${descLen} characters scraped`);
-  } else {
-    if (job.progress.has_analysis) {
-      if (job.initial_ats_score != null) parts.push(`ATS ${job.initial_ats_score}`);
-    }
-    const types = (job.employment_types ?? []).map((t) => EMPLOYMENT_CHIP_LABEL[t] ?? t);
-    if (types.length) parts.push(types.join("/"));
-    const sal = formatSalary(job);
-    if (sal) parts.push(sal);
+    if (detailLoaded && descLen > 0) parts.push(`Only ${descLen} characters scraped`);
   }
-  if (job.contact_email && (state === "below_final" || state === "below_initial")) {
-    parts.push("\u2709 contact email on file");
+  if (job.contact_email && (state === "below_final" || state === "below_initial" || state === "role_mismatch")) {
+    parts.push("Contact email on file");
   }
   return parts.filter(Boolean).join(" · ");
 }

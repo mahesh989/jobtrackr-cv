@@ -1,5 +1,6 @@
-import { type BoardJob, type AtsBand } from "@/features/jobs/lib/jobFilters";
+import { type BoardJob, type AtsBand, byDistanceAsc } from "@/features/jobs/lib/jobFilters";
 import { EMPLOYMENT_TYPE_LABELS } from "@/lib/constants";
+import { MIN_INITIAL_ATS, MIN_FINAL_ATS } from "@/lib/atsThresholds";
 export { relativeDate } from "@/lib/dates";
 
 export function clampInt(raw: string | null, lo: number, hi: number, fallback: number): number {
@@ -18,6 +19,12 @@ export function isPostedToday(j: BoardJob): boolean {
       && d.getDate()     === now.getDate();
 }
 
+// ⚠️ DO NOT DELETE AS "DEAD CODE" — a grep for cross-file imports of
+// ATS_BAND_META finds none because its sole consumer, getAtsMeta below, is
+// IN THIS SAME FILE. getAtsMeta is imported and rendered at 7+ sites
+// (FeedCards/chips.tsx, cards.tsx) — the ATS dot, label, tooltip and bar on
+// every job card (mis-flagged dead once already — audit finding #64).
+//
 // Theme-driven. The dot/bar read the --chart-* palette (globals.css ships a
 // default set; Aurora re-tints it), and the chip reuses the same
 // --{colour}/--{colour}-light pairs the .badge-* classes already use — every
@@ -32,7 +39,7 @@ export const ATS_BAND_META: Record<AtsBand, { label: string; dot: string; chipBg
 
 export function getAtsMeta(job: { atsBand: AtsBand; atsThresholds?: { initial: number; final: number } }) {
   const band = job.atsBand;
-  const th = job.atsThresholds ?? { initial: 60, final: 70 };
+  const th = job.atsThresholds ?? { initial: MIN_INITIAL_ATS, final: MIN_FINAL_ATS };
   const staticMeta = ATS_BAND_META[band];
   if (band === "above_final") {
     return { ...staticMeta, label: `≥ ${th.final}`, tip: `Passed final gate (${th.final}) — auto cover letter eligible` };
@@ -56,26 +63,7 @@ export function visaKey(j: BoardJob): keyof typeof VISA_COLOR {
   return "unknown";
 }
 
-export function sourcePillTone(source: string): string {
-  const m: Record<string, string> = {
-    adzuna:     "bg-[var(--brand)]/12 text-[var(--brand)] border border-[var(--brand)]/25",
-    seek:       "bg-[var(--brand)]/12 text-[var(--brand)] border border-[var(--brand)]/25",
-    careerjet:  "bg-[var(--teal)]/14 text-[var(--teal)] border border-[var(--teal)]/25",
-    greenhouse: "bg-[var(--purple)]/12 text-[var(--purple)] border border-[var(--purple)]/25",
-    lever:      "bg-[var(--purple)]/12 text-[var(--purple)] border border-[var(--purple)]/25",
-    indeed:     "bg-[var(--amber)]/12 text-[var(--amber)] border border-[var(--amber)]/25",
-  };
-  return m[source.toLowerCase()] ?? "bg-[var(--surface-2)] text-text-2 border border-border";
-}
-
-export function byDistanceAsc(a: BoardJob, b: BoardJob): number {
-  const aNull = a.distance_km == null;
-  const bNull = b.distance_km == null;
-  if (aNull && bNull) return 0;
-  if (aNull) return 1;
-  if (bNull) return -1;
-  return (a.distance_km as number) - (b.distance_km as number);
-}
+export { byDistanceAsc };
 
 export const EMPLOYMENT_CHIP_LABEL = EMPLOYMENT_TYPE_LABELS;
 

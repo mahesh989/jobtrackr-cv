@@ -11,12 +11,20 @@
 
 ### 1a. Top-level packages
 
-| Package | Responsibility | LOC (approx) | Lang/Framework |
+> **Corrected 2026-08-19** — the LOC figures below were stale (this doc's own
+> header says to regenerate rather than hand-edit on material drift; a full
+> regenerate is out of scope for this pass, so figures are corrected in place
+> with the re-measurement date noted). All three packages have grown
+> substantially since the original scan, largely from the audit-remediation
+> work tracked in `EXECUTION-PLAN.md`/`EXECUTION-LOG.md` (new test files,
+> the `eval/writers/` and `tailored_structural_validation/` packages, etc).
+
+| Package | Responsibility | LOC (approx, 2026-08-19) | Lang/Framework |
 |---|---|---|---|
-| `frontend/web` | JobTrackr UI: dashboard, CV studio, applications, billing, admin, auth | ~34,000 | Next.js 16 App Router, TS, Tailwind v4 |
-| `backend/worker` | Job-discovery pipeline: multi-source scraping, dedup, classification | ~12,061 | Node 22, TypeScript, BullMQ |
-| `backend/api` | CV-tailoring pipeline, cover letters, company research, PDF gen | ~13,000 | Python 3.11, FastAPI, ReportLab |
-| `shared/supabase` | 80 migrations + scripts — schema only, no runtime code | n/a | SQL |
+| `frontend/web` | JobTrackr UI: dashboard, CV studio, applications, billing, admin, auth | ~55,350 (`src/**/*.{ts,tsx}`, was ~34,000) | Next.js 16 App Router, TS, Tailwind v4 |
+| `backend/worker` | Job-discovery pipeline: multi-source scraping, dedup, classification | ~16,821 (`src/**/*.ts`, excl. vendored actor deps, was ~12,061) | Node 22, TypeScript, BullMQ |
+| `backend/api` | CV-tailoring pipeline, cover letters, company research, PDF gen | ~35,901 (`app/**/*.py`, was ~13,000) | Python 3.11, FastAPI, ReportLab |
+| `shared/supabase` | migrations + scripts — schema only, no runtime code | n/a | SQL |
 
 Correction: `backend/worker/src/sources/` was originally reported at 808k LOC by
 an unscoped `find | wc -l` scan — implausible for a handful of adapter files, and
@@ -32,18 +40,33 @@ are excluded from the adapter count above.
 
 ### 1b. frontend/web submodules
 
-| Path | Responsibility | LOC | Notes |
+> **Corrected 2026-08-19** — this table previously listed the domain modules
+> (cv, jobs, applications, dashboard, admin, billing, onboarding) as
+> `components/*`. They live under `features/*`; `components/` today holds
+> only the three genuinely shared, non-domain directories (`ui`, `navigation`,
+> `providers`) — see `CLAUDE.md`'s own directory-structure section, which was
+> already correct and is what this table should have matched. `profiles` and
+> `auth` were missing from this table entirely; both added below. LOC
+> re-measured against `src/**/*.{ts,tsx}` per directory.
+
+| Path | Responsibility | LOC (2026-08-19) | Notes |
 |---|---|---|---|
-| `app/(dashboard)` | Protected routes: profiles, jobs, CV, billing | 7,470 | App Router, RSC + Suspense |
-| `app/api` | 52 API routes (BFF layer) | 7,343 | Calls cv-backend + worker internally |
-| `app/auth` | Signup/login, OAuth callbacks | 753 | Supabase Auth + Turnstile |
-| `components/cv` | CV builder/library/upload/tailored views | 8,418 | jsPDF |
-| `components/jobs` | Job search/display/analysis integration | 5,153 | TanStack Query |
-| `components/applications` | Cover letters, email drafts, send | 1,680 | html2canvas |
-| `components/dashboard` | Layout, run-status widgets | 1,023 | Realtime polling |
-| `components/admin` | AI settings, revenue, impersonation | 590 | Server actions |
-| `components/billing` | Pricing, subscription mgmt | 443 | Stripe SDK |
-| `components/onboarding` | Setup wizard | 621 | — |
+| `app/(dashboard)` | Protected routes: profiles, jobs, CV, billing | 7,101 | App Router, RSC + Suspense |
+| `app/api` | 58 API routes (BFF layer) | 6,601 | Calls cv-backend + worker internally |
+| `app/auth` | Thin route wrappers only (login/signup/forgot-password/update-password pages, confirm/signout routes) | 46 | Real auth UI lives in `features/auth`, below |
+| `features/jobs` | Job search/display/analysis integration | 9,520 | TanStack Query |
+| `features/cv` | CV builder/library/upload/tailored views | 9,073 | jsPDF |
+| `features/dashboard` | Dashboard home, layout, run-status widgets | 2,214 | Realtime polling |
+| `features/profiles` | CV profiles (multi-CV support) | 1,695 | Missing from this table before this correction |
+| `features/auth` | Login/signup/reset UI, session guards | 1,487 | Supabase Auth + Turnstile |
+| `features/onboarding` | Setup wizard | 728 | — |
+| `features/admin` | AI settings, revenue, impersonation | 573 | Server actions |
+| `features/billing` | Pricing, subscription mgmt | 459 | Stripe SDK |
+| `features/integrations` | Third-party integrations (Apify, email) | 429 | — |
+| `features/applications` | Cover letters, email drafts, send | 299 | html2canvas |
+| `components/ui` | Shared primitives (Button, Card, Modal, loaders) | 1,103 | Not domain-scoped |
+| `components/navigation` | Sidebar, header, mobile nav | 1,041 | Not domain-scoped |
+| `components/providers` | ThemeProvider, RunNotifier, SetupGateClient | 741 | Not domain-scoped |
 | `lib/supabase` | Client/server/admin SDK wrappers | ~250 | Most-imported module in repo |
 | `lib/actions` | Server actions (cv/job/profile mutations) | 793 | `"use server"` |
 | `lib/cv`, `lib/billing`, `lib/ai`, `lib/admin`, `lib/email`, `lib/integrations` | Feature-scoped helpers | 45–529 each | — |

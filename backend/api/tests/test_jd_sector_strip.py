@@ -347,6 +347,209 @@ class TestSectionClamp:
         assert out["required_skills"]["technical"] == ["python"]
         assert "section_clamp" not in (out.get("lexicon_meta") or {})
 
+    def test_career_in_desirable_does_not_demote_care_skills(self):
+        """Finding #24 (chunk C19). _phrase_in_blob used to tokenize a skill
+        phrase and do a bare substring check (`t in blob`) with no word
+        boundary. "care" is a 4-char token (passes the >3 filter), and is a
+        literal substring of "career" — so a JD's "Career development
+        opportunities" under Desirable falsely matched every required *care*
+        skill (personal care, aged care, dementia care — this product's
+        primary vertical), demoting every one of them to preferred even
+        though nothing about them is actually desirable-only."""
+        jd_text = (
+            "Essential:\n"
+            "Provide daily support to elderly residents with dignity and respect\n"
+            "\n"
+            "Desirable:\n"
+            "Career development opportunities and ongoing training available\n"
+        )
+        ja = {
+            "required_skills": {
+                "technical": [], "soft_skills": [],
+                "domain_knowledge": ["personal care", "aged care", "dementia care"],
+            },
+            "preferred_skills": {
+                "technical": [], "soft_skills": [], "domain_knowledge": [],
+            },
+        }
+        out = clamp_by_jd_sections(ja, jd_text)
+        assert out["required_skills"]["domain_knowledge"] == [
+            "personal care", "aged care", "dementia care",
+        ]
+        assert out["preferred_skills"]["domain_knowledge"] == []
+        assert "section_clamp" not in (out.get("lexicon_meta") or {})
+
+    def test_boilerplate_after_blank_line_does_not_join_the_section_body(self):
+        """Finding #24 residual (chunk C19b, found by C19's independent
+        review — reproduced live on the C19-fixed branch, so C19's
+        word-boundary fix alone does not close this).
+
+        A Desirable section's body used to keep absorbing every short
+        non-header line all the way to the next recognised
+        Essential/Desirable header, including unrelated "Why join us?" /
+        benefits prose after a blank line. That prose could then
+        legitimately word-boundary-match a required care skill's own token
+        ("we genuinely care about our people" contains "care" as a whole
+        word), wrongly demoting it — same user-facing harm as #24, different
+        root cause, not fixed by word-boundary matching alone.
+
+        Fixed by recognising boilerplate/other-section headings
+        (_SECTION_END: "Why join us", "About us", "Benefits", etc.) as a
+        body terminator — NOT a blank line by itself (see the next two
+        tests for why a blanket blank-line reset was tried and reverted)."""
+        jd_text = (
+            "Desirable:\n"
+            "Certificate III in Individual Support\n"
+            "\n"
+            "Why join us?\n"
+            "We genuinely care about our people\n"
+            "Discounted health care for your family\n"
+        )
+        ja = {
+            "required_skills": {
+                "technical": [], "soft_skills": [],
+                "domain_knowledge": ["personal care", "aged care"],
+            },
+            "preferred_skills": {
+                "technical": [], "soft_skills": [], "domain_knowledge": [],
+            },
+        }
+        out = clamp_by_jd_sections(ja, jd_text)
+        assert out["required_skills"]["domain_knowledge"] == [
+            "personal care", "aged care",
+        ]
+        assert out["preferred_skills"]["domain_knowledge"] == []
+
+    def test_blank_line_within_a_section_does_not_drop_the_second_cluster(self):
+        """C19b's independent review: a blanket "reset on any blank line"
+        fix (tried first, reverted) silently dropped a section's second
+        bullet cluster when a JD splits one logical Desirable list into two
+        blank-line-separated clusters with no new header in between — a
+        common real JD format. Losing "flexible availability" from the
+        desirable blob doesn't just miss a clamp opportunity: it removes
+        the counter-evidence that was correctly keeping this preferred-only
+        skill OUT of required (the promote branch fires on
+        `in_essential and not in_desirable`), flipping it to required."""
+        jd_text = (
+            "Essential:\n"
+            "Flexible shifts across the roster\n"
+            "\n"
+            "Desirable:\n"
+            "Certificate III in Individual Support\n"
+            "\n"
+            "Flexible availability\n"
+        )
+        ja = {
+            "required_skills": {
+                "technical": [], "soft_skills": [], "domain_knowledge": [],
+            },
+            "preferred_skills": {
+                "technical": ["flexible availability"],
+                "soft_skills": [], "domain_knowledge": [],
+            },
+        }
+        out = clamp_by_jd_sections(ja, jd_text)
+        assert out["required_skills"]["technical"] == []
+        assert out["preferred_skills"]["technical"] == ["flexible availability"]
+
+    def test_blank_line_right_after_inline_header_does_not_truncate_body(self):
+        """C19b's independent review: the reverted blanket fix also broke
+        this repo's own primary fixture under a double-spaced variant — a
+        blank line immediately after an inline 'Desirable: ...' header line
+        reset `current` before the continuation lines that make up the rest
+        of that section's body (a real usage: this repo's own
+        `_ANGLICARE_JD_TAIL` fixture depends on an inline header's
+        continuation lines to carry 'computer skills' into the desirable
+        blob). Confirms the boilerplate-heading-only terminator doesn't
+        regress this."""
+        jd_text = (
+            "Desirable: A Certificate III in Individual Support (Ageing, Home, and Community)\n"
+            "\n"
+            "Current accredited First Aid and CPR certificate (or willing to obtain)\n"
+            "Basic computer and smartphone working knowledge\n"
+        )
+        ja = {
+            "required_skills": {
+                "technical": ["computer skills"], "soft_skills": [], "domain_knowledge": [],
+            },
+            "preferred_skills": {
+                "technical": [], "soft_skills": [], "domain_knowledge": [],
+            },
+        }
+        out = clamp_by_jd_sections(ja, jd_text)
+        assert out["required_skills"]["technical"] == []
+        assert out["preferred_skills"]["technical"] == ["computer skills"]
+
+    def test_genuine_bullet_starting_with_a_boilerplate_word_is_not_a_heading(self):
+        """C19b round-2 independent review: the first _SECTION_END design
+        matched `\\b.*$` after the heading phrase — i.e. it fired on ANY
+        line merely STARTING with a recognised word, not just a line that
+        IS that heading. A genuine Essential bullet like "Benefits
+        administration and payroll experience" or "To apply for this role
+        you must hold a current NDIS Worker Screening Check" tripped it,
+        prematurely ending the section and reintroducing the exact
+        wrong-bucketing bug this pattern exists to prevent — required
+        skills after such a bullet fell out of the essential blob entirely.
+        _SECTION_END must match a heading LINE (same whole-line convention
+        as _SECTION_HEAD_ESSENTIAL/_SECTION_HEAD_DESIRABLE above it), not a
+        line that happens to start with one of its words.
+
+        Deliberately includes a real Desirable section whose text also
+        contains "care" as a whole word: if the essential blob is wrongly
+        emptied by a false _SECTION_END match, "personal care" loses its
+        in_essential=True protection and gets wrongly demoted to preferred
+        — a plain "stays required" assertion with no Desirable section
+        would pass either way (the clamp is a no-op when both blobs are
+        empty), so it wouldn't actually catch this class of regression."""
+        jd_text = (
+            "Essential:\n"
+            "Benefits administration and payroll experience\n"
+            "Personal care support for elderly residents\n"
+            "\n"
+            "Desirable:\n"
+            "Care coordination experience\n"
+        )
+        ja = {
+            "required_skills": {
+                "technical": [], "soft_skills": [],
+                "domain_knowledge": ["personal care"],
+            },
+            "preferred_skills": {
+                "technical": [], "soft_skills": [], "domain_knowledge": [],
+            },
+        }
+        out = clamp_by_jd_sections(ja, jd_text)
+        assert out["required_skills"]["domain_knowledge"] == ["personal care"]
+        assert out["preferred_skills"]["domain_knowledge"] == []
+
+    def test_genuine_bullet_starting_with_boilerplate_word_does_not_wrongly_promote(self):
+        """Same class as the previous test, opposite (worse) direction: a
+        Desirable bullet starting with "Benefit" ("Benefit realisation
+        exposure") ending the section prematurely drops the REAL desirable
+        item after it from the blob — removing the counter-evidence that
+        keeps a preferred-only skill from being wrongly promoted to
+        required, the same harm class round 1's regressions caused."""
+        jd_text = (
+            "Essential:\n"
+            "Flexible shifts across the roster\n"
+            "\n"
+            "Desirable:\n"
+            "Benefit realisation exposure\n"
+            "Flexible availability\n"
+        )
+        ja = {
+            "required_skills": {
+                "technical": [], "soft_skills": [], "domain_knowledge": [],
+            },
+            "preferred_skills": {
+                "technical": ["flexible availability"],
+                "soft_skills": [], "domain_knowledge": [],
+            },
+        }
+        out = clamp_by_jd_sections(ja, jd_text)
+        assert out["required_skills"]["technical"] == []
+        assert out["preferred_skills"]["technical"] == ["flexible availability"]
+
 
 # ---------------------------------------------------------------------------
 # Fix 3 — universal noise additions

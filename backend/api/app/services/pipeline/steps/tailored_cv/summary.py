@@ -61,7 +61,11 @@ def _get_summary_prose(lines: list[str], start: int, end: int) -> tuple[list[int
     return idx, " ".join(texts)
 
 
-_SUMMARY_HEADING_RE = re.compile(r"^## (Career Highlights|Professional Summary|Summary)$")
+# C22f: tolerate a trailing colon the AI writer sometimes emits ("## Career
+# Highlights:") — the original `$`-anchored pattern was defeated by it,
+# silently skipping this whole summary block for every downstream pass that
+# reads through _find_summary_block.
+_SUMMARY_HEADING_RE = re.compile(r"^## (Career Highlights|Professional Summary|Summary):?$")
 
 
 def _find_summary_block(lines: list[str]) -> tuple[int, int] | tuple[None, None]:

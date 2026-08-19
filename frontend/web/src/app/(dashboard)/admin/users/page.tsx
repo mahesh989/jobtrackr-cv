@@ -12,7 +12,7 @@
  *   - Recent analysis runs (last 5)
  *   - Recent user_events (last 10 actions)
  */
-import { requireAdmin } from "@/lib/admin/guard";
+import { requireAdmin, timeAgo } from "@/lib/admin/guard";
 
 function formatCost(millicents: number): string {
   const dollars = millicents / 100_000;
@@ -21,14 +21,6 @@ function formatCost(millicents: number): string {
   if (dollars < 0.10)  return `$${dollars.toFixed(4)}`;
   if (dollars < 10)    return `$${dollars.toFixed(3)}`;
   return `$${dollars.toFixed(2)}`;
-}
-function timeAgo(iso: string): string {
-  const secs = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (secs < 60)          return "just now";
-  if (secs < 3600)        return `${Math.floor(secs / 60)}m ago`;
-  if (secs < 86400)       return `${Math.floor(secs / 3600)}h ago`;
-  if (secs < 86400 * 7)   return `${Math.floor(secs / 86400)}d ago`;
-  return new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short" });
 }
 import Link from "next/link";
 import { Badge } from "@/components/ui";

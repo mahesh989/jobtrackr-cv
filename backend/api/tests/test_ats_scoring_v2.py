@@ -65,13 +65,44 @@ class TestWeightsSumCorrectly:
     def test_overall_envelope_is_100(self):
         assert sum(DEFAULT_KEYWORD_WEIGHTS.values()) + _EXPERIENCE_MAX + _FORMATTING_MAX == 100
 
+    def test_default_keyword_weights_is_the_single_source_of_truth(self):
+        """
+        REGRESSION (#60, C61): ats_scoring.DEFAULT_KEYWORD_WEIGHTS and
+        RoleFamilyProfile's own keyword_weights default used to be two
+        independently-maintained, byte-for-byte-duplicated dict literals —
+        verticals/base.py carried the load-bearing "sum to 50" comment, the
+        ats_scoring.py copy had none, so a future reweight of one could
+        silently desync the resolution-failure fallback path from the
+        per-vertical path. ats_scoring.py now imports the same object
+        verticals/base.py defines, so this can't happen again by construction
+        — asserted here as identity, not just equal values, since equal
+        values alone wouldn't have caught the duplication (they already
+        matched before this fix; the risk was future drift, not current
+        divergence).
+        """
+        from app.services.verticals.base import (
+            DEFAULT_KEYWORD_WEIGHTS as verticals_base_default,
+        )
+
+        assert DEFAULT_KEYWORD_WEIGHTS is verticals_base_default
+
+        # The general-fallback role-family profile ("master") doesn't override
+        # keyword_weights, so it relies on this same default via the
+        # dataclass field factory (dict(...) copy, not the object itself —
+        # dataclass instances must never share a mutable default).
+        from app.services.verticals import ROLE_FAMILIES
+
+        general = ROLE_FAMILIES["master"]
+        assert general.keyword_weights == verticals_base_default
+        assert general.keyword_weights is not verticals_base_default
+
 
 # ---------------------------------------------------------------------------
 # Fixtures — CV / JD / matching shapes used by the scenarios
 # ---------------------------------------------------------------------------
 
-NURSING_CV = """# Rashmi Poudel
-NSW | 0403760681 | rashmi@example.com | LinkedIn
+NURSING_CV = """# Jane Citizen
+NSW | 0400000000 | jane.citizen@example.com | LinkedIn
 
 ## Experience
 
@@ -235,7 +266,7 @@ class TestScenarioDistribution:
     A v2-honest note: v1's single ATS number conflated three axes that v2
     breaks apart (keyword fit / experience fit / formatting). What v1 called
     "moderate" was usually keyword-moderate; v2 surfaces that *the same CV*
-    can be moderate on keywords but strong on experience (Rashmi's case).
+    can be moderate on keywords but strong on experience (Jane's case).
     The bands below reflect the cleaner separation.
     """
 
@@ -253,7 +284,7 @@ class TestScenarioDistribution:
         )
 
     def test_moderate_keyword_strong_experience_untailored(self):
-        """Rashmi's CV vs Jesmond JD: 4/7 soft, 4/6 dom matched (moderate
+        """Jane's CV vs Jesmond JD: 4/7 soft, 4/6 dom matched (moderate
         keywords) — but 19 months nursing tenure, 100% alignment, 5/7
         responsibilities covered (strong experience). v2 correctly
         recognises this as a high-quality fit."""
@@ -265,7 +296,7 @@ class TestScenarioDistribution:
         )
 
     def test_keyword_strong_experience_strong_tailored(self):
-        """After injection on Rashmi's CV — Cat 1 saturates to 50, Cat 2 and
+        """After injection on Jane's CV — Cat 1 saturates to 50, Cat 2 and
         Cat 3 hold steady (the v2 tailoring invariant)."""
         m_tail = _matching(soft_matched=7, soft_total=7, dom_matched=6, dom_total=6)
         ats = run_ats_scoring(NURSING_CV, NURSING_JD, m_tail)
@@ -409,6 +440,6 @@ class TestRelevantTenure:
         jd["experience_years_required"] = None
         m = _matching(soft_matched=4, soft_total=7, dom_matched=4, dom_total=6)
         _, comps = _experience_score(NURSING_CV, m, jd)
-        # Rashmi has relevant tenure → full presence credit.
+        # Jane has relevant tenure → full presence credit.
         assert comps["relevant_tenure"]["earned_points"] == _EXP_TENURE_MAX
         assert comps["relevant_tenure"]["basis"] == "presence_only_no_requirement"

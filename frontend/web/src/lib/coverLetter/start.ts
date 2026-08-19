@@ -26,7 +26,9 @@ import type { ToneTarget } from "@/lib/types";
 import { jsonError } from "@/lib/api-utils";
 
 
-const JD_MIN_CHARS = 50;
+const JD_MIN_CHARS = 50;   // deliberately more lenient than analyze/start.ts's
+                            // JD_MIN_USABLE=200: a cover letter needs less JD
+                            // context than a full scoring/tailoring run does
 
 /** Replicate make_company_slug() from backend/api/app/services/company/slug.py */
 function makeCompanySlug(name: string): string {
@@ -212,7 +214,7 @@ export async function startCoverLetter(
 
     admin
       .from("cover_letters")
-      .select("id, status")
+      .select("id")
       .eq("user_id", user.id)
       .eq("job_id", jobId)
       .eq("is_stale", false)
@@ -256,14 +258,6 @@ export async function startCoverLetter(
   }
   const usageEventId = clGate.eventId;
   const release = async () => { if (usageEventId) await releaseUsageEvent(usageEventId); };
-
-  // Mark previous letter stale if regenerating
-  if (existingLetter && regenerate) {
-    await admin
-      .from("cover_letters")
-      .update({ is_stale: true })
-      .eq("id", existingLetter.id);
-  }
 
   // ── 7. Resolve platform AI provider/key/model ─────────────────────────────────
   const creds = await getActiveAiCredentials();
@@ -494,9 +488,30 @@ export async function startCoverLetter(
 
   const letterId = letterRow.id as string;
 
+  // Mark the previous letter stale now that the new one exists (moved here
+  // from right after the billing gate, #47 audit) — every read path filters
+  // is_stale=false, so doing this before any of the early-return failure
+  // paths above left the user with neither the old completed letter nor a
+  // new one on failure. Waiting until the insert has actually succeeded
+  // guarantees a replacement always exists before the old one is hidden.
+  if (existingLetter && regenerate) {
+    await admin
+      .from("cover_letters")
+      .update({ is_stale: true })
+      .eq("id", existingLetter.id);
+  }
+
   // Link the pending reservation to the letter row so the cover_letters status
   // trigger can commit (status 'completed') or void (status 'failed') it.
-  if (usageEventId) await linkUsageEvent(usageEventId, letterId);
+  // Non-fatal: the letter already exists — a link failure means this one
+  // reservation won't auto-reconcile, not that letter generation failed.
+  if (usageEventId) {
+    try {
+      await linkUsageEvent(usageEventId, letterId);
+    } catch (err) {
+      console.error("[coverLetter/start] linkUsageEvent failed — reservation stuck pending:", err);
+    }
+  }
 
   return NextResponse.json({ letter_id: letterId, status: "picking", variants });
 }

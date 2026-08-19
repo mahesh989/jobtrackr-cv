@@ -11,14 +11,14 @@ Fixes applied:
   post_process_skills for LLM output).
 - Added _trim_qual_phrase: walks the tail after the _QUAL_PATTERN match and
   stops at prose stop words ("to", "join", "our", "will", etc.).
-- Word-boundary fix: _QUAL_PATTERN can stop mid-token ("certificate i" from
-  "certificate iv") due to i{1,4} before iv in alternation; advance to end of
-  current token before inspecting tail.
+- Word-boundary fix: roman/numeric qualification levels must end at a token
+  boundary, so ordinary prose such as "certificate is required" cannot match.
 """
 from __future__ import annotations
 
 from app.services.skills.post_process import (
     extract_credentials_from_jd,
+    _is_qualification_phrase,
     _trim_qual_phrase,
 )
 
@@ -34,6 +34,30 @@ def test_trim_bare_cert():
 def test_trim_cert_iv_no_split():
     """'certificate iv' must stay intact — regex stops mid-token 'i' from 'iv'."""
     assert _trim_qual_phrase("certificate iv") == "certificate iv"
+
+
+def test_certificate_prose_is_not_a_qualification():
+    """Ordinary prose beginning ``certificate i...`` is not a credential."""
+    for phrase in (
+        "certificate is required",
+        "cert is required",
+        "completed cert is required",
+    ):
+        assert _is_qualification_phrase(phrase) is False
+
+    for sentence in (
+        "Essential: a current certificate is required prior to commencement.",
+        "A current cert is required before commencement.",
+        "Completed cert is required before commencement.",
+        "A police check certificate is included with onboarding.",
+        "The certificate issued by the provider must be current.",
+    ):
+        out = extract_credentials_from_jd(sentence)
+        captured = out["required"] + out["preferred"]
+        assert not any(
+            item.lower().startswith(("certificate i", "cert i", "completed cert i"))
+            for item in captured
+        )
 
 
 def test_trim_cert_and_or_iv():
@@ -138,6 +162,22 @@ def test_clean_cert_iv_preferred():
     out = extract_credentials_from_jd(_CLEAN_JD)
     pref = [p.lower() for p in out["preferred"]]
     assert any("certificate iv" in p for p in pref)
+
+
+def test_credential_scan_normalises_internal_whitespace():
+    for gap in ("  ", "\t", "\u00a0"):
+        out = extract_credentials_from_jd(
+            f"You must hold a Certificate III{gap}in Individual Support."
+        )
+        assert out["required"] == ["Certificate III in Individual Support"]
+
+
+def test_attached_multi_level_certificates_still_extract():
+    for level in ("Certificate III/IV", "Cert III/IV", "Certificate III-IV"):
+        out = extract_credentials_from_jd(
+            f"You must hold a {level} in Individual Support."
+        )
+        assert out["required"] == [f"{level} in Individual Support"]
 
 
 def test_clean_vaccination_eligibility():

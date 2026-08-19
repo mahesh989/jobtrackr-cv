@@ -116,5 +116,5 @@ Ageing Support` — with a JD in that field.
 2. **`Sept. 20, 2024` day-of-month not stripped** — Sprint C `normalise_date_formats` misses the `Mon. DD, YYYY` form.
 3. **Title chain in S1** ("Assistant in Nursing and care worker") — TITLE_SLOT rule (item 13) + `enforce_summary_identity` gap (the gate's `_ROLE_HEAD_NOUNS` set lacks "nursing"/"worker"). Intermittent (clean on run 2).
 4. **Approved-but-missed keywords (doc issue 3)** — the composer ignores feasibility's *inject_as_extension* bullet rewrites; on the Nepean run this produced **+0 ATS lift** with 8 approved keywords missed. The dominant practical defect; not addressed by Phase 3A.
-5. **Name mismatch** — the "Your CV — skills by category" card showed *Rashmi Poudel* while the tailored CV header is *Maheshwor Tiwari*. Likely profile-name vs CV-name source; verify it's not a stamping bug.
+5. **Name mismatch** — the "Your CV — skills by category" card showed *Jane Citizen* while the tailored CV header is *John Public*. Likely profile-name vs CV-name source; verify it's not a stamping bug.
 6. **Breadth-framed S1 + named employers mid-sentence in S2** — your open Priority-1 item; `enforce_summary_breadth_consistency` only strips a trailing `at <Org>.`, not mid-sentence.

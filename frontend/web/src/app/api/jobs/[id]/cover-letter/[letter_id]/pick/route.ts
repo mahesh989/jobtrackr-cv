@@ -110,8 +110,8 @@ export const POST = withUser(async (
 
   // ── 5. Resolve prerequisites (CV, voice) ────────────────────────────────────
   const [
-    { data: cvRow },
-    { data: voiceRow },
+    { data: cvRow, error: cvErr },
+    { data: voiceRow, error: voiceErr },
   ] = await Promise.all([
     admin
       .from("cv_versions")
@@ -126,6 +126,12 @@ export const POST = withUser(async (
       .eq("user_id", user.id)
       .maybeSingle(),
   ]);
+
+  // A discarded error on either read previously looked identical to
+  // "prerequisites changed" (422) — a transient DB blip told the user
+  // their CV/voice profile is gone rather than surfacing a retryable 500.
+  if (cvErr) return jsonError(cvErr.message, 500);
+  if (voiceErr) return jsonError(voiceErr.message, 500);
 
   if (!cvRow?.cv_text) {
     return NextResponse.json(

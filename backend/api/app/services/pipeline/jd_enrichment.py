@@ -32,10 +32,16 @@ def build_boilerplate_blob(jd_section_map: Dict[str, str]) -> str:
     try:
         _bp_headings = (jd_section_map.get("_boilerplate") or "")
         if _bp_headings:
+            from app.services.preprocessing.jd_cleaner import BOILERPLATE_HEADING_SEP
             from app.services.skills.post_process import _ground_norm
+            # C67: was .split(",") — a heading legitimately containing a
+            # comma (e.g. "Our Benefits, Perks & Culture") corrupted itself
+            # AND its neighbour on round-trip, silently dropping both
+            # sections' bodies from this provenance blob. Must match
+            # jd_cleaner.clean_jd_text's join exactly.
             _bp_bodies = " ".join(
                 jd_section_map.get(h.strip(), "")
-                for h in _bp_headings.split(",")
+                for h in _bp_headings.split(BOILERPLATE_HEADING_SEP)
             )
             _boilerplate_blob = f" {_ground_norm(_bp_bodies)} "
     except Exception:  # noqa: BLE001 — provenance is best-effort
@@ -189,11 +195,13 @@ def enrich_jd_analysis(
     except Exception:  # noqa: BLE001 — never block on a heuristic
         logger.warning("section clamp: failed", exc_info=True)
 
-    # Off-setting boilerplate demotion: for a residential aged-care JD
-    # whose About-Us / brand prose leaks "disability support" or
-    # "mental health support" into required skills, move them to
-    # preferred so they don't drive the required-match score.
-    # Deterministic; conservative (only RESIDENTIAL currently).
+    # Off-setting boilerplate demotion: for a residential or home_community
+    # aged-care JD whose About-Us / brand prose leaks off-setting domain
+    # skills (e.g. "disability support" on residential, "acute care" on
+    # home_community) into required skills, move them to preferred so they
+    # don't drive the required-match score. Deterministic; conservative —
+    # only settings with an explicit entry in _OFF_SETTING_DOMAIN_KEYWORDS
+    # are touched, everything else is a no-op (see demotion.py).
     try:
         from app.services.eval.writers import _classify_jd_setting
         from app.services.skills.post_process import demote_off_setting_keywords
@@ -206,13 +214,13 @@ def enrich_jd_analysis(
     # rolling JSONL log so weekly reviews can promote high-frequency
     # phrases into the lexicon. Pipeline never blocks on tracking.
     try:
-        from datetime import datetime
+        from app.database import utcnow_iso
         from app.services.skills.unknown_tracker import record_unknown_phrases
         record_unknown_phrases(
             role_family_id=str(jd_analysis.get("role_family") or "master"),
             job_title=str(jd_analysis.get("job_title") or "") or None,
             lexicon_meta=jd_analysis.get("lexicon_meta"),
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=utcnow_iso(),
         )
     except Exception:  # noqa: BLE001 — observability must never block
         logger.debug("unknown_tracker: failed to record", exc_info=True)

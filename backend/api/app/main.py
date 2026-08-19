@@ -18,7 +18,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.starlette import StarletteIntegration
-from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
 from app.config import get_settings
@@ -34,6 +33,25 @@ from app.routes import health, internal
 #   - attached to log records via a filter, so the formatter can print it
 #   - tagged on Sentry events so error grouping cross-references logs and traces
 #   - returned in the response header so clients can quote it in bug reports
+#
+# #15 (audit): this MUST be plain ASGI middleware — `self.app(scope, receive,
+# send)` called directly — not BaseHTTPMiddleware/@app.middleware("http").
+# BaseHTTPMiddleware's call_next() spawns the downstream app in a separate
+# anyio task via task_group.start_soon(), and that spawn happens BEFORE
+# dispatch() (the function body that would call _request_id_var.set()) ever
+# runs — so a contextvar set there is captured too late for the downstream
+# task to see it. Confirmed directly: with the old BaseHTTPMiddleware
+# version, both access_log's own logging and the 500 handler's
+# get_request_id() read None/"-" for every request, no exceptions raised,
+# nothing to signal the value was silently lost. Plain ASGI middleware has
+# no task-spawn boundary — the set() happens in the same task/context that
+# everything downstream (access_log, the router, the exception handler,
+# even a raised exception) runs in, so it propagates correctly. Must ALSO be
+# wrapped around the exported `app` object itself (see the bottom of this
+# file), not registered via add_middleware() — registering it into
+# Starlette's own middleware_stack reintroduces the same lost-context
+# failure via a different task boundary inside that stack (also confirmed
+# directly, not assumed).
 # ---------------------------------------------------------------------------
 
 _request_id_var: ContextVar[Optional[str]] = ContextVar("request_id", default=None)
@@ -44,18 +62,32 @@ def get_request_id() -> Optional[str]:
     return _request_id_var.get()
 
 
-class RequestIdMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next) -> Response:
-        incoming = request.headers.get(REQUEST_ID_HEADER)
-        rid = incoming if incoming else uuid.uuid4().hex
+class RequestIdMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        headers = dict(scope.get("headers") or [])
+        incoming = headers.get(REQUEST_ID_HEADER.encode())
+        rid = incoming.decode() if incoming else uuid.uuid4().hex
         token = _request_id_var.set(rid)
         sentry_sdk.set_tag("request_id", rid)
+
+        async def send_with_request_id(message):
+            if message["type"] == "http.response.start":
+                response_headers = list(message.get("headers") or [])
+                response_headers.append((REQUEST_ID_HEADER.encode(), rid.encode()))
+                message = {**message, "headers": response_headers}
+            await send(message)
+
         try:
-            response = await call_next(request)
+            await self.app(scope, receive, send_with_request_id)
         finally:
             _request_id_var.reset(token)
-        response.headers[REQUEST_ID_HEADER] = rid
-        return response
 
 
 class RequestIdLogFilter(logging.Filter):
@@ -175,8 +207,9 @@ app.add_middleware(
     expose_headers=["x-request-id"],
 )
 
-# Request-ID propagation must wrap everything
-app.add_middleware(RequestIdMiddleware)
+# RequestIdMiddleware is NOT registered here via add_middleware() — see its
+# class docstring/comment above for why. It wraps the fully-configured
+# `app` object at the very bottom of this file instead.
 
 
 # ---------------------------------------------------------------------------
@@ -237,3 +270,16 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 
 app.include_router(health.router)
 app.include_router(internal.router)
+
+# ---------------------------------------------------------------------------
+# Exported ASGI app
+#
+# `fastapi_app` stays available for anything that needs the FastAPI instance
+# itself (route introspection, TestClient against the inner app, etc — see
+# tests/test_internal_route_surface.py). `app` — the name uvicorn actually
+# serves (Dockerfile: `uvicorn app.main:app`) — is RequestIdMiddleware
+# wrapped around it directly, not registered via add_middleware(); see that
+# class's comment for why the distinction matters (#15).
+# ---------------------------------------------------------------------------
+fastapi_app = app
+app = RequestIdMiddleware(fastapi_app)

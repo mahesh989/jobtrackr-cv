@@ -153,11 +153,18 @@ export const PIPELINE_STATE_META: Record<PipelineState, PipelineStateMeta> = {
   discovered:      { label: "—",              tone: "neutral", short: "Not yet processed",                                                 showAsBadge: false },
 };
 
-/** Tailwind utility classes per tone for a small pill badge. */
+/**
+ * Tailwind utility classes per tone for a small pill badge. Was raw
+ * numbered-shade palette classes — correct-looking in dev, wrong on
+ * 6 of 7 themes, and invisible to check-theme-tokens.mjs's CI gate because
+ * this file is a .ts, not .tsx (audit finding #41 / DetailHeader.tsx,
+ * execution chunk C37/C38 — both the bug and the gate's blind spot fixed
+ * together). Now the same semantic vocabulary "neutral" already used.
+ */
 export const TONE_CLASSES: Record<PipelineStateMeta["tone"], { pill: string; dot: string }> = {
-  success: { pill: "text-emerald-700 bg-emerald-50 border-emerald-200", dot: "bg-emerald-500" },
-  warning: { pill: "text-amber-700   bg-amber-50   border-amber-200",   dot: "bg-amber-500"   },
-  danger:  { pill: "text-red-700     bg-red-50     border-red-200",     dot: "bg-red-500"     },
-  info:    { pill: "text-blue-700    bg-blue-50    border-blue-200",    dot: "bg-blue-500"    },
-  neutral: { pill: "text-text-2      bg-[var(--surface-2)] border-[var(--border)]", dot: "bg-text-3" },
+  success: { pill: "text-success bg-success-subtle border-success-border", dot: "bg-success" },
+  warning: { pill: "text-warning bg-warning-subtle border-warning-border", dot: "bg-warning" },
+  danger:  { pill: "text-danger  bg-danger-subtle  border-danger-border",  dot: "bg-danger"  },
+  info:    { pill: "text-info    bg-info-subtle    border-info-border",    dot: "bg-info"    },
+  neutral: { pill: "text-text-2  bg-[var(--surface-2)] border-[var(--border)]", dot: "bg-text-3" },
 };

@@ -37,8 +37,3 @@ async def analyze(
     )
     background_tasks.add_task(run_analysis_pipeline, body)
     return AnalyzeResponse(run_id=body.run_id)
-
-
-# ── /internal/extract-cv-text ────────────────────────────────────────────────
-
-

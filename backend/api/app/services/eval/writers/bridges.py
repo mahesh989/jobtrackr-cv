@@ -170,11 +170,19 @@ def _build_jd_setting_block(setting: str) -> str:
         _SETTING_HOSPITAL: (
             "⚠ SYSTEM-COMPUTED JD SETTING: HOSPITAL / ACUTE CARE\n"
             "This JD is for a hospital ward or acute clinical environment — NOT a residential aged care facility.\n"
-            "HARD RULES for Career Highlights:\n"
-            "• S1 MUST NOT say just 'residential aged care settings'.\n"
-            "• Use a BRIDGE: e.g. 'residential aged care, transitioning into hospital-based care'\n"
-            "  or 'aged care and acute clinical settings'.\n"
-            "• S2 must evidence working under RN direction, within scope of practice, in a clinical team."
+            "HARD RULES for Career Highlights (C82: no cross-setting bridge — five independent\n"
+            "reviews each found a realistic aged-care CV phrasing that made a deterministic bridge\n"
+            "fabricate hospital experience the candidate never had; this JD setting gets no bridge\n"
+            "at all, only honest framing):\n"
+            "• Do NOT claim hospital, acute-ward, or clinical-team experience in S1 unless the CV's\n"
+            "  Experience section explicitly names a hospital employer or a specific ward/unit\n"
+            "  (e.g. ICU, ED, a named surgical/medical ward). A candidate escalating a resident TO\n"
+            "  hospital, or coordinating WITH hospital staff, is aged-care experience — not hospital\n"
+            "  experience — do not blur the two.\n"
+            "• When there is no such evidence, keep S1 residential-aged-care-framed and honest.\n"
+            "• S2 should highlight transferable clinical-adjacent skills the CV genuinely supports —\n"
+            "  medication administration accuracy, working within scope of practice, escalation and\n"
+            "  documentation protocols, supporting a clinical team — without claiming a hospital setting."
         ),
         _SETTING_NDIS: (
             "⚠ SYSTEM-COMPUTED JD SETTING: NDIS / DISABILITY SUPPORT\n"
@@ -229,9 +237,23 @@ _S1_RESIDENTIAL_RE = re.compile(
 
 # Bridge replacements by setting type — honest framing that acknowledges the
 # CV background while orienting toward the JD's target setting.
+# HOSPITAL has no bridge phrase — deliberately, as of C82's independent
+# review. Five review rounds each found a new, realistic way for a
+# pure-residential-aged-care CV to satisfy a vocabulary-based hospital-
+# evidence gate: bare RN/EN, same-line-only aged-care exclusions, bare
+# "hospital"/"acute care"/"clinical placement" in bullet bodies, employer-
+# heading-name matching (defeated by both a non-clinical job AT a hospital
+# and a hospital-NAMED aged-care facility), and finally even ward/unit-
+# specific vocabulary (ICU, ED, coronary care) mentioned as something an
+# aged-care worker escalates a RESIDENT to or references about the
+# resident's condition, not evidence of the CANDIDATE's own workplace. No
+# heuristic survived adversarial review. Per this module's own honesty-
+# over-score principle: under-triggering (never adding the bridge) is an
+# acceptable failure mode; over-triggering (fabricating clinical experience
+# in a real person's CV) is not — so, like LIFESTYLE, HOSPITAL is
+# intentionally absent here and _apply_setting_bridge is a no-op for it.
 _SETTING_BRIDGES = {
     _SETTING_HOME:     "experience in residential aged care, delivering care in home and community settings",
-    _SETTING_HOSPITAL: "experience across residential aged care and acute clinical settings",
     _SETTING_NDIS:     "experience in aged care and disability support settings",
     _SETTING_THEATRE:  "experience in aged care and healthcare settings",
 }
@@ -241,18 +263,46 @@ _SETTING_BRIDGES = {
 # Used to GATE the HOSPITAL bridge — without this, a candidate whose entire
 # CV is residential aged care gets a fabricated "experience across residential
 # aged care AND acute clinical settings" summary, which is dishonest.
+# Hospital markers deliberately keep ONLY ward/unit-specific vocabulary,
+# checked anywhere in the Experience section (heading or body) via the same
+# plain scan every other bridge gate uses. Four independent review rounds
+# (see C82 in ~/.claude/plans, not in this repo) each found a NEW way for a
+# name/heading-based signal to false-positive on a pure-residential-aged-care
+# CV: bare "hospital" ("coordinated hospital transfers"), "acute care"
+# (resident acuity, not facility type), "clinical placement" (a nursing
+# student's placement AT an aged-care employer), a heading-only check
+# (defeated by a non-clinical job AT a hospital, or a hospital-NAMED
+# aged-care facility, e.g. "St Vincent's Hospital Residential Aged Care"),
+# and RN/EN (a registration, not a setting — aged care employs both
+# routinely). None of those signals survived scrutiny. What DOES survive:
+# markers specific enough that incidental mention in aged-care prose is
+# implausible regardless of position — a ward/unit name, ED, ICU. Per this
+# module's own honesty-over-score principle, under-triggering the bridge
+# (a missed optimisation) is the acceptable failure mode; over-triggering it
+# (a fabricated claim in a real person's CV) is not, so the marker set stays
+# deliberately narrow rather than attempting yet another heuristic to widen it.
 _CV_HOSPITAL_MARKERS_RE = re.compile(
     r"\b(?:"
-    r"hospital(?:s|\s+(?:setting|ward|department|environment))?"
-    r"|acute(?:\s+(?:care|clinical|hospital|ward|setting))"
-    r"|surgical\s+ward|medical\s+ward|orthopaedic\s+ward"
+    r"hospital\s+(?:settings?|wards?|departments?|environments?)"
+    r"|acute\s+(?:hospital|wards?|settings?)"
+    r"|surgical\s+wards?|medical\s+wards?|orthopaedic\s+wards?"
     r"|emergency\s+department|ed\s+nurse|icu|coronary\s+care"
-    r"|registered\s+nurse(?:\s+\(?rn\)?)?(?!.*aged\s+care)"
-    r"|rn\b|en\b"
-    r"|clinical\s+placement|hospital\s+placement"
     r")\b",
     re.IGNORECASE,
 )
+
+
+def _find_experience_section_start(src: str) -> int:
+    """Return the index of the earliest Experience-like heading in src, or
+    -1 if none is found."""
+    lower = src.lower()
+    idx = -1
+    for h in ("## experience", "## work experience",
+              "## professional experience", "## clinical experience"):
+        i = lower.find(h)
+        if i != -1 and (idx == -1 or i < idx):
+            idx = i
+    return idx
 
 
 def _scan_experience_section(
@@ -260,18 +310,18 @@ def _scan_experience_section(
 ) -> bool:
     """Search marker_re inside the Experience/Education portion of cv_text or
     tailored_md. The Summary is excluded so a JD-paraphrased setting in S1
-    cannot self-confirm the gate."""
-    sources = [cv_text or "", tailored_md or ""]
-    for src in sources:
-        lower = src.lower()
-        idx = -1
-        for h in ("## experience", "## work experience",
-                  "## professional experience", "## clinical experience"):
-            i = lower.find(h)
-            if i != -1 and (idx == -1 or i < idx):
-                idx = i
-        scan = src[idx:] if idx != -1 else src
-        if marker_re.search(scan):
+    cannot self-confirm the gate.
+
+    Fails CLOSED (no match) for a source with no recognisable Experience
+    heading, rather than falling back to a whole-document scan — otherwise
+    a Summary/Objective line paraphrasing the JD setting ("seeking a role
+    in a hospital setting") would self-confirm the gate on any CV whose
+    Experience section isn't cleanly headed."""
+    for src in (cv_text or "", tailored_md or ""):
+        idx = _find_experience_section_start(src)
+        if idx == -1:
+            continue
+        if marker_re.search(src[idx:]):
             return True
     return False
 
@@ -295,7 +345,7 @@ _CV_HOME_MARKERS_RE = re.compile(
     r"\b(?:"
     r"home\s+care|in[-\s]home\s+care|community\s+care"
     r"|client(?:'s)?\s+home|in\s+the\s+home"
-    r"|domiciliary|home\s+visits?|home\s+based\s+care"
+    r"|domiciliary|home\s+visits?|home[-\s]based\s+care"
     r"|community\s+(?:nursing|aged\s+care|support)"
     r"|home\s+and\s+community"
     r")\b",
@@ -324,9 +374,9 @@ _CV_LIFESTYLE_MARKERS_RE = re.compile(
 
 _CV_THEATRE_MARKERS_RE = re.compile(
     r"\b(?:"
-    r"theatre|operating\s+theatre|operating\s+room"
+    r"theatres?|operating\s+theatres?|operating\s+rooms?"
     r"|perioperative|peri[-\s]?op"
-    r"|scrub\s+(?:nurse|tech)|circulating\s+nurse|anaesthet"
+    r"|scrub\s+(?:nurse|tech)|circulating\s+nurse|anaesthet\w*"
     r"|cssd|central\s+sterilisation"
     r"|surgical\s+(?:assistant|nurse)|recovery\s+(?:nurse|room|bay)"
     r")\b",
@@ -355,10 +405,13 @@ def _cv_has_theatre_experience(cv_text: str, tailored_md: str) -> bool:
 
 
 # Maps each settable bridge to its CV-evidence gate function.
-# LIFESTYLE has no bridge phrase (S1 is already correct) so it is intentionally
-# absent — _apply_setting_bridge is a no-op for lifestyle anyway.
+# LIFESTYLE and HOSPITAL have no bridge phrase (see _SETTING_BRIDGES) so
+# both are intentionally absent — _apply_setting_bridge is a no-op for
+# either regardless of this dict. _cv_has_hospital_experience/
+# _CV_HOSPITAL_MARKERS_RE stay defined (still exported, still tested) as
+# a documented record of what was tried and found unreliable, not because
+# anything still calls them for gating.
 _BRIDGE_EVIDENCE_GATES = {
-    _SETTING_HOSPITAL: _cv_has_hospital_experience,
     _SETTING_HOME:     _cv_has_home_care_experience,
     _SETTING_NDIS:     _cv_has_ndis_experience,
     _SETTING_THEATRE:  _cv_has_theatre_experience,
@@ -402,7 +455,10 @@ def _apply_setting_bridge(md: str, setting: str, *, cv_text: str = "") -> str:
     out = []
     for line in lines:
         s = line.strip()
-        if s.startswith("## ") and s[3:].strip().lower() in _HIGHLIGHT_HEADINGS_SET:
+        # C22f: strip a trailing colon the AI writer sometimes emits — a
+        # colon'd "## Career Highlights:" previously defeated this check
+        # entirely, so the setting bridge silently never applied.
+        if s.startswith("## ") and s[3:].strip().lower().rstrip(":") in _HIGHLIGHT_HEADINGS_SET:
             in_section = True
             out.append(line)
             continue
@@ -410,6 +466,17 @@ def _apply_setting_bridge(md: str, setting: str, *, cv_text: str = "") -> str:
             in_section = False
         # Only replace in the first non-empty, non-bullet prose line (= S1)
         if in_section and not first_prose_done and s and not re.match(r"^\s*[-*•]", line):
+            first_prose_done = True
+            # Idempotency guard: the composition prompt's own hard-rule block
+            # (_build_jd_setting_block) instructs the model to write this
+            # exact bridge phrasing directly, so S1 often already contains it
+            # by the time this deterministic pass runs. _S1_RESIDENTIAL_RE
+            # matches the plain-residential PREFIX of an already-bridged
+            # phrase, so substituting again would double the tail
+            # ("...and acute clinical settings and acute clinical settings").
+            if bridge.lower() in line.lower():
+                out.append(line)
+                continue
             new_line = _S1_RESIDENTIAL_RE.sub(bridge, line)
             if new_line != line:
                 first_prose_done = True

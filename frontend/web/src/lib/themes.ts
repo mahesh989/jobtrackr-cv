@@ -37,7 +37,14 @@ export const THEMES: ReadonlyArray<{
   id: Theme;
   name: string;
   description: string;
-  preview: { bg: string; surface: string; primary: string; text: string; muted: string };
+  // `fg` is each theme's own --brand-fg value — the "selected" checkmark
+  // badge below is style={{ background: t.preview.primary }}, always this
+  // theme's OWN accent regardless of which theme is actually active, so it
+  // can't read var(--brand-fg) off the cascade (that resolves the ACTIVE
+  // theme's value). A hardcoded white stroke was invisible at 1.44-1.92:1
+  // on the 3 themes whose --brand-fg is dark (see CLAUDE.md: "never
+  // assume white") — audit finding, execution chunk C37/C38.
+  preview: { bg: string; surface: string; primary: string; text: string; muted: string; fg: string };
 }> = [
   {
     id: "aurora-dark",
@@ -49,6 +56,7 @@ export const THEMES: ReadonlyArray<{
       primary: "#19E3C8",
       text: "#EAEEF6",
       muted: "#828DA1",
+      fg: "#04231F",
     },
   },
   {
@@ -61,6 +69,7 @@ export const THEMES: ReadonlyArray<{
       primary: "#0B7D74",
       text: "#0E141B",
       muted: "#667085",
+      fg: "#FFFFFF",
     },
   },
   {
@@ -73,6 +82,7 @@ export const THEMES: ReadonlyArray<{
       primary: "#0969DA",
       text: "#1F2328",
       muted: "#656D76",
+      fg: "#FFFFFF",
     },
   },
   {
@@ -82,9 +92,15 @@ export const THEMES: ReadonlyArray<{
     preview: {
       bg: "#FFFFFF",
       surface: "#F1F5F9",
-      primary: "#3B82F6",
+      // Was #3B82F6 — the exact colour the Phase-0 contrast fix in
+      // globals.css REJECTED (white --brand-fg on it cleared only 3.68:1,
+      // under the 4.5 minimum) in favour of #2563EB (5.17:1). This preview
+      // swatch drifted from that fix and never got the darkened value —
+      // audit finding, execution chunk C37/C38.
+      primary: "#2563EB",
       text: "#0F172A",
       muted: "#64748B",
+      fg: "#FFFFFF",
     },
   },
   {
@@ -97,6 +113,7 @@ export const THEMES: ReadonlyArray<{
       primary: "#F2CA50",
       text: "#EAE1D4",
       muted: "#D0C5AF",
+      fg: "#3C2F00",
     },
   },
   {
@@ -109,6 +126,7 @@ export const THEMES: ReadonlyArray<{
       primary: "#5645D4",
       text: "#0A1530",
       muted: "#5D5B54",
+      fg: "#FFFFFF",
     },
   },
   {
@@ -121,6 +139,7 @@ export const THEMES: ReadonlyArray<{
       primary: "#FF4D8B",
       text: "#0A0A0A",
       muted: "#6A6A6A",
+      fg: "#0A0A0A",
     },
   },
 ];

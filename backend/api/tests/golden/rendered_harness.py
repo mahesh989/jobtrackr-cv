@@ -174,12 +174,25 @@ class DiffResult:
     unchanged: List[str]
 
 
-def evaluate(jd_id: str) -> DiffResult:
+def evaluate(jd_id: str, record: bool = False) -> DiffResult:
+    """Run the deterministic chain and diff against the committed snapshot.
+
+    ``record`` controls what happens when no snapshot exists yet for
+    ``jd_id``. With the default ``record=False`` (used by the pytest
+    suite via ``session_results``), a missing snapshot is reported via
+    ``is_new=True`` and NOTHING is written to disk — a snapshot that goes
+    missing (accidental deletion, a merge conflict, a new corpus id added
+    without running ``--record``) surfaces as a gap for a human to notice,
+    not a silently-healed pass (C67 fix, 2026-08-19: this used to
+    unconditionally auto-write on any missing snapshot). Only the
+    explicit ``--record`` CLI path passes ``record=True``.
+    """
     sections = run_deterministic_chain(jd_id)
     snapshot = load_snapshot(jd_id)
 
     if snapshot is None:
-        save_snapshot(jd_id, sections)
+        if record:
+            save_snapshot(jd_id, sections)
         return DiffResult(jd_id=jd_id, is_new=True, changed=[], unchanged=list(sections))
 
     changed: List[Tuple[str, str, str]] = []
@@ -221,9 +234,13 @@ if __name__ == "__main__":
     all_ok = True
     for jd_id in CORPUS_IDS:
         try:
-            result = evaluate(jd_id)
+            result = evaluate(jd_id, record=record)
             if result.is_new:
-                print(f"[RECORDED] {jd_id} — {len(result.unchanged)} sections")
+                if record:
+                    print(f"[RECORDED] {jd_id} — {len(result.unchanged)} sections")
+                else:
+                    print(f"[MISSING]  {jd_id} — no snapshot committed; run with --record")
+                    all_ok = False
             elif result.changed:
                 print(f"[CHANGED]  {jd_id} — {len(result.changed)} section(s) differ:")
                 for sec, old, new in result.changed:

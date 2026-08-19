@@ -75,6 +75,10 @@ interface Props {
   cvLabel?:           string | null;
   cvCharLen?:         number;
   cvCategorisedSkills?: CategorisedSkills | null;
+  /** Omits the tailored-CV score card and the tailored CV itself — used by
+   *  the board's "Full analysis" popup, which is scoped to the JD/matching
+   *  analysis only; the CV and cover letter stay in their own board tabs. */
+  hideTailored?: boolean;
 }
 
 // Step labels match cv-magic's AnalysisProgress wording verbatim, plus the
@@ -138,14 +142,20 @@ function StepRow({
  *   - analysis_runs.cover_letter_status (set by the orchestrator)
  *   - cover_letters.status (set by the generator pipeline)
  */
-function deriveCoverLetterStep(
+export function deriveCoverLetterStep(
   cls: string | null,
   coverLetter: CoverLetterRow | null,
-  runIsTerminal: boolean,
+  runFailed: boolean,
 ): { state: StepState; subLabel?: string } {
   // Pipeline still running, no decision yet
   if (cls == null) {
-    return { state: runIsTerminal ? "pending" : "pending" };
+    // A FAILED run never reaches the orchestrator's auto-cover-letter
+    // decision (only a COMPLETED run does), so cls stays permanently null
+    // on one — show "skipped", not "pending", so the step doesn't look
+    // like it's still coming when nothing will ever generate it. (This
+    // used to be `runIsTerminal ? "pending" : "pending"` — a dead ternary,
+    // the literal tell that this case was never actually handled.)
+    return { state: runFailed ? "skipped" : "pending" };
   }
   if (cls === "triggered") {
     if (!coverLetter) return { state: "running", subLabel: "Starting generator…" };
@@ -171,7 +181,38 @@ function deriveCoverLetterStep(
   return { state: "pending" };
 }
 
-export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCategorisedSkills }: Props) {
+/**
+ * Is there anything left for the poll/Realtime effect below to wait for?
+ * Extracted as a pure function (status/cls/coverLetterStatus in, boolean
+ * out) so this decision is unit-testable without mounting the component or
+ * mocking Supabase/timers — same convention this repo uses elsewhere for
+ * pulling decision logic out of an I/O orchestrator (e.g. lib/billing's
+ * checkoutDecision.ts).
+ *
+ * A FAILED run is settled immediately — it never reaches the orchestrator's
+ * auto-cover-letter decision (only a COMPLETED run does), so
+ * cover_letter_status stays permanently null on one. Requiring it to be set
+ * before stopping was the bug (B6/#41-adjacent, "AnalysisRunClient polls
+ * forever on failed runs"): a run that failed before that decision point
+ * polled Supabase every 3s forever, for as long as the tab stayed open.
+ *
+ * A COMPLETED run is settled once cover_letter_status is set (any value),
+ * and if it's 'triggered', once the cover_letters row is itself terminal.
+ */
+export function isRunPollSettled(
+  status: string,
+  coverLetterStatus: string | null,
+  coverLetterRowStatus: LetterStatus | null | undefined,
+): boolean {
+  if (status === "failed") return true;
+  if (status !== "completed") return false;
+  if (coverLetterStatus == null) return false;           // outcome not recorded yet
+  if (coverLetterStatus !== "triggered") return true;    // skipped:* or failed:* → done
+  // 'triggered' — must wait for the cover_letters row to finish
+  return coverLetterRowStatus === "completed" || coverLetterRowStatus === "failed";
+}
+
+export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCategorisedSkills, hideTailored = false }: Props) {
   const [run, setRun] = useState<AnalysisRunRow>(initial);
   const [coverLetter, setCoverLetter] = useState<CoverLetterRow | null>(null);
   const [showInput, setShowInput] = useState(false);
@@ -231,22 +272,20 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
   useEffect(() => {
     const supabase = createClient();
     let active = true;
+    const pollStartedAt = Date.now();
+    // Backstop cap, ported from useJobRunStatus.ts's cover-letter settle
+    // backstop (MAX_MS) — even a legitimately COMPLETED run whose
+    // cover_letter_status stays 'triggered' with the cover_letters row never
+    // reaching a terminal state (stuck generator, dropped Realtime events)
+    // would otherwise poll forever too, same class of bug as the FAILED-run
+    // case below, just a narrower trigger.
+    const MAX_POLL_MS = 5 * 60 * 1000;
 
-    /**
-     * Stop polling only when EVERYTHING the UI cares about is settled:
-     *   - analysis_run is terminal AND
-     *   - cover_letter_status is set (any value), AND
-     *   - if it's 'triggered', the cover_letters row is itself terminal.
-     */
+    // Stop polling once isRunPollSettled says there's nothing left to wait
+    // for — ported guard #1 (see that function's own comment for the bug
+    // this closes).
     function settled(): boolean {
-      const runTerminal = statusRef.current === "completed" || statusRef.current === "failed";
-      if (!runTerminal) return false;
-      const cls = clsRef.current;
-      if (cls == null) return false;            // outcome not recorded yet
-      if (cls !== "triggered") return true;     // skipped:* or failed:* → done
-      // 'triggered' — must wait for the cover_letters row to finish
-      const cl = coverLetterRef.current;
-      return !!cl && (cl.status === "completed" || cl.status === "failed");
+      return isRunPollSettled(statusRef.current, clsRef.current, coverLetterRef.current?.status ?? null);
     }
 
     async function fetchOnce() {
@@ -281,8 +320,16 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
     fetchOnce();
 
     // Polling fallback every 3s — defensive against Realtime not delivering.
-    // Stops on its own once the run reaches a terminal state (see fetchOnce).
-    const poll = setInterval(fetchOnce, 3_000);
+    // Stops itself once settled() is true, or once MAX_POLL_MS has elapsed
+    // regardless (ported guard #2) — a plain `setInterval(fetchOnce, ...)`
+    // with no cap is what let a never-settling run poll forever.
+    const poll = setInterval(() => {
+      if (settled() || Date.now() - pollStartedAt > MAX_POLL_MS) {
+        clearInterval(poll);
+        return;
+      }
+      fetchOnce();
+    }, 3_000);
 
     // Realtime subscription — instant updates when it works.
     const channel = supabase
@@ -386,7 +433,7 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
               completes, then 'running' (pulsing blue dot) while the
               generator drafts, then 'completed' / 'failed' / 'skipped'. */}
           {(() => {
-            const cl = deriveCoverLetterStep(run.cover_letter_status, coverLetter, isTerminal);
+            const cl = deriveCoverLetterStep(run.cover_letter_status, coverLetter, run.status === "failed");
             const trailing = cl.state === "completed" && coverLetter
               ? (
                 <a
@@ -442,7 +489,7 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
                 <button
                   onClick={handleResume}
                   disabled={resuming}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-warning px-3 py-1.5 text-label font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-md bg-warning px-3 py-1.5 text-label font-semibold text-warning-fg hover:opacity-90 disabled:opacity-50 transition-colors"
                   title="Continue this run past the gate and generate the tailored CV (reuses the analysis already done)"
                 >
                   {resuming ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
@@ -537,7 +584,7 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
         <RecommendationsCard markdown={run.ai_recommendations} />
       )}
       {run.quality_flags && <QualityFlagsCard flags={run.quality_flags} />}
-      {(run.match_score != null || run.tailored_match_score != null) && (
+      {!hideTailored && (run.match_score != null || run.tailored_match_score != null) && (
         <TailoredScoreCard
           beforeScore={run.match_score}
           afterScore={run.tailored_match_score}
@@ -552,7 +599,7 @@ export function AnalysisRunClient({ runId, initial, cvLabel, cvCharLen, cvCatego
           }
         />
       )}
-      {run.tailored_cv_storage_path && (
+      {!hideTailored && run.tailored_cv_storage_path && (
         <TailoredCvCard
           storagePath={run.tailored_cv_storage_path}
           pdfStoragePath={run.tailored_pdf_storage_path}

@@ -122,7 +122,12 @@ def _enforce_career_highlights_words(markdown: str, max_words: int = 50) -> str:
     HEADING = "## Career Highlights"
     lines = markdown.split("\n")
 
-    ch_start = next((i for i, ln in enumerate(lines) if ln.strip() == HEADING), None)
+    # C22f: strip a trailing colon the AI writer sometimes emits — a
+    # colon'd "## Career Highlights:" previously defeated this exact-match
+    # check entirely, silently skipping the whole word-cap pass.
+    ch_start = next(
+        (i for i, ln in enumerate(lines) if ln.strip().rstrip(":") == HEADING), None
+    )
     if ch_start is None:
         return markdown
 
@@ -199,7 +204,10 @@ def _dedup_career_highlights(markdown: str) -> str:
     """
     HEADING = "## Career Highlights"
     lines = markdown.split("\n")
-    positions = [i for i, ln in enumerate(lines) if ln.strip() == HEADING]
+    # C22f: strip a trailing colon the AI writer sometimes emits — a
+    # colon'd duplicate heading previously wasn't recognised as a match at
+    # all, so the dedup pass silently never fired.
+    positions = [i for i, ln in enumerate(lines) if ln.strip().rstrip(":") == HEADING]
     if len(positions) < 2:
         return markdown
 
@@ -263,7 +271,16 @@ def _enforce_structure(
     sections: list[tuple[int, int, str]] = []  # (start, end, heading)
     for idx, (start, heading) in enumerate(section_starts):
         end = section_starts[idx + 1][0] if idx + 1 < len(section_starts) else len(lines)
-        sections.append((start, end, heading.strip()))
+        # C22f: strip a trailing colon the AI writer sometimes emits — the
+        # `heading == EXP_HEADING`/`== PROJ_HEADING` comparisons below are
+        # defeated by it, silently skipping the role/bullet-count caps
+        # entirely for a colon'd "## Professional Experience:"/"## Projects:".
+        # This is also the site that closes the tech/master blind spot: those
+        # families' _rename_headings mapping is intentionally empty (their
+        # headings are already canonical natively), so nothing upstream ever
+        # strips a colon for them — this is the first and only place their
+        # heading text is compared by name before the caps apply.
+        sections.append((start, end, heading.strip().rstrip(":")))
 
     # Process sections, accumulating output chunks
     output_chunks: list[list[str]] = []

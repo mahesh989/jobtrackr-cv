@@ -84,14 +84,19 @@ async def supabase_update(
     *,
     max_attempts: int = _MAX_ATTEMPTS,
     base_delay_s: float = _BASE_DELAY_S,
-) -> None:
+) -> bool:
+    """Retry an UPDATE up to max_attempts times. Returns True on success,
+    False if every attempt failed — the caller decides what "continuing"
+    means for it (progress.py's terminal-status writers raise on False so
+    the run doesn't silently strand at status='running' forever; other
+    callers may reasonably choose to stay best-effort)."""
     def _do() -> None:
         get_supabase().table(table).update(patch).eq("id", str(row_id)).execute()
 
     for i in range(max_attempts):
         try:
             await asyncio.to_thread(_do)
-            return
+            return True
         except Exception as exc:
             if i < max_attempts - 1:
                 await asyncio.sleep(base_delay_s * (2 ** i))
@@ -100,6 +105,7 @@ async def supabase_update(
                 "supabase_update(%s, %s): failed after %d attempts (%s) — continuing",
                 table, row_id, max_attempts, exc,
             )
+    return False
 
 
 # ── Storage upload (upload → fallback to update) ──────────────────────────────
@@ -128,3 +134,18 @@ def upload_or_update(
             file=file,
             file_options={"content-type": content_type},
         )
+
+
+def delete_storage_object(bucket: str, path: str, *, supabase: Any = None) -> None:
+    """Best-effort delete for an artifact orphaned by a cancelled pipeline run
+    (see C3b — an artifact must never survive on a row whose reservation was
+    already voided). Never raises: a failed delete just leaves an
+    unreferenced object in storage, which is a cleanup nuisance, not a
+    security or billing issue — the row's tailored_cv_storage_path was
+    already left unset by the caller, so nothing points at it."""
+    if supabase is None:
+        supabase = get_supabase()
+    try:
+        supabase.storage.from_(bucket).remove([path])
+    except Exception as exc:
+        logger.warning("Storage delete failed for %s/%s (%s) — leaving orphaned object", bucket, path, exc)

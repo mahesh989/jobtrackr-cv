@@ -1,7 +1,8 @@
 """Voice fingerprint extraction prompt — Phase 1 of the cover letter feature.
 
 Used in: backend/api/app/services/voice/voice_fingerprint.py
-Reused in: Phase 4, Pass 2 (voice transfer) — same fingerprint, same prompt.
+The extracted fingerprint is passed into generate.py's cover-letter prompt
+as register/voice cues — there is no separate voice-transfer pass.
 """
 
 VOICE_FINGERPRINT_SYSTEM = """You are a writing analyst performing voice fingerprint extraction.

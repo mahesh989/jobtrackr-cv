@@ -84,11 +84,26 @@ export function AnalyzeJobButton({ jobId, hasAnalysis = false, analysisHref, ove
     const effective = runtimeOverride ?? override;
     const url = effective ? `/api/jobs/${jobId}/analyze?override=${effective}` : `/api/jobs/${jobId}/analyze`;
 
-    const res = await fetch(url, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({}),
-    });
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({}),
+      });
+    } catch {
+      // C67: a genuine network failure (offline, DNS, connection refused —
+      // fetch() rejects for these, distinct from a non-2xx response) had
+      // no try/catch at all — it propagated as an unhandled rejection out
+      // of an async click handler, so the button just appeared to do
+      // nothing with zero feedback. Only HTTP-level errors were handled.
+      if (btnRef.current) {
+        const rect = btnRef.current.getBoundingClientRect();
+        setToastPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
+      }
+      setErr({ message: "Network error — check your connection and try again." });
+      return;
+    }
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
       const message = (json.error as string) ?? `Failed (${res.status})`;

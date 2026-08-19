@@ -2,9 +2,6 @@
 compliance, bare sector names, JD-phrasing fillers) must never appear as Skills
 entries, whether the base classifier or the matched-term surfacing added them."""
 from app.services.eval.enforce import enforce_skills_section
-from app.services.eval.enforce_w3 import (
-    enforce_summary_skills_dedup,
-)
 from app.services.eval.writers import (
     _is_non_skill_phrase,
     _strip_non_skill_phrases,
@@ -112,7 +109,7 @@ def test_predicate_rejects_non_skills():
         "Community Setting",
         "Rehabilitation Ward",
         "Acute Care Facility",
-        # Regression: production Rashmi CV listed bare "Residential Care" under
+        # Regression: production Jane CV listed bare "Residential Care" under
         # Other Skills. A bare sector/setting name (no audience or "setting"
         # suffix to trip the regex) — says WHERE the work happens, not WHAT the
         # candidate can do. Caught via the exact blocklist.
@@ -622,6 +619,42 @@ def test_strip_ungrounded_drops_fabricated_check():
     assert "## Skills" in out
 
 
+def test_strip_ungrounded_drops_fabricated_check_under_manual_familys_certifications_and_checks_heading():
+    # REGRESSION (C22j): restore_and_order renames "## Certifications" back
+    # to "## Certifications & Checks" for the manual role family
+    # (_TO_CANONICAL["manual"]'s reverse mapping — a real, prescribed
+    # section_order heading, not hypothetical) BEFORE this gate runs.
+    # Without "certifications & checks" in _GROUNDED_SECTION_WORDS, this
+    # heading never entered the grounding check at all, so a fabricated
+    # credential entry survived unchecked.
+    cv = "Maheshwor Tiwari\nNSW\n\nExperience\nDid care.\n"
+    md = (
+        "# Name\n\n"
+        "## Certifications & Checks\n"
+        "- Advanced First Aid Instructor Certification\n\n"
+        "## Skills\n**Care Skills:** Personal care\n"
+    )
+    out = _strip_ungrounded_credentials(md, cv)
+    assert "Advanced First Aid Instructor Certification" not in out
+    assert "## Certifications & Checks" not in out
+    assert "## Skills" in out
+
+
+def test_strip_ungrounded_keeps_grounded_entry_under_certifications_and_checks_heading():
+    cv = "Maheshwor Tiwari\nNSW\n\n## Certifications & Checks\n- Police Check\n"
+    md = (
+        "# Name\n\n"
+        "## Certifications & Checks\n"
+        "- Police Check\n"
+        "- Advanced First Aid Instructor Certification\n\n"
+        "## Skills\n**Care Skills:** Personal care\n"
+    )
+    out = _strip_ungrounded_credentials(md, cv)
+    assert "Police Check" in out
+    assert "Advanced First Aid Instructor Certification" not in out
+    assert "## Certifications & Checks" in out
+
+
 def test_strip_ungrounded_keeps_grounded_entry():
     cv = (
         "Certifications\n- Certificate IV in Ageing Support\n"
@@ -655,10 +688,82 @@ def test_strip_ungrounded_drops_only_fabricated_keeps_real():
     assert "## Certifications" in out
 
 
+def test_REGRESSION_C22q_middle_dot_separated_entry_extracts_the_correct_lead_phrase():
+    """
+    Regression, execution chunk C22q (found during C22j's independent
+    review — cosmetic/low-priority, "currently harmless" per that review,
+    but a real drift-prevention fix): _strip_ungrounded_credentials' own
+    lead-phrase-split regex didn't recognise the middle-dot (·) separator
+    that ensure_awards' sibling regex already did (matching
+    contact_line.py's build_credentials_line, which joins stamped
+    credential parts with " · "). Without it, a middle-dot-separated
+    bullet entry's "core" was the WHOLE string (no split point found)
+    instead of just the lead phrase — a false NOT-grounded result even
+    when the lead phrase genuinely appears in the source CV, since the
+    full string (including a trailing detail the source CV doesn't
+    verbatim repeat) is far less likely to be a substring match. Now
+    consolidated into one shared _LEAD_PHRASE_SPLIT_RE both functions use.
+    """
+    cv = "Maheshwor Tiwari\n\nHolds a First Aid Certificate.\n"
+    md = (
+        "# Name\n\n"
+        "## Certifications\n"
+        "- First Aid Certificate · HLTAID011 · Renewed 2023\n\n"
+        "## Skills\n**Care Skills:** Personal care\n"
+    )
+    out = _strip_ungrounded_credentials(md, cv)
+    assert "First Aid Certificate" in out
+    assert "## Certifications" in out
+
+
 def test_strip_ungrounded_noops_non_credential_sections():
     cv = "Name\n\nExperience\nDid things\n"
     md = "# Name\n\n## Experience\n- Did something unrelated to the CV\n"
     assert _strip_ungrounded_credentials(md, cv) == md
+
+
+def test_REGRESSION_C22n_prose_only_credential_section_survives():
+    """
+    Regression, execution chunk C22n (found during C22j's independent
+    review — newly reachable for manual CVs via C22j's own fix, since that
+    fix made "certifications & checks" enter this gate at all). A
+    credential/checks section written as plain prose (no bullet markers)
+    only ever appended its lines to `kept` unconditionally — prose is never
+    individually grounding-checked — but the section's SURVIVAL decision
+    was gated on `kept_bullet`, a flag only a surviving BULLET could set.
+    So a 100%-legitimate prose-only section was wrongly deleted in its
+    entirety, including the prose lines the loop above had just kept.
+    """
+    cv = "Maheshwor Tiwari\n\nPolice Check current, renewed annually.\n"
+    md = (
+        "# Name\n\n"
+        "## Certifications & Checks\n"
+        "Police Check current, renewed annually.\n\n"
+        "## Skills\n**Care Skills:** Personal care\n"
+    )
+    out = _strip_ungrounded_credentials(md, cv)
+    assert "## Certifications & Checks" in out
+    assert "Police Check current, renewed annually." in out
+    assert "## Skills" in out
+
+
+def test_strip_ungrounded_still_drops_a_section_where_every_bullet_is_ungrounded():
+    """Non-regression guard for the C22n fix: a section made ENTIRELY of
+    bullets, all of which are ungrounded, must still be dropped whole —
+    the fix broadens survival to "any real kept content", not "always
+    keep the heading"."""
+    cv = "Maheshwor Tiwari\n\nExperience\nDid care.\n"
+    md = (
+        "# Name\n\n"
+        "## Checks & Clearances\n"
+        "- Driver Licence (NSW)\n"
+        "- Working with Children Check (VIC)\n\n"
+        "## Skills\n**Care Skills:** Personal care\n"
+    )
+    out = _strip_ungrounded_credentials(md, cv)
+    assert "## Checks & Clearances" not in out
+    assert "Driver Licence" not in out
+    assert "## Skills" in out
 
 
 # ---------------------------------------------------------------------------
@@ -784,6 +889,461 @@ def test_user_has_credential_mapping():
     assert not user_has_credential("wwcc", contact)
 
 
+def test_user_has_credential_keeps_anchored_credential_modifiers():
+    from app.services.pipeline.steps.keyword_feasibility import user_has_credential
+
+    contact = {
+        "credentials": {
+            "police_check": True,
+            "ndis_screening": True,
+            "forklift_licence": True,
+            "first_aid": True,
+            "cpr": True,
+            "drivers_licence": "Open C Class",
+            "flu_vaccination": True,
+            "covid_vaccination": True,
+        }
+    }
+    for phrase in (
+        "current criminal history check",
+        "valid NDIS worker screening check",
+        "current forklift licence",
+        "current first aid certification",
+        "valid CPR certification",
+        "NSW driver's licence",
+        "current flu vaccination",
+        "current COVID-19 vaccination",
+        "proof of COVID-19 vaccination",
+    ):
+        assert user_has_credential(phrase, contact), phrase
+
+
+def test_exact_eligibility_lookup_does_not_accept_decorated_context():
+    from app.services.pipeline.steps.keyword_feasibility import user_has_credential
+
+    contact = {"visa_status": "citizen", "credentials": {}}
+    assert not user_has_credential("experience with work rights", contact)
+    assert not user_has_credential("knowledge of visa", contact)
+
+
+def test_user_has_credential_preserves_compound_check_semantics():
+    from app.services.pipeline.steps.keyword_feasibility import user_has_credential
+
+    both = {"credentials": {"police_check": True, "ndis_screening": True}}
+    police_only = {"credentials": {"police_check": True, "ndis_screening": False}}
+
+    assert user_has_credential("national police check and ndis worker check", both)
+    assert not user_has_credential(
+        "national police check and ndis worker check", police_only
+    )
+    assert user_has_credential(
+        "national police check or ndis workers check requirements", police_only
+    )
+
+
+def test_profile_credential_context_tail_is_not_force_injected():
+    """Profile data must not become synthetic evidence for a duty phrase."""
+    plan = {
+        bucket: []
+        for bucket in (
+            "inject_directly",
+            "inject_as_extension",
+            "inject_with_inference",
+            "cannot_inject",
+        )
+    }
+    missing = {
+        "required": {
+            "technical": ["AHPRA compliance administration"],
+            "soft_skills": [],
+            "domain_knowledge": [],
+        },
+        "preferred": {
+            "technical": [],
+            "soft_skills": [],
+            "domain_knowledge": [],
+        },
+    }
+
+    cleaned = _reconcile_with_missing(
+        plan,
+        missing,
+        matching={},
+        contact_details={"credentials": {"ahpra_number": "NMW0001234567"}},
+    )
+
+    assert cleaned["inject_directly"] == []
+    assert [entry["keyword"] for entry in cleaned["cannot_inject"]] == [
+        "ahpra compliance administration"
+    ]
+
+
+def test_user_has_credential_does_not_fabricate_transport_duty_from_own_car():
+    """Finding #1 (chunk C17) — "patient transport" is a clinical/support-work
+    DUTY (moving patients/residents between wards, appointments, etc.), not a
+    personal-vehicle need. Ticking "own car" must NOT be treated as evidence
+    for it — that was being force-injected into delivered CVs as a fabricated
+    skill with synthetic evidence.
+
+    First draft tried to EXCLUDE known duty phrasings (patient/resident/
+    client transport, noun-phrase and verb-first order). An independent
+    review adversarially found a long list of realistic escapes — this test
+    pins that exact list so they can never silently regress. The real fix
+    inverted the design: REQUIRE an affirmative personal-vehicle cue
+    (own/reliable/personal/private, or "access to"/"means of"/"use of")
+    before "transport" counts as own_car evidence, instead of chasing an
+    open-ended blocklist of duty phrasings.
+    """
+    from app.services.pipeline.steps.keyword_feasibility import user_has_credential
+
+    contact = {"credentials": {"own_car": True, "drivers_licence": "Open C Class"}}
+
+    # The exact failure scenario from the audit's reproduction, plus every
+    # escape the independent review found against the first (blocklist)
+    # draft of this fix.
+    escapes = [
+        "patient transport",
+        "resident transport",
+        "client transport",
+        "transporting patients between wards",
+        "provide transport for clients",
+        "providing transport to residents",
+        "transportation of patients",
+        "transporting a patient",
+        "transport a resident",
+        "transport elderly clients",
+        "transporting consumers to appointments",
+        "consumer transport",
+        "transport of consumers",
+        "transporting service users",
+        "wheelchair transport",
+        "stretcher transport",
+        "transport trolley",
+        "patient transfer and transport",
+        "hospital transport",
+        "ambulance transport",
+        "specimen transport",
+        "transport of specimens",
+        "medication transport",
+    ]
+    for kw in escapes:
+        assert not user_has_credential(kw, contact), f"fabricated own_car from duty phrasing: {kw!r}"
+
+    # Genuine commute-capability phrasing must still correctly match — the
+    # fix requires an affirmative cue, it doesn't remove "transport" as
+    # own_car evidence entirely.
+    assert user_has_credential("own transport", contact)
+    assert user_has_credential("reliable transport to work", contact)
+    assert user_has_credential("must have access to transport", contact)
+    assert user_has_credential("means of transport", contact)
+    assert user_has_credential("use of own transport", contact)
+
+    # An explicit own-car/vehicle cue must still win even when the SAME
+    # phrase also mentions a transport duty — the independent review's
+    # point 3, and the repo's own existing fixture phrasing in
+    # test_jd_sector_strip.py:230 ("a reliable vehicle to transport
+    # residents"). "car"/"vehicle" match unconditionally, so these are
+    # covered without needing to inspect what follows them.
+    assert user_has_credential("own car required for client transport", contact)
+    assert user_has_credential("must have own car and transport patients", contact)
+    assert user_has_credential("own vehicle to transport residents", contact)
+    assert user_has_credential("a reliable vehicle to transport residents", contact)
+
+
+def test_user_has_credential_car_insurance_ignores_bare_car_and_auto_substrings():
+    """Rule 1 had the SAME bare-substring bug already fixed in rule 5 for
+    "own car": a plain `"car" in kw` check matches "car" hiding inside
+    "care"/"childcare"/"aftercare" — words that appear constantly in this
+    product's own aged-care JDs. Independent review also caught that the
+    first fix pass word-boundary-guarded "car" but left "auto" bare on the
+    same line — "automation insurance claims" / "autonomy insurance" both
+    fabricated car_insurance evidence.
+
+    Round 2 of the same review then caught that the FIRST auto fix
+    (`\\bauto\\b(?!-)`) was simultaneously too broad — it wrongly excluded
+    "auto-insurance policy", a completely standard spelling — and too
+    narrow — it still matched the unhyphenated "auto renewal insurance
+    admin". Targeted the actual excluded term ("auto-renewal"/"auto
+    renewal") instead of blocking every hyphenated "auto-" form.
+    """
+    from app.services.pipeline.steps.keyword_feasibility import user_has_credential
+
+    contact = {"credentials": {"car_insurance": True}}
+
+    assert not user_has_credential("aged care insurance", contact)
+    assert not user_has_credential("childcare insurance excess", contact)
+    assert not user_has_credential("automation insurance claims", contact)
+    assert not user_has_credential("autonomy insurance", contact)
+    assert not user_has_credential("insurance auto-renewal processing", contact)
+    assert not user_has_credential("auto renewal insurance admin", contact)
+    # Genuine car-insurance phrasing must still correctly match.
+    assert user_has_credential("comprehensive car insurance", contact)
+    assert user_has_credential("vehicle insurance", contact)
+    assert user_has_credential("auto insurance", contact)
+    assert user_has_credential("auto-insurance policy", contact)
+
+
+def test_user_has_credential_flu_word_boundary():
+    """Independent review of finding #1 found a bare "flu" substring
+    (rule 13) fabricating a flu-vaccination record from "fluid balance
+    charting" — a core nursing keyword, arguably a worse fabrication than
+    the originally reported one since it stamps a medical record the user
+    never confirmed.
+    """
+    from app.services.pipeline.steps.keyword_feasibility import user_has_credential
+
+    contact = {"credentials": {"flu_vaccination": True}}
+
+    assert not user_has_credential("fluid balance charting", contact)
+    assert not user_has_credential("fluency in english", contact)
+    assert not user_has_credential("affluent clients", contact)
+    # Genuine phrasing must still correctly match.
+    assert user_has_credential("flu vaccination", contact)
+    assert user_has_credential("annual flu shot", contact)
+    assert user_has_credential("influenza immunisation", contact)
+
+
+def test_user_has_credential_does_not_fabricate_vehicle_credentials_from_duties():
+    """C17b: a bare car/vehicle noun describes many care-sector duties.
+
+    It must not become evidence that the candidate owns a car.  Positive
+    possession/access language remains valid profile-backed evidence.
+    """
+    from app.services.pipeline.steps.keyword_feasibility import user_has_credential
+
+    contact = {
+        "credentials": {
+            "own_car": True,
+            "drivers_licence": "Open C Class",
+        }
+    }
+
+    duty_phrases = [
+        "patient vehicle transfers",
+        "wheelchair to vehicle transfers",
+        "car seat fitting for children",
+        "car park management",
+        "vehicle fleet rostering",
+        "vehicle cleaning and maintenance",
+        "motor vehicle accident rehabilitation",
+    ]
+    for phrase in duty_phrases:
+        assert not user_has_credential(phrase, contact), phrase
+
+    genuine_requirements = [
+        "own car",
+        "own a car",
+        "own reliable vehicle",
+        "reliable vehicle",
+        "access to a reliable car",
+        "use of own vehicle",
+        "must have a car",
+        "personal vehicle required",
+    ]
+    for phrase in genuine_requirements:
+        assert user_has_credential(phrase, contact), phrase
+
+    # A compound ownership + insurance requirement needs both profile facts.
+    assert not user_has_credential("reliable insured vehicle", contact)
+    assert not user_has_credential(
+        "ownership of reliable comprehensively insured vehicle", contact
+    )
+    assert not user_has_credential(
+        "ownership of a reliable comprehensively insured vehicle", contact
+    )
+    assert not user_has_credential("vehicle ownership with comprehensive insurance", contact)
+    insured_contact = {
+        "credentials": {
+            "own_car": True,
+            "car_insurance": True,
+        }
+    }
+    assert user_has_credential("vehicle ownership with comprehensive insurance", insured_contact)
+    assert user_has_credential("reliable insured vehicle", insured_contact)
+    assert user_has_credential(
+        "ownership of reliable comprehensively insured vehicle", insured_contact
+    )
+    assert user_has_credential(
+        "ownership of a reliable comprehensively insured vehicle", insured_contact
+    )
+    assert user_has_credential(
+        "reliable vehicle with minimum third party vehicle insurance",
+        insured_contact,
+    )
+    assert not user_has_credential("car insurance policy administration", insured_contact)
+
+
+def test_user_has_credential_does_not_fabricate_medication_or_wwcc_from_duties():
+    """C17b: generic administration and child-facing work are duties, not
+    proof of medication competency or a Working with Children Check.
+    """
+    from app.services.pipeline.steps.keyword_feasibility import user_has_credential
+
+    contact = {
+        "credentials": {
+            "medication_competency": True,
+            "wwcc": True,
+        }
+    }
+
+    for phrase in (
+        "administer payroll",
+        "administer staff rosters",
+        "administer training programs",
+        "administer client records",
+        "administration of office systems",
+        "medication stock ordering",
+    ):
+        assert not user_has_credential(phrase, contact), phrase
+
+    for phrase in (
+        "working with children with autism",
+        "experience working with children and families",
+        "working with children in a disability support setting",
+        "Blue Card application processing",
+        "child check-in procedures",
+    ):
+        assert not user_has_credential(phrase, contact), phrase
+
+    assert user_has_credential("medication administration competency", contact)
+    assert user_has_credential("administer prescribed medication", contact)
+    assert user_has_credential("current Working with Children Check", contact)
+    assert user_has_credential("valid WWCC", contact)
+    assert user_has_credential("Blue Card clearance", contact)
+    assert user_has_credential("Working with Children Check (NSW)", contact)
+    assert user_has_credential("Working with Children Check NSW", contact)
+    assert user_has_credential("Victorian Working with Children Check", contact)
+    assert user_has_credential("Western Australian Working with Children Check", contact)
+
+
+def test_user_has_credential_does_not_fabricate_checks_or_registration_from_context():
+    """C17b: broad criminal/registration context must not stamp a saved
+    police check or AHPRA registration into the delivered CV.
+    """
+    from app.services.pipeline.steps.keyword_feasibility import user_has_credential
+
+    contact = {
+        "credentials": {
+            "police_check": True,
+            "ahpra_number": "NMW0001234567",
+        }
+    }
+
+    for phrase in (
+        "criminal law knowledge",
+        "criminal justice experience",
+        "support for victims of criminal offences",
+        "liaise with police and emergency services",
+        "police referral coordination",
+        "criminal history research",
+        "background check administration",
+    ):
+        assert not user_has_credential(phrase, contact), phrase
+
+    for phrase in (
+        "registration for the nursing conference",
+        "event registration for nurses and midwives",
+        "manage nursing course registration enquiries",
+        "registered nurse recruitment",
+        "worked alongside registered nurses",
+        "nursing registration administration",
+        "AHPRA compliance administration",
+    ):
+        assert not user_has_credential(phrase, contact), phrase
+
+    assert user_has_credential("National Police Check", contact)
+    assert user_has_credential("criminal history check", contact)
+    assert user_has_credential("current AHPRA registration", contact)
+    assert user_has_credential("current registration as a nurse", contact)
+    assert user_has_credential("Nursing and Midwifery Board registration", contact)
+    assert user_has_credential("registration with the Nursing and Midwifery Board of Australia", contact)
+    assert user_has_credential("general registration with the Nursing and Midwifery Board of Australia", contact)
+
+
+def test_user_has_credential_does_not_fabricate_driver_ndis_or_vaccination_credentials():
+    """C17b full-rule sweep: professional licences, NDIS duties and disease
+    context are not proof of a driver licence, screening or vaccination.
+    """
+    from app.services.pipeline.steps.keyword_feasibility import user_has_credential
+
+    contact = {
+        "credentials": {
+            "drivers_licence": "Open C Class",
+            "ndis_screening": True,
+            "covid_vaccination": True,
+            "car_insurance": True,
+        }
+    }
+
+    for phrase in (
+        "security licence administration",
+        "professional licence renewals",
+        "software license management",
+        "open source license compliance",
+        "driving clients to appointments",
+        "driver licence application processing",
+    ):
+        assert not user_has_credential(phrase, contact), phrase
+
+    for phrase in (
+        "NDIS plan implementation",
+        "NDIS participant support",
+        "experience delivering NDIS services",
+        "NDIS orientation program facilitation",
+        "NDIS quality and safeguarding framework implementation",
+    ):
+        assert not user_has_credential(phrase, contact), phrase
+
+    for phrase in (
+        "COVID-19 infection control",
+        "coronavirus response planning",
+        "COVID ward experience",
+        "motor vehicle accident insurance claims",
+        "COVID status dashboard administration",
+    ):
+        assert not user_has_credential(phrase, contact), phrase
+
+    assert user_has_credential("valid driver licence", contact)
+    assert user_has_credential("NDIS worker screening check", contact)
+    assert user_has_credential("Yellow Card clearance", contact)
+    assert user_has_credential("COVID-19 vaccination requirements", contact)
+    assert user_has_credential("Class C licence", contact)
+    assert user_has_credential("current unrestricted Australian licence", contact)
+    assert user_has_credential("COVID booster requirement", contact)
+
+
+def test_user_has_credential_does_not_treat_any_visa_or_citizenship_text_as_work_rights():
+    """C17b: the profile's work-rights flag satisfies requirements, not
+    unrelated prose that merely contains the words visa or citizenship.
+    """
+    from app.services.pipeline.steps.keyword_feasibility import user_has_credential
+
+    contact = {"visa_status": "citizen", "credentials": {}}
+
+    for phrase in (
+        "visa sponsorship available",
+        "administer visa application support",
+        "citizenship ceremony coordination",
+        "citizenship support services",
+        "Australian citizen support services",
+        "work rights advocacy program",
+    ):
+        assert not user_has_credential(phrase, contact), phrase
+
+    assert user_has_credential("Australian work rights required", contact)
+    assert user_has_credential("valid visa with work rights", contact)
+    assert user_has_credential("Australian citizenship required", contact)
+    assert user_has_credential("right to work in Australia", contact)
+    # Exact canonical eligibility entries remain profile-backed even though
+    # the same words embedded in unrelated prose no longer match.
+    assert user_has_credential("visa", contact)
+    assert user_has_credential("work visa", contact)
+    assert user_has_credential("citizenship", contact)
+    assert user_has_credential("permanent residency or citizenship", contact)
+    assert user_has_credential("temporary resident visa", contact)
+    assert user_has_credential("bridging visa with work rights", contact)
+
+
 def test_split_compound_skills_single_line():
     from app.services.eval.enforce import _split_compound_skills, enforce_skills_section
 
@@ -854,21 +1414,44 @@ def test_dedupe_skills_and_canonicalisation():
     md = (
         "## Skills\n"
         "**Care Skills:** Person-Centred Care\n"
-        "**Soft Skills:** Advocacy For Patients And Residents\n"
-        "**Other Skills:** Patient-Centred Care\n\n"
+        "**Soft Skills:** Advocacy For Patients And Residents, Person-Centered Care\n"
+        "\n"
         "## Experience\n"
     )
     # Test spelling conversions
-    assert _canonicalise_skill_spelling("Patient-Centred Care") == "Person-Centred Care"
+    assert _canonicalise_skill_spelling("Person-Centered Care") == "Person-Centred Care"
     assert _canonicalise_skill_spelling("Advocacy For Patients And Residents") == "Patient Advocacy"
 
-    # Test full pass and dropping of empty lines (Other Skills line should be dropped since it only has a duplicate)
+    # Test full pass and dropping of empty lines (Soft Skills line should be
+    # dropped once its only remaining entry, the American-spelling
+    # duplicate, is deduped against Care Skills' British-spelled entry)
     norm = _normalise_skills_case(md)
     deduped = _dedupe_skills_across_lines(norm)
 
     assert "Person-Centred Care" in deduped
     assert "Patient Advocacy" in deduped
-    assert "Other Skills" not in deduped
+    assert deduped.count("Person-Centred Care") == 1
+
+
+def test_c89_patient_centred_and_person_centred_are_distinct_skills_not_deduped():
+    """C89 (finding #23): patient-centred and person-centred are different
+    healthcare concepts, not a spelling variant of each other -- they must
+    both survive as distinct entries, not collapse into one via
+    _canonicalise_skill_spelling."""
+    md = (
+        "## Skills\n"
+        "**Care Skills:** Person-Centred Care\n"
+        "**Other Skills:** Patient-Centred Care\n\n"
+        "## Experience\n"
+    )
+    assert _canonicalise_skill_spelling("Patient-Centred Care") == "Patient-Centred Care"
+
+    norm = _normalise_skills_case(md)
+    deduped = _dedupe_skills_across_lines(norm)
+
+    assert "Person-Centred Care" in deduped
+    assert "Patient-Centred Care" in deduped
+    assert "Other Skills" in deduped
 
 
 # ---------------------------------------------------------------------------
@@ -971,6 +1554,47 @@ def test_post_verify_duplicate_across_lines_removed():
     assert out.count("NDIS") == 1
     assert out.count("Wound Care") == 1
 
+
+def test_REGRESSION_C22p_writer_w8_verified_reruns_the_grounding_gate_after_verify_claims():
+    """
+    Regression, execution chunk C22p (found during C22j's independent
+    review): verify_claims (the AI entailment-verification step) is an AI
+    call that can rewrite ANY section, including reintroducing a
+    fabricated credential into a Certifications/Checks section — but the
+    grounding gate (_strip_ungrounded_credentials, step 4a) only ran ONCE,
+    before verify_claims saw the document. Everything else this exact
+    function re-runs post-verify (awards normalisers, skills hygiene,
+    Sprint A/B/C passes) is because verify_claims can undo it; the
+    grounding gate was the one deterministic pass in that category that
+    never got re-run, capping C22j's own fix's real-world effectiveness.
+
+    Full async integration (mocking the AI client through verify_claims)
+    is disproportionate for a one-line wiring fix — this asserts the
+    actual source of _writer_w8_verified calls _strip_ungrounded_credentials
+    a second time, AFTER verify_claims, and BEFORE the awards-relabel
+    re-run (matching the original pipeline's own relative ordering:
+    ground before relabel/split), the same structural-assertion pattern
+    already used elsewhere in this test suite (see
+    test_cv_jd_matching_fixes.py's inspect.getsource call-site guards).
+    """
+    import inspect
+    import re as _re
+
+    from app.services.eval.writers import _impl
+
+    src = inspect.getsource(_impl._writer_w8_verified)
+    verify_idx = src.index("verify_claims(client")
+    ground_idx = src.index("_strip_ungrounded_credentials(verified_md, cv_text)")
+    relabel_idx = src.index("_relabel_awards_only_certifications(verified_md)")
+    assert verify_idx < ground_idx < relabel_idx, (
+        "expected verify_claims -> _strip_ungrounded_credentials -> "
+        "_relabel_awards_only_certifications, in that order"
+    )
+    # Also confirm it's called on the VERIFIED markdown, not the pre-verify
+    # variable — a copy-paste of the wrong variable name would defeat the
+    # entire point of a "re-run after verify_claims" pass.
+    call_line = _re.search(r"^\s*verified_md = _strip_ungrounded_credentials\(.*\)$", src, _re.MULTILINE)
+    assert call_line is not None
 
 
 # ---------------------------------------------------------------------------
@@ -1232,92 +1856,3 @@ def test_strong_communication_tidied_in_soft_skills():
     assert "Strong Communication Skills" not in out
     assert "Communication" in out
     assert "Reliability, Teamwork, Communication" in out
-
-
-# ---------------------------------------------------------------------------
-# Summary-vs-Skills de-dup — drop S2 clauses that merely re-list Skills.
-# See enforce_summary_skills_dedup.
-# ---------------------------------------------------------------------------
-
-
-def test_skills_dedup_drops_clause_fully_covered_by_skills_section():
-    md = (
-        "## Professional Summary\n\n"
-        "Assistant in Nursing with experience across residential aged care "
-        "settings, including medication assistance, dementia support and "
-        "person-centred care for elderly residents. Demonstrated reliability and "
-        "quality care, delivering safe personal care and behavioural support for "
-        "residents in multiple facilities.\n\n"
-        "## Skills\n"
-        "- **Care Skills:** Personal Care, Dementia Care, Medication Assistance, "
-        "Behavioural Management, Person-Centred Care\n"
-        "- **Soft Skills:** Reliability, Teamwork, Communication\n"
-        "- **Other Skills:** BESTMed, MedMobile\n\n"
-        "## Experience\n"
-    )
-    out = enforce_summary_skills_dedup(md)
-    # The "Demonstrated reliability and quality care" clause has only
-    # 'reliability' and 'care' as content words — both in Skills → dropped.
-    assert "Demonstrated reliability and quality care" not in out
-    # The second clause survives — it contains 'residents', 'multiple',
-    # 'facilities' which are NOT in Skills.
-    assert "multiple facilities" in out
-
-
-def test_skills_dedup_keeps_clause_with_novel_content():
-    md = (
-        "## Professional Summary\n\n"
-        "Assistant in Nursing with experience across aged care. Reduced falls by "
-        "20% at Jesmond Miranda, achieving an incident-free six-month record.\n\n"
-        "## Skills\n"
-        "- **Care Skills:** Personal Care, Dementia Care\n\n"
-        "## Experience\n"
-    )
-    out = enforce_summary_skills_dedup(md)
-    # Whole S2 introduces content not in Skills — untouched.
-    assert "Reduced falls by 20%" in out
-    assert "incident-free" in out
-
-
-def test_skills_dedup_never_empties_s2():
-    """If every clause is Skills-covered, the LAST clause is always kept."""
-    md = (
-        "## Professional Summary\n\n"
-        "Carer providing care for residents. Personal care, dementia care, "
-        "medication assistance.\n\n"
-        "## Skills\n"
-        "- **Care Skills:** Personal Care, Dementia Care, Medication Assistance\n\n"
-        "## Experience\n"
-    )
-    out = enforce_summary_skills_dedup(md)
-    # At least one clause survives — output still has two sentences.
-    summary = out.split("## Skills")[0]
-    sents = [s for s in summary.replace("## Professional Summary", "").split(".") if s.strip()]
-    assert len(sents) >= 2
-
-
-def test_skills_dedup_preserves_semicolon_two_role_s2():
-    """Two-distinct-role S2 (joined by ';') is intentional — never thin it."""
-    md = (
-        "## Professional Summary\n\n"
-        "Assistant in Nursing with experience across two aged care employers. "
-        "Delivered medication administration at Jesmond Miranda; provided "
-        "person-centred care at Uniting – The Marion.\n\n"
-        "## Skills\n"
-        "- **Care Skills:** Personal Care, Medication Assistance, "
-        "Person-Centred Care\n\n"
-        "## Experience\n"
-    )
-    out = enforce_summary_skills_dedup(md)
-    assert "Jesmond Miranda" in out
-    assert "Uniting – The Marion" in out
-
-
-def test_skills_dedup_noop_without_skills_section():
-    md = (
-        "## Professional Summary\n\n"
-        "Carer with experience. Reliability, teamwork.\n\n"
-        "## Experience\n"
-    )
-    # No ## Skills section — pool is empty — gate is a no-op.
-    assert enforce_summary_skills_dedup(md) == md

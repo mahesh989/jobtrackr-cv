@@ -66,18 +66,17 @@ logger = logging.getLogger(__name__)
 # followed by a word boundary. The previous version required end-of-line ($)
 # which broke on PDF-extracted CVs where the heading word gets glued to the
 # next bit of content on the same line — observed in real production runs
-# (Rashmi's CV scored 1-of-3 sections instead of 3-of-3 → 60% formatting
+# (Jane's CV scored 1-of-3 sections instead of 3-of-3 → 60% formatting
 # instead of 100%).  The old "literal word anywhere" check awarded points
 # to any sentence containing the word, which we still don't want. This
 # loosened version requires line-start anchoring but accepts trailing
 # content, which is the right balance for real-world CV layouts.
-_EXPECTED_SECTIONS = ("experience", "education", "skills")
 
 # Per-section heading patterns. Each pattern matches at line-start (optionally
 # with markdown/bold/bullet prefix) followed by a word boundary, so the
 # heading word can stand alone OR have trailing content on the same line.
 # Broadened by section to accept the real-world headings seen in production
-# CVs after Rashmi's Run 2 only scored 2 of 3 sections — likely 'Skills' was
+# CVs after Jane's Run 2 only scored 2 of 3 sections — likely 'Skills' was
 # named "Key Skills" / "Core Skills" / similar.
 _SECTION_PATTERNS = {
     "experience": (
@@ -114,13 +113,10 @@ _URL_RE = re.compile(r"https?://[^\s)]+")
 _PHONE_DIGITS_RE = re.compile(r"\d")
 
 from app.enums import CATEGORY_KEYS  # noqa: E402
-
-DEFAULT_KEYWORD_WEIGHTS: dict[str, int] = {
-    "technical_required":        25,
-    "soft_skills_required":      10,
-    "domain_knowledge_required":  5,
-    "preferred_overall":         10,
-}
+# Single source of truth for the default keyword weights — was a byte-for-
+# byte-duplicated literal dict here that could silently desync from
+# verticals/base.py's copy on a future reweight (audit finding #60).
+from app.services.verticals.base import DEFAULT_KEYWORD_WEIGHTS  # noqa: E402
 
 
 def resolve_keyword_weights(jd_analysis: dict[str, Any] | None) -> dict[str, int]:
@@ -219,7 +215,7 @@ def _keyword_score(
     Compute Category 1 directly from the structured counts produced by
     the matching step. No substring searching, no text parsing.
 
-    Presence-aware: the nominal weights in ``_KEYWORD_WEIGHTS`` are shaped for
+    Presence-aware: the nominal weights in ``DEFAULT_KEYWORD_WEIGHTS`` are shaped for
     IT roles (technical-required carries 25 of 50). A nursing or care JD often
     has zero required-technical keywords, which under a fixed-weight scheme
     would make 25 of the 50 keyword points permanently unreachable and cap a
@@ -271,7 +267,7 @@ def _keyword_score(
 
 
 # ---------------------------------------------------------------------------
-# Category 2 — Experience (35 pts)
+# Category 2 — Experience (40 pts)
 # ---------------------------------------------------------------------------
 
 
@@ -461,7 +457,7 @@ def _count_responsibilities_covered(
 
 
 # ---------------------------------------------------------------------------
-# Category 3 — Formatting (15 pts)
+# Category 3 — Formatting (10 pts)
 # ---------------------------------------------------------------------------
 
 

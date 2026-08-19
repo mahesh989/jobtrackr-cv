@@ -99,12 +99,13 @@ export const GET = withAdmin(async (_req: NextRequest, _ctx, { admin }) => {
 
 export const PATCH = withAdmin(async (req: NextRequest, _ctx, { userId, admin }) => {
 
-  const { data: body, error: parseErr } = await parseJsonBody<{
+  const parsed = await parseJsonBody<{
     provider?: string; key?: string; model?: string; setActive?: boolean;
   }>(req);
-  if (parseErr) return parseErr;
+  if (parsed.error) return parsed.error;
+  const body = parsed.data;
 
-  const provider = body!.provider;
+  const provider = body.provider;
   if (!provider || !PROVIDERS.has(provider as AiProvider)) {
     return jsonError("Unknown provider", 400);
   }
@@ -115,8 +116,8 @@ export const PATCH = withAdmin(async (req: NextRequest, _ctx, { userId, admin })
 
   const update: Record<string, unknown> = { updated_at: new Date().toISOString(), updated_by: userId };
 
-  if (typeof body!.key === "string" && body!.key.trim()) {
-    const key = body!.key.trim();
+  if (typeof body.key === "string" && body.key.trim()) {
+    const key = body.key.trim();
     const { valid, error } = await validateKey(p, key);
     if (!valid) return NextResponse.json({ valid: false, error }, { status: 422 });
     update.encrypted_api_key  = encryptApiKey(key);
@@ -125,8 +126,8 @@ export const PATCH = withAdmin(async (req: NextRequest, _ctx, { userId, admin })
     update.last_validated_at  = new Date().toISOString();
   }
 
-  if (typeof body!.model === "string" && body!.model.trim()) {
-    update.model = body!.model.trim();
+  if (typeof body.model === "string" && body.model.trim()) {
+    update.model = body.model.trim();
   }
 
   const { error: upsertErr } = await admin
@@ -137,20 +138,28 @@ export const PATCH = withAdmin(async (req: NextRequest, _ctx, { userId, admin })
     return jsonError("Failed to save settings", 500);
   }
 
-  if (body!.setActive === true) {
+  if (body.setActive === true) {
     // Require the provider to actually have a valid key before activating it.
-    const { data: row } = await admin
+    const { data: row, error: readErr } = await admin
       .from("platform_ai_settings")
       .select("status, encrypted_api_key")
       .eq("provider", p)
       .maybeSingle();
+    if (readErr) return jsonError(readErr.message, 500);
     if (!row?.encrypted_api_key || row.status !== "valid") {
       return NextResponse.json(
         { error: "Connect and validate a key for this provider before activating it." },
         { status: 422 },
       );
     }
-    await admin.from("platform_ai_settings").update({ is_active: false }).neq("provider", p);
+    const { error: deactivateErr } = await admin
+      .from("platform_ai_settings").update({ is_active: false }).neq("provider", p);
+    // A failed deactivate here previously proceeded silently — the new
+    // provider gets activated below regardless, but a still-active OLD
+    // provider means two providers report is_active:true simultaneously,
+    // breaking the single-admin-managed-provider invariant every AI-call
+    // site assumes. Abort before activating the new one.
+    if (deactivateErr) return jsonError(deactivateErr.message, 500);
     const { error: activateErr } = await admin
       .from("platform_ai_settings")
       .update({ is_active: true, updated_at: new Date().toISOString(), updated_by: userId })

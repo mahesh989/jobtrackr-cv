@@ -25,6 +25,7 @@ export function DisclosureButton({
     <button
       type="button"
       onClick={onToggle}
+      aria-expanded={open}
       className={`w-full flex items-center justify-between gap-3 px-5 py-3 text-left transition-colors ${className}`.trim()}
     >
       <span className="flex items-center gap-2 min-w-0">

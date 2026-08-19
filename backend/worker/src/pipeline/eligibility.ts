@@ -33,8 +33,22 @@ const DEMAND: Record<string, number> = {
   not_stated: 0,
 };
 
+/**
+ * `in` walks the prototype chain, so `"toString" in CAPABILITY` is true even
+ * though CAPABILITY has no OWN "toString" key — CAPABILITY["toString"] then
+ * resolves to Function.prototype.toString, not a number, and every
+ * `capability >= demand` comparison below silently collapses to NaN-false
+ * (B5-P2: POST {"visa_status":"toString"} passed this guard, then
+ * computeEligibility returned not_eligible for every job — the board
+ * silently emptied while the run still reported completed). hasOwnProperty
+ * only matches CAPABILITY's own keys, not inherited Object.prototype ones.
+ */
+function hasOwn<T extends object>(obj: T, key: PropertyKey): key is keyof T {
+  return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
 export function isUserVisaStatus(v: unknown): v is UserVisaStatus {
-  return typeof v === "string" && v in CAPABILITY;
+  return typeof v === "string" && hasOwn(CAPABILITY, v);
 }
 
 export function computeEligibility(
@@ -48,7 +62,7 @@ export function computeEligibility(
   // Legacy rows (pre-080) carry only citizen_pr_only — map it to the
   // equivalent requirement so old bucket rows still filter correctly.
   const requirement =
-    job.work_rights_requirement && job.work_rights_requirement in DEMAND
+    job.work_rights_requirement && hasOwn(DEMAND, job.work_rights_requirement)
       ? job.work_rights_requirement
       : job.citizen_pr_only === true
         ? "pr_citizen"
@@ -67,7 +81,9 @@ export function computeEligibility(
   if (capability >= demand) {
     // Meets the stated demand. A student meeting only "not_stated" is still
     // just "eligible" — the hours-cap conflict with full-time-only jobs is a
-    // soft UI warning (see hoursCapConflict), never a silent drop.
+    // soft UI warning (see hoursCapConflict in the web mirror,
+    // frontend/web/src/lib/eligibility.ts — UI-only, not needed here), never
+    // a silent drop.
     return "eligible";
   }
   return "not_eligible";

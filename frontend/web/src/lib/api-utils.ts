@@ -7,17 +7,6 @@ export function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-export function jsonOk(data: unknown) {
-  return NextResponse.json(data);
-}
-
-export async function requireUser() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { user: null, error: jsonError("Unauthorized", 401) as NextResponse };
-  return { user, error: null };
-}
-
 export async function requireAdmin(user: { id: string }, supabaseClient?: Awaited<ReturnType<typeof createClient>>) {
   const client = supabaseClient ?? createAdminClient();
   const { data: me } = await client.from("users").select("role").eq("id", user.id).single();

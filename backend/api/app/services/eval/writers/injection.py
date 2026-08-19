@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from app.enums import BUCKET_KEYS, CATEGORY_KEYS
 from app.services.eval.enforce import DEFAULT_SKILL_CAPS, _ROLE_CATEGORY_LABELS
-from app.services.eval.writers.skills_section import _SKILLS_LINE_RE, _is_non_skill_phrase
+from app.services.eval.writers.skills_section import _SKILLS_LINE_RE
 from app.services.pipeline.steps.tailored_cv import (
     _SKILLS_CATEGORY_LABEL,
     _format_skill_label,
@@ -112,6 +112,10 @@ def _surface_matched_skills(markdown: str, matching: Dict[str, Any]) -> str:
                 cat_to_line_idx[cat] = i
                 break
 
+    # Lazy import to avoid circular dependency (registry pulls from
+    # skills_section/enforce, which this module also imports from directly).
+    from app.services.skills.registry import is_non_skill_phrase
+
     skills_text_lower = "\n".join(lines[skills_start:skills_end]).lower()
     appended = 0
     for cat in _SURFACE_CATS:
@@ -125,7 +129,7 @@ def _surface_matched_skills(markdown: str, matching: Dict[str, Any]) -> str:
             key = term.lower()
             if key in seen_terms or _kw_in_skills(term, skills_text_lower):
                 continue
-            if _is_non_skill_phrase(term):
+            if is_non_skill_phrase(term):
                 continue
             if existing_count >= cap:
                 break
@@ -412,7 +416,7 @@ def _inject_approved_skills(markdown: str, feasibility: Optional[Dict[str, Any]]
     Must run AFTER the final ``enforce_skills_section`` so the cap is already
     applied. This function RESPECTS the cap — it classifies existing items as
     approved-keep vs writer-only, places new approved keywords ahead of
-    writer-only items, and truncates to ``DEFAULT_SKILL_CAPS`` (14/6/6
+    writer-only items, and truncates to ``DEFAULT_SKILL_CAPS`` (15/10/10
     position-based). Writer-only tail items are displaced when the line is
     full; approved-existing peers are preserved.
 
@@ -425,6 +429,10 @@ def _inject_approved_skills(markdown: str, feasibility: Optional[Dict[str, Any]]
     entries = _approved_skill_entries(feasibility)
     if not entries:
         return markdown
+
+    # Lazy import to avoid circular dependency (registry pulls from
+    # skills_section/enforce, which this module also imports from directly).
+    from app.services.skills.registry import is_non_skill_phrase
 
     # Full approved set (all three buckets) for "is this item approved?" checks.
     approved_set: set = {_norm_item(kw) for kw, _ in entries}
@@ -503,7 +511,7 @@ def _inject_approved_skills(markdown: str, feasibility: Optional[Dict[str, Any]]
         # Pending = approved for THIS category, not already present.
         pending: list = []
         for kw in by_cat.get(cat, []):
-            if _is_non_skill_phrase(kw):
+            if is_non_skill_phrase(kw):
                 continue
             if _kw_in_skills(kw, skills_text_lower):
                 continue
@@ -615,6 +623,10 @@ def force_inject_missed_approved(
 
     skills_text_lower = "\n".join(lines[skills_start:skills_end]).lower()
 
+    # Lazy import to avoid circular dependency (registry pulls from
+    # skills_section/enforce, which this module also imports from directly).
+    from app.services.skills.registry import is_non_skill_phrase
+
     notes: List[str] = []
     appended = 0
 
@@ -624,8 +636,7 @@ def force_inject_missed_approved(
             continue
         # Non-skill phrase (sector/setting/credential filler) → don't force.
         # The same filter the regular injector + rescorer use.
-        from app.services.eval.writers.skills_section import _is_non_skill_phrase
-        if _is_non_skill_phrase(kw):
+        if is_non_skill_phrase(kw):
             continue
         target_idx = None
         for label in _FORCE_INJECT_TARGET_LABELS.get(cat, ()):

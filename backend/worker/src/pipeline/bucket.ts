@@ -8,11 +8,15 @@
 //   31 web read sites and the analyze/applications flows keep reading `jobs`
 //   unchanged; profile_jobs (068) is reserved/unused under this model.
 //
-// Everything here is gated by USE_GLOBAL_BUCKET (default off) and is best-effort
-// (try/catch): with the flag off, or before migrations 066-067 are applied, the
-// worker behaves exactly as before.
+// Everything here is gated by USE_GLOBAL_BUCKET, which defaults to off in code
+// (unset env var) but is set to true everywhere the worker actually runs today
+// (Fly production secret + backend/worker/.env and .env.example) — the flag-off
+// legacy path is therefore dead in practice, not a live alternate mode. Access
+// is best-effort (try/catch): with the flag off, or before migrations 066-067
+// are applied, the worker behaves exactly as before.
 
 import { db } from "../db/client.js";
+import { selectInChunked } from "../db/chunkedIn.js";
 import { normaliseCity } from "./normalise/keys.js";
 import { applyKeywordFilter } from "./keywordFilter.js";
 import { postFetchFilter } from "./postFetchFilter.js";
@@ -41,7 +45,7 @@ export function bucketEnabled(): boolean {
 /** Days the bucket retains a posting as discoverable (migration plan §10). */
 export const BUCKET_RETENTION_DAYS = 30;
 
-type JdAccess = "snippet" | "all" | "unlimited_only";
+export type JdAccess = "snippet" | "all" | "unlimited_only";
 
 /**
  * JD access tier for a row (read-time gating contract):
@@ -53,6 +57,51 @@ type JdAccess = "snippet" | "all" | "unlimited_only";
 function deriveJdAccess(source: string, adzunaFull: boolean): JdAccess {
   if (source === "adzuna") return adzunaFull ? "unlimited_only" : "snippet";
   return "all";
+}
+
+/** Adzuna's real API teaser is ~600 chars (see sources/adzuna.ts, sources/types.ts). */
+const ADZUNA_TEASER_CHARS = 600;
+
+function truncateTeaser(text: string, maxChars = ADZUNA_TEASER_CHARS): string {
+  if (text.length <= maxChars) return text;
+  return `${text.slice(0, maxChars).trimEnd()}…`;
+}
+
+/**
+ * Derive the jd_access / description_snippet / description_full triple for
+ * a bucket row write. Exported for direct unit testing (#46 audit) — the
+ * paywall gate IS this triple, so it needs isolated coverage without
+ * mocking the DB/geocoding around the rest of upsertGlobalJobs.
+ *
+ * Two invariants this enforces that the previous inline version didn't:
+ *  - description_snippet must never carry the untruncated full JD for a
+ *    row gated 'unlimited_only' — free tiers read description_snippet as
+ *    their fallback (projectDescription below), so an untruncated snippet
+ *    was a no-op paywall.
+ *  - a run whose OWN access this time is only 'snippet' (or 'all', which
+ *    can't happen for a previously-adzuna row) must never demote an
+ *    existing 'unlimited_only' row's already-captured paid JD to null —
+ *    a free-tier re-scrape must not destroy content already paid for.
+ */
+export function deriveDescriptionFields(
+  source: string,
+  adzunaFull: boolean,
+  description: string | null,
+  existing: { jd_access: JdAccess; description_full: string | null } | null,
+): { jd_access: JdAccess; description_snippet: string | null; description_full: string | null } {
+  const thisRunAccess = deriveJdAccess(source, adzunaFull);
+  const snippet = source === "adzuna" && description ? truncateTeaser(description) : (description ?? null);
+
+  const hadPaidFull = existing?.jd_access === "unlimited_only" && !!existing.description_full;
+  if (hadPaidFull && thisRunAccess !== "unlimited_only") {
+    return { jd_access: "unlimited_only", description_snippet: snippet, description_full: existing!.description_full };
+  }
+
+  return {
+    jd_access: thisRunAccess,
+    description_snippet: snippet,
+    description_full: thisRunAccess === "snippet" ? null : description,
+  };
 }
 
 // ── Write: scraped survivors → global_jobs (canonical) ───────────────────────
@@ -123,14 +172,26 @@ export async function upsertGlobalJobs(
     const existingKw = new Map<string, string[]>();
     const existingCoords = new Map<string, { lat: number | null; lng: number | null }>();
     const existingSetting = new Map<string, { category: string | null; confidence: number | null; evidence: string | null }>();
-    const { data: existing } = await db
-      .from("global_jobs")
-      .select("url_hash, matched_keywords, lat, lng, setting_category, setting_confidence, setting_evidence")
-      .in("url_hash", hashes);
-    for (const r of (existing ?? []) as Array<{ url_hash: string; matched_keywords: string[]; lat: number | null; lng: number | null; setting_category: string | null; setting_confidence: number | null; setting_evidence: string | null }>) {
+    const existingJdAccess = new Map<string, { jd_access: JdAccess; description_full: string | null }>();
+    // CHUNKED — a run can scrape hundreds/thousands of jobs, and a single
+    // unchunked .in() with that many url_hashes builds a querystring past
+    // the PostgREST/proxy URL limit and fails SILENTLY (`data: null`, no
+    // throw). On failure this call previously overwrote other profiles'
+    // matched_keywords, nulled out a setting classification that the
+    // comment two lines above forbids nulling, and forced every posting to
+    // re-geocode serially — while the caller had no signal anything went
+    // wrong. See db/chunkedIn.ts (audit, execution chunk C44).
+    const { rows: existing } = await selectInChunked(hashes, (chunk) =>
+      db
+        .from("global_jobs")
+        .select("url_hash, matched_keywords, lat, lng, setting_category, setting_confidence, setting_evidence, jd_access, description_full")
+        .in("url_hash", chunk),
+    );
+    for (const r of existing as Array<{ url_hash: string; matched_keywords: string[]; lat: number | null; lng: number | null; setting_category: string | null; setting_confidence: number | null; setting_evidence: string | null; jd_access: JdAccess | null; description_full: string | null }>) {
       existingKw.set(r.url_hash, r.matched_keywords ?? []);
       existingCoords.set(r.url_hash, { lat: r.lat, lng: r.lng });
       existingSetting.set(r.url_hash, { category: r.setting_category, confidence: r.setting_confidence, evidence: r.setting_evidence });
+      if (r.jd_access) existingJdAccess.set(r.url_hash, { jd_access: r.jd_access, description_full: r.description_full });
     }
 
     // De-dup incoming by url_hash (keep first — carries winning content).
@@ -151,7 +212,12 @@ export async function upsertGlobalJobs(
     }
 
     const rows: GlobalRow[] = Array.from(byHash.values()).map((j) => {
-      const jd_access = deriveJdAccess(j.source, opts.adzunaFull);
+      const { jd_access, description_snippet, description_full } = deriveDescriptionFields(
+        j.source,
+        opts.adzunaFull,
+        j.description ?? null,
+        existingJdAccess.get(j.url_hash) ?? null,
+      );
       const mergedKw = Array.from(
         new Set([...(existingKw.get(j.url_hash) ?? []), ...(j.keywords_matched ?? [])]),
       );
@@ -168,8 +234,8 @@ export async function upsertGlobalJobs(
         lat: c?.lat ?? null,
         lng: c?.lng ?? null,
         matched_keywords: mergedKw,
-        description_snippet: j.description ?? null,
-        description_full: jd_access === "snippet" ? null : (j.description ?? null),
+        description_snippet,
+        description_full,
         jd_access,
         salary_min: j.salary_min ?? null,
         salary_max: j.salary_max ?? null,
@@ -245,7 +311,7 @@ export async function evictStaleBucket(): Promise<void> {
 
 // ── Serve: bucket → this profile's jobs rows (projection) ────────────────────
 
-interface BucketRow {
+export interface BucketRow {
   url_hash: string;
   canonical_url: string;
   source: string;
@@ -279,8 +345,10 @@ interface BucketRow {
   is_agency?: boolean | null;
 }
 
-/** Choose tier-appropriate JD text. Adzuna full JD is gated to unlimited. */
-function projectDescription(row: BucketRow, tier: string): string {
+/** Choose tier-appropriate JD text. Adzuna full JD is gated to unlimited.
+ * Exported for direct unit testing (C67) — same rationale as
+ * deriveDescriptionFields above: this triple IS the paywall gate. */
+export function projectDescription(row: BucketRow, tier: string): string {
   const full = row.description_full ?? row.description_snippet ?? "";
   const snippet = row.description_snippet ?? full;
   if (row.jd_access === "unlimited_only" && tier !== "unlimited") return snippet;
@@ -299,13 +367,12 @@ function projectDescription(row: BucketRow, tier: string): string {
 export async function serveProfileFromBucket(
   profile: SearchProfile,
   slices: CoverageSlice[],
-  opts: { tier: string; homeOrigin: LatLng | null; serveWindowDays?: number },
+  opts: { tier: string; homeOrigin: LatLng | null },
 ): Promise<NormalisedJob[] | null> {
   if (!bucketEnabled()) return null;
   try {
     if (slices.length === 0) return null;
-    const windowDays = Math.min(opts.serveWindowDays ?? BUCKET_RETENTION_DAYS, BUCKET_RETENTION_DAYS);
-    const floor = new Date(Date.now() - windowDays * 86_400_000).toISOString();
+    const floor = new Date(Date.now() - BUCKET_RETENTION_DAYS * 86_400_000).toISOString();
 
     // Geographic bound = the same radius the scrape used (distance from the
     // SEARCH location), via stored coords — NOT the coarse location_cell, which
@@ -330,6 +397,14 @@ export async function serveProfileFromBucket(
         .eq("is_dead_link", false)
         .eq("is_expired", false)
         .or(`posted_at.gte.${floor},posted_at.is.null`)
+        // ORDER BY before LIMIT — without it, which 5000 rows PostgREST
+        // returns when the true match set is larger is unspecified and can
+        // vary between calls (audit finding, execution chunk C58). Same
+        // most-recent-first convention as every other posted_at-ordered
+        // job list in this codebase (e.g. getDashboardData.ts's board
+        // query), so a metro with >5000 bucket rows in the retention
+        // window loses its oldest postings, not an arbitrary subset.
+        .order("posted_at", { ascending: false, nullsFirst: false })
         .limit(5000);
 
       if (searchOrigin) {
@@ -582,10 +657,61 @@ export async function serveProfileFromBucket(
       kept = out;
     }
 
-    console.log(`[bucket] served ${kept.length}/${rows.length} from bucket (tier=${opts.tier}, window ${windowDays}d)`);
+    console.log(`[bucket] served ${kept.length}/${rows.length} from bucket (tier=${opts.tier}, window ${BUCKET_RETENTION_DAYS}d)`);
     return kept;
   } catch (err) {
     console.warn(`[bucket] serveProfileFromBucket threw — ${err instanceof Error ? err.message : err}`);
     return null;
   }
+}
+
+/**
+ * C67: cross-profile dedup ("a job already in another of this user's
+ * profiles shouldn't reappear in this one" — see earlyDedup.ts's stage 3b
+ * docstring for the original design intent) is void in bucket mode.
+ * earlyDedup's stage 3b only filters the fresh SCRAPE DELTA before it's
+ * upserted into the shared bucket — but serveProfileFromBucket above then
+ * REPLACES `toSave` wholesale with the full retention window re-served from
+ * `global_jobs`, independent of what earlyDedup already dropped. Two of a
+ * user's profiles with overlapping search criteria both independently
+ * served the same postings from the shared bucket, with nothing downstream
+ * re-applying the sibling check to the served set.
+ *
+ * Reuses NormalisedJob.url_hash directly (set by dedup.ts's stage 5 —
+ * sha256(canonicalUrl(url).toLowerCase())) rather than recomputing a hash,
+ * since that's the SAME scheme already written to `jobs.url_hash` by
+ * saveJobs — no risk of the case-sensitivity divergence earlyDedup.ts's own
+ * L1 hashing docstring warns about.
+ */
+export async function dropServedCrossProfileDuplicates(
+  jobs: NormalisedJob[],
+  profileId: string,
+  userId: string,
+): Promise<{ jobs: NormalisedJob[]; dropped: number }> {
+  if (jobs.length === 0) return { jobs, dropped: 0 };
+
+  const { data: siblingProfiles, error: siblingErr } = await db
+    .from("search_profiles")
+    .select("id")
+    .eq("user_id", userId)
+    .neq("id", profileId);
+  if (siblingErr) {
+    console.warn(`[bucket] cross-profile dedup — sibling lookup failed, skipping: ${siblingErr.message}`);
+    return { jobs, dropped: 0 };
+  }
+  const siblingIds = (siblingProfiles ?? []).map((p) => p.id as string);
+  if (siblingIds.length === 0) return { jobs, dropped: 0 };
+
+  const { rows: existingRows } = await selectInChunked(
+    jobs.map((j) => j.url_hash),
+    (chunk) =>
+      db.from("jobs").select("url_hash").in("profile_id", siblingIds).in("url_hash", chunk),
+  );
+  const seenInSiblings = new Set(existingRows.map((r) => r.url_hash as string));
+  const kept = jobs.filter((j) => !seenInSiblings.has(j.url_hash));
+  const dropped = jobs.length - kept.length;
+  if (dropped > 0) {
+    console.log(`[bucket] cross-profile dedup (served set): ${dropped} dropped (already in sibling profile), ${kept.length} remain`);
+  }
+  return { jobs: kept, dropped };
 }

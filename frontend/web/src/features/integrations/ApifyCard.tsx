@@ -107,8 +107,20 @@ export function ApifyCard({ initialData }: Props) {
   async function handleDisconnect() {
     setError(null);
     startTransition(async () => {
-      await fetch("/api/integrations/apify", { method: "DELETE" });
-      setData(null); setShowInput(false);
+      // C67: reported success regardless of the response — a failed DELETE
+      // (network error, 500) still cleared `data`, leaving the card showing
+      // "disconnected" while the token was in fact still connected server-side.
+      try {
+        const res = await fetch("/api/integrations/apify", { method: "DELETE" });
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}));
+          setError(json.error ?? `Disconnect failed (${res.status})`);
+          return;
+        }
+        setData(null); setShowInput(false);
+      } catch {
+        setError("Network error — could not disconnect");
+      }
     });
   }
 
@@ -184,13 +196,16 @@ export function ApifyCard({ initialData }: Props) {
             <div className="divider" />
 
             {!showInput ? (
-              <div className="flex items-center gap-2">
-                <Button size="sm" onClick={() => setShowInput(true)}>
-                  Replace token
-                </Button>
-                <Button variant="danger" size="sm" onClick={handleDisconnect} disabled={isPending}>
-                  {isPending ? "Disconnecting…" : "Disconnect"}
-                </Button>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Button size="sm" onClick={() => setShowInput(true)}>
+                    Replace token
+                  </Button>
+                  <Button variant="danger" size="sm" onClick={handleDisconnect} disabled={isPending}>
+                    {isPending ? "Disconnecting…" : "Disconnect"}
+                  </Button>
+                </div>
+                {error && <p className="text-label text-red">{error}</p>}
               </div>
             ) : (
               <TokenInput

@@ -2,6 +2,12 @@
 
 > The full architectural plan for integrating the cv-magic CV-tailoring pipeline into JobTrackr. This document is the source of truth for **what** we are building. `.claude/graph.json` tracks **how far** we have got.
 
+> **Corrected 2026-08-16 — two original design decisions on this page have since changed; `CLAUDE.md` is the live source of truth for both.**
+> 1. **BYOK was removed 2026-06-16** (graph.json D20) — the "AI keys" rows below describe the *original* per-user Anthropic/OpenAI key design, superseded by a single platform-wide admin-managed provider in `platform_ai_settings`. See `CLAUDE.md`'s "Non-Negotiable Decisions" #4.
+> 2. **`main` deploys straight to production**, not a Vercel preview — this doc's architecture diagram and service table below describe the original pre-launch state. See `CLAUDE.md`'s "Production Safety" section (corrected there 2026-08-09).
+>
+> The rest of this document (bridge contract shape, data model, phased rollout) remains accurate historical/architectural context.
+
 ## 1. Summary
 
 JobTrackr v2 absorbs the cv-magic CV-tailoring pipeline as an **internal feature module**. Users only ever see one domain, one product, one sign-in. The Python pipeline service is invisible plumbing on Fly.io with no public-facing URL.
@@ -49,7 +55,7 @@ cv-magic, as a separate product, ceases to exist in this project. It is folded i
 | Service | Hosting | Purpose |
 |---|---|---|
 | `web/` | Vercel `jobtrackr-cv` | JobTrackr UI + new CV/analysis pages |
-| `worker/` | Fly.io `jobtrackr-cv-worker` | Existing job-discovery pipeline (unchanged) |
+| `worker/` | Fly.io `jobtrackr-worker` | Existing job-discovery pipeline (unchanged) |
 | `backend/api/` | Fly.io `jobtrackr-cv-api` | CV-tailoring pipeline (added in Phase 2) |
 | Postgres + Storage + Realtime | Supabase | Shared with production JobTrackr — additive tables only |
 
@@ -157,7 +163,7 @@ Response: `202 Accepted` with `{ run_id }`. Pipeline runs in FastAPI BackgroundT
    - INSERT new `analysis_runs` row with `status='pending'`
    - HMAC-sign and POST to cv-backend `/internal/analyze`
    - Return `{ run_id }`
-3. Browser navigates to `/jobs/[id]/analysis/[run_id]`.
+3. Browser navigates to `/jobs/[id]/analyze/[run_id]`.
 4. Page subscribes to Realtime on the row; step cards animate as `step_status` updates.
 5. On `tailored_cv` complete → "Download tailored CV" appears (signed Storage URL).
 
@@ -199,7 +205,7 @@ Each phase ends in a manual verification gate. Do not advance until the gate pas
 ### Phase 0 — Setup & infra
 - Create this repo, push to GitHub
 - Create Vercel project pointed at this repo
-- Set up Fly.io `jobtrackr-cv-worker` app (copy config from JobTrackr)
+- Set up Fly.io `jobtrackr-worker` app (copy config from JobTrackr)
 - Create Fly.io `jobtrackr-cv-api` app (empty hello-world FastAPI)
 - Set env vars on Vercel (Preview scope only — no Production scope yet)
 - **Gate:** Vercel preview URL loads JobTrackr unchanged.
@@ -232,7 +238,7 @@ Each phase ends in a manual verification gate. Do not advance until the gate pas
 ### Phase 5 — End-to-end with **only step 1 wired**
 - Analyze button + state machine
 - `POST /api/jobs/[id]/analyze` route
-- `/jobs/[id]/analysis/[run_id]` page (minimal — subscribes to Realtime)
+- `/jobs/[id]/analyze/[run_id]` page (minimal — subscribes to Realtime)
 - cv-backend orchestrator runs only `run_jd_analysis`, then stops
 - **Gate:** Click Analyze on a SEEK job → see step 1 JSON appear live.
 

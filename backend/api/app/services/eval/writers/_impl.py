@@ -240,6 +240,14 @@ from app.services.eval.writers.experience import (  # noqa: E402,F401
 
 
 
+# C83: sentence boundary for S1, NOT a bare "." split — a bare split breaks
+# on a decimal years figure ("12.5+ years" -> "with 12", losing "years"
+# entirely, so _YEARS_FIGURE_RE never matches). Mirrors enforce_w3.py's
+# _SENT_SPLIT_RE: requires the period be followed by whitespace, so a
+# decimal point (no following whitespace) never counts as a sentence end.
+_S1_SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
+
+
 def _apply_display_heading(md: str) -> str:
     """Set the summary heading to `## Career Highlights` (YEARS framing) or
     `## Professional Summary` (BREADTH framing) based on S1's prose, regardless
@@ -259,7 +267,7 @@ def _apply_display_heading(md: str) -> str:
         ln.strip() for ln in lines[start + 1 : end]
         if ln.strip() and not ln.strip().startswith(("-", "*"))
     )
-    s1 = prose.split(".", 1)[0].lower() if prose else ""
+    s1 = _S1_SENTENCE_END_RE.split(prose, maxsplit=1)[0].lower() if prose else ""
     if not s1:
         return md
     has_years = bool(_YEARS_FIGURE_RE.search(s1))
@@ -521,11 +529,15 @@ async def _writer_w8_integrated(
     #     case (award entry + cert entry under one heading) survives this pass.
     final_md = _relabel_awards_only_certifications(final_md)
     # 4c. Stamp user-supplied credentials into ## Registration & Licences
-    #     (nursing/healthcare/care families only; no-op when role family is
-    #     tech/manual/general or when the user has saved no credentials).
-    #     Replaces any AI-emitted body in that section — the user's profile
-    #     is authoritative for what they actually hold. Run BEFORE the
-    #     awards-split pass so it can dedupe against Registration content.
+    #     (C22o: nursing + manual only — contact_line.py's
+    #     _CREDENTIAL_FAMILIES — a prior version of this comment wrongly
+    #     included manual in the no-op list; manual DOES run this pass, see
+    #     test_credentials_stamp.py's explicit manual-path assertion. No-op
+    #     when role family is tech/general or when the user has saved no
+    #     credentials). Replaces any AI-emitted body in that section — the
+    #     user's profile is authoritative for what they actually hold. Run
+    #     BEFORE the awards-split pass so it can dedupe against
+    #     Registration content.
     final_md = stamp_credentials(final_md, contact_details, role_family.id)
     # 4c-bis. Availability note (opt-in) — italic line at the end of the
     #         Professional Summary, just above the next section.
@@ -646,7 +658,20 @@ async def _writer_w8_verified(
     result = await _writer_w8_integrated(
         client, cv_text, jd_text, contact_details, vertical=vertical, upstream=upstream,
     )
-    verified_md, vreport = await verify_claims(client, result.tailored_md, cv_text)
+    # _writer_w8_integrated applies the role-relevance filter to its local CV
+    # copy. Recompute the same deterministic view once for every downstream
+    # honesty consumer; giving verify_claims the original source would let its
+    # repair step reintroduce a role composition deliberately excluded.
+    anchor_cv_text = cv_text
+    if vertical:
+        anchor_cv_text, _ = filter_irrelevant_roles_pre(cv_text, vertical)
+    # Targeted rewrites are AI-generated too, so they must run before the
+    # entailment verifier.  Running them after verify_claims gave the final AI
+    # call an unchecked path into the delivered CV.
+    rewritten_md = await _targeted_bullet_rewrites(
+        client, result.tailored_md, result.feasibility,
+    )
+    verified_md, vreport = await verify_claims(client, rewritten_md, anchor_cv_text)
     role_family = resolve_role_family(vertical, result.jd_analysis)
     verified_md = apply_w3_gates(
         verified_md,
@@ -657,6 +682,15 @@ async def _writer_w8_verified(
         keep_skills=_inject_keyword_set(result.feasibility),
         jd_vertical=vertical,
     )
+    # Re-run the grounding gate (C22p, filed from C22j's independent review):
+    # verify_claims is an AI step that can rewrite/reintroduce a fabricated
+    # credential entry into a Certifications/Checks section — the FIRST
+    # grounding pass (step 4a, above, inside _writer_w8_integrated) already
+    # ran BEFORE verify_claims saw the document, so anything verify_claims
+    # fabricates here was never checked against the source CV at all. This
+    # closed the "runs after and is never re-checked" gap that capped C22j's
+    # own fix's real-world effectiveness. Idempotent — safe to re-run.
+    verified_md = _strip_ungrounded_credentials(verified_md, cv_text)
     # Re-run the awards/section normalisers — verify_claims is an AI step that
     # can rewrite the Awards/Certifications section into a messy shape (e.g.
     # description promoted to ###). These deterministic passes are idempotent
@@ -691,6 +725,22 @@ async def _writer_w8_verified(
     verified_md = canonicalise_body_spelling(verified_md)
     verified_md = normalise_heading_title_case(verified_md)
     verified_md = normalise_date_formats(verified_md)
+    # C82 (restores a call site dropped by 0628a5d1): deterministic setting
+    # bridge — replaces "residential aged care settings" in S1 with the
+    # correct bridge phrase for home care, hospital, NDIS, or theatre JDs,
+    # but ONLY when the CV's Experience section evidences the target
+    # setting (see bridges._BRIDGE_EVIDENCE_GATES) — otherwise S1 stays
+    # residential rather than fabricate cross-setting experience. Runs
+    # AFTER verify_claims, matching this file's stamp/repair-after-verify
+    # convention: verify_claims is an AI step that could otherwise rewrite
+    # S1 and drop or reintroduce a fabricated setting claim. Re-classifies
+    # directly from jd_text + result.jd_analysis rather than trusting
+    # result.extras["jd_setting"], which can be stale in resume paths.
+    _setting_for_bridge = _classify_jd_setting(jd_text, result.jd_analysis)
+    logger.info("w8_verified: S1 bridge — JD setting = %s", _setting_for_bridge)
+    verified_md = _apply_setting_bridge(
+        verified_md, _setting_for_bridge, cv_text=cv_text,
+    )
     # ── HONESTY GUARDS (single source-facts ground truth) ─────────────────
     # Deterministic anchors against the source CV. Each guard is idempotent,
     # returns (md, notes); the notes accumulate into result.extras so the
@@ -709,12 +759,17 @@ async def _writer_w8_verified(
     #    reframing; the role's identity comes from source.
     verified_md, _n = enforce_source_settings(verified_md, cv_text)
     _hg_notes.extend(_n)
-    # 3. Skills-section label pin — force the headline label to the family's
-    #    convention (Care Skills for nursing) regardless of what the LLM
-    #    emitted. Fixes the 12/20 "Technical Skills" misrouting on nursing
-    #    CVs surfaced in the audit.
+    # 3. Skills-section label pin — force the headline label to the resolved
+    #    family/subtype convention (Care, Clinical, or Core for nursing)
+    #    regardless of what the LLM emitted.
     _rf_id = (result.extras or {}).get("role_family") if hasattr(result, "extras") else None
-    verified_md, _n = pin_skills_section_labels(verified_md, _rf_id)
+    verified_md, _n = pin_skills_section_labels(
+        verified_md,
+        _rf_id,
+        resolved_headline_label=(
+            role_family.skills_categories[0] if _rf_id == "nursing" else None
+        ),
+    )
     _hg_notes.extend(_n)
     # 4. Credential-claim guard — strip unverifiable compliance claims from
     #    bullets ("AIN with current compliance for pre-employment medical,
@@ -752,13 +807,7 @@ async def _writer_w8_verified(
     if _hg_notes:
         result.extras["honesty_guard_notes"] = _hg_notes
         logger.info("w8_verified: honesty guards applied — %d rewrite(s)", len(_hg_notes))
-    # Targeted bullet rewrites — for inject_as_extension keywords the composition
-    # LLM missed, run one small focused call per bullet concurrently. Zero cost
-    # when the LLM applied all rewrites correctly (no missed items → no calls).
-    # Runs AFTER all deterministic passes so rewrites are applied to the final
-    # experience text, not an intermediate state.
-    verified_md = await _targeted_bullet_rewrites(client, verified_md, result.feasibility)
-    # Hard cap FIRST so each line is at DEFAULT_SKILL_CAPS (14/6/6) before
+    # Hard cap FIRST so each line is at DEFAULT_SKILL_CAPS (15/10/10) before
     # injection. Then cap-aware inject: approved keywords get priority over
     # writer-only tail items; writer-only items displaced when at cap.
     # NO enforce_skills_section after inject — it would truncate the
@@ -785,13 +834,20 @@ async def _writer_w8_verified(
     # leaving a generic, anchor-less S2. Re-applying here (idempotent: no-op
     # when both top-2 employers are already named) guarantees the final S2
     # names them. See OPS-32.
-    verified_md = _enforce_company_anchor(verified_md, cv_text)
+    verified_md = _enforce_company_anchor(verified_md, anchor_cv_text)
     # RE-STAMP the opt-in availability note LAST. It was stamped mid-pipeline
     # inside _writer_w8_integrated, but verify_claims (+ the summary repair
     # pass) can bundle the italic "*Available: …*" line into the summary prose
     # and delete it. stamp_availability_in_summary is idempotent, so applying
     # it here guarantees the line survives to storage / PDF. See OPS-31.
     verified_md = stamp_availability_in_summary(verified_md, contact_details, role_family.id)
+    # C83: RE-RUN the display-heading pass LAST. It ran once inside
+    # _writer_w8_integrated (pre-verify), but verify_claims can add or
+    # remove a years figure from S1 — without a re-run here, the displayed
+    # heading (Career Highlights vs Professional Summary) can desync from
+    # the final prose it's meant to describe. Idempotent (no-op if the
+    # heading already matches).
+    verified_md = _apply_display_heading(verified_md)
     result.tailored_md = verified_md
     result.extras["verify"] = vreport
     return result
@@ -844,12 +900,17 @@ async def run_tailored_cv_w8_verified(
     md = result.tailored_md
     if not md or len(md.strip()) < 200:
         raise ValueError("w8_verified tailored CV: response too short")
-    storage_path = _upload_to_storage(user_id, run_id, md)
+    # Blocking Supabase Storage upload on the DEFAULT w8_verified path — run
+    # off the event loop the same way the very next call already does
+    # (_persist_quality_flags), and the same way pdf_output.py's identical
+    # upload_or_update call does. This was the actual instance the audit
+    # meant (#12: "_impl.py:847 → tailored_cv/runner.py:98") — blocking here
+    # stalls every other concurrent pipeline run sharing this event loop,
+    # not just this one.
+    storage_path = await asyncio.to_thread(_upload_to_storage, user_id, run_id, md)
     # Persist the honesty_guard rewrite notes alongside the run. Best-effort —
     # if migration 057 (analysis_runs.quality_flags) hasn't been applied yet,
     # this writes nothing rather than failing the pipeline.
     # Sync supabase write — run in a worker thread so the event loop stays free.
     await asyncio.to_thread(_persist_quality_flags, run_id, result)
     return md, storage_path
-
-

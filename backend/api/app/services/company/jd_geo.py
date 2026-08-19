@@ -31,7 +31,21 @@ from typing import Optional, Tuple
 _COUNTRY_MARKERS: dict[str, tuple[str, ...]] = {
     "AU": (
         "australia", "australian",
-        "nsw", "vic", "qld", "wa", "tas", "act", "nt",
+        "nsw", "vic", "qld", "wa", "tas", "act", "nt", "sa",  # C28b: "sa" was
+        # the only AU state abbreviation missing (same collision-risk class
+        # as the pre-existing "wa" — a bare 2-letter marker can coincide with
+        # a state/country abbreviation elsewhere: "wa" vs. US Washington
+        # state, "sa" vs. South Africa — accepted here for consistency with
+        # every other bare abbreviation already in this tuple, not a new
+        # risk this addition introduces).
+        "new south wales", "western australia",
+        "tasmania", "australian capital territory", "northern territory",
+        # C28b: "south australia" was ALREADY incidentally covered before
+        # this addition (it contains the "australia" marker above as a
+        # word-bounded substring) — listed explicitly anyway for the same
+        # self-documenting reason the other 6 full state names are, not
+        # because it was a functional gap like the "sa" abbreviation above.
+        "south australia",
         "sydney", "melbourne", "brisbane", "perth", "adelaide", "hobart",
         "canberra", "darwin", "gold coast", "newcastle", "wollongong",
     ),
@@ -56,6 +70,52 @@ _COUNTRY_MARKERS: dict[str, tuple[str, ...]] = {
         "auckland", "wellington", "christchurch", "hamilton",
     ),
 }
+
+# "Victoria" and "Queensland" are NOT in _COUNTRY_MARKERS["AU"] above — both
+# collide with real places elsewhere ("Victoria, British Columbia, Canada";
+# "Queensland Road, London"), which would wrongly resolve AU since AU is
+# checked first. Genuine AU usage of either is always "<Town>, <State>" —
+# the state name TRAILING a comma, never leading the string ("Queensland
+# Road" has no comma before "Queensland") — so match that specific shape,
+# not the bare word.
+#
+# Even in the correct trailing-comma position, both are still ambiguous
+# enough to collide with an explicit OTHER country ("Esquimalt, Victoria,
+# Canada" — comma-preceded "Victoria", but "Canada" makes the true answer
+# CA). So this suffix match is suppressed whenever an unambiguous non-AU
+# signal (a country name/nationality, or another country's own
+# state/province) is ALSO present in the string — but NOT suppressed by an
+# ordinary city name alone (e.g. NZ's "hamilton" in "Hamilton, Victoria"),
+# since that city-name-level ambiguity is exactly what caused the original
+# bug (finding #56) and what this whole fix exists to resolve.
+#
+# Residual, deliberately accepted gap: a colliding city/street name from
+# another country with NO explicit country qualifier at all ("Vancouver
+# Island, Victoria"; bare "London, Victoria") is indistinguishable from the
+# genuine "Hamilton, Victoria" case by marker presence alone — both are
+# "<foreign city>, Victoria" with no stronger signal either way. Resolving
+# this would need a real gazetteer of AU vs. non-AU place names, well
+# beyond this finding's scope; this platform's own stated design
+# philosophy (AU checked first, "highest signal density in production
+# right now") already biases toward AU in exactly this kind of genuine
+# ambiguity, so this residual is a documented, reasoned trade-off, not an
+# oversight.
+_AU_STATE_SUFFIX_RE = re.compile(r",\s*(?:victoria|queensland)\b", re.IGNORECASE)
+
+_STRONG_NON_AU_MARKERS: dict[str, tuple[str, ...]] = {
+    "UK": ("united kingdom", "uk", "u.k.", "england", "scotland", "wales", "british"),
+    "US": ("united states", "u.s.a.", "u.s.", "california", "texas", "florida"),
+    "CA": ("canada", "canadian", "ontario", "quebec", "alberta", "british columbia"),
+    "NZ": ("new zealand",),
+}
+
+
+def _has_strong_non_au_signal(text: str) -> bool:
+    for markers in _STRONG_NON_AU_MARKERS.values():
+        for marker in markers:
+            if re.search(r"\b" + re.escape(marker) + r"\b", text):
+                return True
+    return False
 
 _COUNTRY_FULL_NAME: dict[str, str] = {
     "AU": "Australia",
@@ -84,6 +144,8 @@ def detect_country(location: Optional[str]) -> Optional[str]:
     if not location or not location.strip():
         return None
     text = " " + location.lower() + " "
+    if not _has_strong_non_au_signal(text) and _AU_STATE_SUFFIX_RE.search(text):
+        return "AU"
     # First-match-wins by order of preference. AU has highest signal density
     # in production right now; the rest are listed below it in rough order
     # of how often each appears.

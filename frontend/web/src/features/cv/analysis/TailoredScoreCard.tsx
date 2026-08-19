@@ -24,9 +24,14 @@ export function TailoredScoreCard(props: Props) {
   const { beforeScore, afterScore, lift } = props;
   if (beforeScore == null && afterScore == null) return null;
 
-  const before = beforeScore ?? 0;
-  const after  = afterScore  ?? 0;
-  const delta  = lift ?? (after - before);
+  // C67: delta used to default a missing afterScore to 0 and subtract a
+  // real beforeScore from it — if tailoring simply hadn't finished
+  // computing tailored_match_score yet (beforeScore already available,
+  // afterScore still null), this fabricated a dramatic negative "Lift"
+  // (e.g. "-70") implying tailoring made things drastically worse, when
+  // really nothing had been measured yet. Only compute a real delta when
+  // both scores are actually available; DeltaBadge renders "—" otherwise.
+  const delta = lift ?? (beforeScore != null && afterScore != null ? afterScore - beforeScore : null);
 
   return (
     <div className="bg-surface border border-border rounded-md overflow-hidden">
@@ -112,16 +117,18 @@ function ScoreCircle({ label, score, muted }: { label: string; score?: number | 
   );
 }
 
-function DeltaBadge({ delta }: { delta: number }) {
-  const positive = delta >= 0;
+function DeltaBadge({ delta }: { delta: number | null }) {
+  const positive = delta != null && delta >= 0;
   return (
     <div className="flex flex-col items-center">
       <div className={`px-3 py-1.5 rounded-md border text-h3 font-bold tabular-nums ${
-        positive
-          ? "bg-green-light text-green border-green/30"
-          : "bg-red-light text-red border-red/30"
+        delta == null
+          ? "bg-surface-2 text-text-3 border-border"
+          : positive
+            ? "bg-green-light text-green border-green/30"
+            : "bg-red-light text-red border-red/30"
       }`}>
-        {positive ? "+" : ""}{delta}
+        {delta == null ? "—" : `${positive ? "+" : ""}${Math.round(delta)}`}
       </div>
       <span className="text-caption text-text-3 uppercase tracking-wide mt-1.5">Lift</span>
     </div>

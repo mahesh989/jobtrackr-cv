@@ -49,30 +49,44 @@ export default async function MetricsPage() {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
 
-  const { data: dedupData }  = await admin.from("jobs").select("dedup_status").gte("created_at", thirtyDaysAgo);
+  // C67: these 6 queries are independent (different tables/columns, each
+  // filtered only by the fixed date constants above) but ran one at a time
+  // — total page load time was the SUM of all 6 round-trips instead of the
+  // MAX. Fetched in parallel; result processing below is unchanged.
+  const [
+    { data: dedupData },
+    { data: expiryData },
+    { data: runData },
+    { data: activeUserData },
+    { data: aiCostData },
+    { data: recentRunData },
+  ] = await Promise.all([
+    admin.from("jobs").select("dedup_status").gte("created_at", thirtyDaysAgo),
+    admin.from("jobs").select("is_expired, is_dead_link").gte("created_at", thirtyDaysAgo),
+    admin.from("run_logs").select("status").gte("started_at", thirtyDaysAgo),
+    admin.from("search_profiles").select("user_id").eq("is_active", true),
+    admin.from("run_logs").select("ai_cost_cents").gte("started_at", monthStart.toISOString()),
+    admin.from("run_logs").select("sources_run").gte("started_at", thirtyDaysAgo).eq("status", "completed").order("started_at", { ascending: false }).limit(50),
+  ]);
+
   const dedupRows = (dedupData ?? []) as { dedup_status: string }[];
   const dupCount  = dedupRows.filter((r) => r.dedup_status === "duplicate").length;
   const dupRate   = dedupRows.length > 0 ? (dupCount / dedupRows.length) * 100 : null;
 
-  const { data: expiryData } = await admin.from("jobs").select("is_expired, is_dead_link").gte("created_at", thirtyDaysAgo);
   const expiryRows = (expiryData ?? []) as { is_expired: boolean; is_dead_link: boolean }[];
   const badCount   = expiryRows.filter((r) => r.is_expired || r.is_dead_link).length;
   const badRate    = expiryRows.length > 0 ? (badCount / expiryRows.length) * 100 : null;
 
-  const { data: runData } = await admin.from("run_logs").select("status").gte("started_at", thirtyDaysAgo);
   const runRows       = (runData ?? []) as { status: string }[];
   const completedRuns = runRows.filter((r) => r.status === "completed").length;
   const runReliability = runRows.length > 0 ? (completedRuns / runRows.length) * 100 : null;
 
-  const { data: activeUserData } = await admin.from("search_profiles").select("user_id").eq("is_active", true);
   const activeUsers = new Set((activeUserData ?? []).map((r: { user_id: string }) => r.user_id));
-  const { data: aiCostData } = await admin.from("run_logs").select("ai_cost_cents").gte("started_at", monthStart.toISOString());
   const totalAiCents = ((aiCostData ?? []) as { ai_cost_cents: number }[]).reduce((s, r) => s + (r.ai_cost_cents ?? 0), 0);
   const infraFixedCents = 50_00;
   const totalCostCents = totalAiCents / 1000 + infraFixedCents;
   const costPerUser = activeUsers.size > 0 ? totalCostCents / activeUsers.size / 100 : null;
 
-  const { data: recentRunData } = await admin.from("run_logs").select("sources_run").gte("started_at", thirtyDaysAgo).eq("status", "completed").order("started_at", { ascending: false }).limit(50);
   const recentRuns = (recentRunData ?? []) as { sources_run: string[] }[];
   const healthcareSourceCounts = recentRuns.map((r) =>
     (r.sources_run ?? []).filter((s) => HEALTHCARE_SOURCES.has(s)).length

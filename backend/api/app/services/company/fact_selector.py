@@ -56,6 +56,15 @@ def _expand_facts(facts: CompanyFacts) -> list[tuple[str, str]]:
             candidates.append((fact, f"distinguishing_facts[{i}]"))
 
     for i, evt in enumerate(facts.recent_events):
+        # C67: evt.stale is injected by researcher.py (event date >12 months
+        # old, or no parseable date at all — see schemas/company.py's design
+        # notes) specifically so a stale event doesn't get featured as a
+        # "recent" company fact in a cover letter. Before this fix, nothing
+        # anywhere in the codebase actually read the flag once set — it was
+        # write-only, so a stale event ranked and could be selected exactly
+        # like a genuinely recent one.
+        if evt.stale:
+            continue
         combined = f"{evt.event} {evt.relevance_to_applicants}"
         candidates.append((combined, f"recent_events[{i}]"))
 

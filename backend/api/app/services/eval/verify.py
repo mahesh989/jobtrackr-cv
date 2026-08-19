@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 _BULLET_PREFIXES = ("- ", "* ", "• ")
 _SENT_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
+_MAX_BULLETS = 40
 
 # The summary section, whatever the family calls it. Fact-checked as prose (one
 # claim) alongside the bullets — it is the most-read line and otherwise passes
@@ -98,7 +99,12 @@ def _collect_bullets(markdown: str) -> List[Tuple[int, str]]:
     in_scope = False
     for i, ln in enumerate(lines):
         if ln.startswith("## "):
-            in_scope = ln[3:].strip().lower() in _VERIFY_SECTIONS
+            # C22f: strip a trailing colon the AI writer sometimes emits —
+            # same unstripped-heading pattern C22b fixed one layer up, in
+            # enforce_w8.py. A colon'd "## Experience:" previously defeated
+            # this exact-membership check entirely, so nothing under it was
+            # ever fact-checked.
+            in_scope = ln[3:].strip().lower().rstrip(":") in _VERIFY_SECTIONS
             continue
         if not in_scope:
             continue
@@ -122,7 +128,10 @@ def _collect_summary(markdown: str) -> Tuple[List[int], str] | None:
     idxs: List[int] = []
     for i, ln in enumerate(lines):
         if ln.startswith("## "):
-            in_scope = ln[3:].strip().lower() in _SUMMARY_SECTIONS
+            # C22f: strip a trailing colon the AI writer sometimes emits —
+            # a colon'd "## Career Highlights:" previously defeated this
+            # check entirely, so the summary was never fact-checked at all.
+            in_scope = ln[3:].strip().lower().rstrip(":") in _SUMMARY_SECTIONS
             continue
         if not in_scope:
             continue
@@ -184,7 +193,7 @@ async def verify_claims(
     tailored_md: str,
     original_cv_text: str,
     *,
-    max_bullets: int = 40,
+    max_bullets: int = _MAX_BULLETS,
 ) -> Tuple[str, Dict[str, Any]]:
     """
     Check each tailored bullet for entailment against the source CV; repair or

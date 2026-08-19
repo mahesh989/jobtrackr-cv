@@ -45,7 +45,10 @@ from app.services.ai.prompts import (
     KEYWORD_FEASIBILITY_SYSTEM,
     KEYWORD_FEASIBILITY_USER_TEMPLATE,
 )
-from app.services.skills.classifier import is_noise as _lex_is_noise
+from app.services.skills.classifier import (
+    is_noise as _lex_is_noise,
+    is_noise_exact as _lex_is_noise_exact,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -163,8 +166,9 @@ async def run_keyword_feasibility(
     # supplied CV evidence quote. The LLM frequently cites a related-skill
     # quote and rationalises a cross-skill inference (e.g. evidence
     # "dressing, bathing, feeding" → claim "continence care"), which is
-    # NOT verbatim grounding. Downgrade those to `inject_with_inference`
-    # so they surface as "Inferred from adjacent evidence" in the UI.
+    # NOT verbatim grounding. Entries failing this check are removed from
+    # injection and recorded in `cannot_inject` as honest gaps, consistent
+    # with the prompt's HARD "no fabrication" rule.
     plan = _enforce_inject_directly_groundedness(plan, cv_text)
 
     # Counts and expected-lift summary — use the per-family weights so the
@@ -275,6 +279,7 @@ def user_has_credential(kw: str, contact_details: Dict[str, Any] | None) -> bool
 
     import re
     kw = kw.lower().strip()
+    canonical_noise_type = _lex_is_noise_exact(kw)
 
     def has(key: str) -> bool:
         val = creds.get(key)
@@ -289,15 +294,298 @@ def user_has_credential(kw: str, contact_details: Dict[str, Any] | None) -> bool
         status = str(contact_details.get("visa_status") or "").strip()
         return bool(status) and status != "needs_sponsorship"
 
-    # 1. Car insurance
-    if "insurance" in kw and ("car" in kw or "vehicle" in kw or "motor" in kw or "auto" in kw):
-        return has("car_insurance")
+    def indicates_work_rights(text: str) -> bool:
+        if canonical_noise_type == "eligibility" and (
+            re.search(
+                r"\b(?:work(?:ing)? rights?|right to work|visa|citizenship|citizen|"
+                r"permanent residen(?:t|cy)|eligible to work|eligibility to work|"
+                r"entitled to work|work restrictions?|sponsorship|subclass)\b",
+                text,
+            )
+            or text in {"pr", "scv", "tss", "whv"}
+        ):
+            return True
+        if re.fullmatch(
+            r"(?:(?:evidence|proof)\s+of\s+)?"
+            r"(?:(?:australian|valid|full|unrestricted)\s+)?"
+            r"(?:work|working)\s+rights(?:\s+in\s+australia)?"
+            r"(?:\s+(?:required|requirement|eligibility))?",
+            text,
+        ):
+            return True
+        if re.fullmatch(
+            r"(?:(?:evidence|proof)\s+of\s+)?right\s+to\s+work"
+            r"(?:\s+in\s+australia)?(?:\s+(?:required|requirement|eligibility))?",
+            text,
+        ):
+            return True
+        if re.fullmatch(
+            r"australian\s+citizen(?:\s+or\s+(?:permanent\s+resident|pr|permanent\s+residency))?"
+            r"(?:\s+(?:required|requirement|eligibility))?",
+            text,
+        ):
+            return True
+        if re.fullmatch(
+            r"(?:australian\s+)?(?:"
+            r"(?:permanent\s+)?residency\s+(?:or|and)\s+citizenship"
+            r"|citizenship\s+(?:or|and)\s+(?:permanent\s+)?residency"
+            r"|citizenship"
+            r")"
+            r"(?:\s+in\s+australia)?"
+            r"(?:\s+(?:required|requirement|eligibility))?",
+            text,
+        ):
+            return True
+        if re.fullmatch(
+            r"(?:(?:valid|current|work|working|partner|spouse|graduate|student|"
+            r"working holiday|special category|temporary skills shortage|temporary resident|"
+            r"bridging|tss)\s+)?visa"
+            r"(?:\s+with\s+work\s+rights)?(?:\s+(?:required|requirement|status|holder))?",
+            text,
+        ):
+            return True
+        return text == "no visa sponsorship" or bool(re.fullmatch(r"\d{3}\s+visa", text))
+
+    def indicates_own_car(text: str) -> bool:
+        # Finding #1 — "transport" alone is NOT reliable evidence of car
+        # ownership. It is one of this product's most ambiguous JD terms:
+        # "patient/resident/client/consumer transport" (and endless other
+        # phrasings — "transportation of", "transporting", "wheelchair
+        # transport", "specimen transport", "provide transport for
+        # clients"...) is a clinical/support-work DUTY, unrelated to owning
+        # a car. An early draft of this fix tried to EXCLUDE known duty
+        # phrasings — an independent review then adversarially found a long
+        # list of realistic escapes (different prepositions, verb forms,
+        # nouns like "consumer"/"service user", equipment-anchored duties)
+        # that still slipped through, because a duty-phrasing blocklist is
+        # inherently open-ended. Inverted the design instead: REQUIRE an
+        # affirmative personal-vehicle cue (own/reliable/personal/private,
+        # or "access to"/"means of"/"use of") before treating "transport" as
+        # evidence — fails closed by construction, not by chasing phrasings.
+        # C17b: car/vehicle nouns are NOT ownership evidence on their own.
+        # Care-sector JDs routinely contain duties such as "patient vehicle
+        # transfers", "car seat fitting", "vehicle cleaning" and "fleet
+        # rostering".  Require an affirmative possession/access/requirement
+        # cue, just as the transport branch below already does.
+        vehicle = r"(?:car|vehicle|automobile)"
+        if re.search(
+            rf"\b(?:own|reliable|personal|private)\s+(?:an?\s+)?"
+            rf"(?:(?:comprehensively\s+)?insured\s+)?(?:motor\s+)?{vehicle}\b"
+            rf"|\b(?:access\s+to|use\s+of)\s+(?:an?\s+)?(?:own\s+)?(?:reliable\s+)?{vehicle}\b"
+            rf"|\b(?:must|should)\s+have\s+(?:an?\s+)?(?:own\s+)?{vehicle}\b"
+            rf"|\b{vehicle}\s+(?:is\s+)?(?:required|essential)\b"
+            rf"|\b{vehicle}\s+ownership\b"
+            rf"|\bownership\s+of\s+(?:an?\s+)?(?:own\s+)?(?:reliable\s+)?(?:comprehensively\s+insured\s+)?{vehicle}\b",
+            text,
+        ):
+            return True
+        if "transport" in text or "transportation" in text:
+            return bool(re.search(r"\b(?:own|reliable|personal|private)\b.{0,15}\btransport", text)) or bool(
+                re.search(r"\baccess to\b.{0,10}\btransport|\bmeans of transport|\buse of (?:own\s+)?transport", text)
+            )
+        return False
+
+    def indicates_driver_licence(text: str) -> bool:
+        licence = r"licen[cs]e"
+        return bool(
+            re.search(
+                rf"\b(?:driver'?s?|driving|c\s+class)\b.{{0,24}}\b{licence}\b"
+                rf"|\bp\s*plate\b.{{0,12}}\b{licence}\b"
+                rf"|\b{licence}\b.{{0,24}}\b(?:driver|driving|c\s+class)\b",
+                text,
+            )
+        )
+
+    # Canonical eligibility phrases are curated, complete-phrase matches.
+    # Noncanonical work-rights variants must satisfy the anchored grammar
+    # above; arbitrary prose containing "visa"/"citizenship" cannot enter.
+    if indicates_work_rights(kw):
+        return has_work_rights()
+
+    # A handful of curated requirements combine two checks in one phrase.
+    # Preserve the conjunction's meaning instead of letting the first broad
+    # family match decide the result ("and" needs both; "or" needs either).
+    if canonical_noise_type in ("credential", "eligibility") and (
+        "police check" in kw and "ndis worker" in kw
+    ):
+        police = has("police_check")
+        ndis = has("ndis_screening")
+        return police and ndis if re.search(r"\band\b", kw) else police or ndis
+
+    # Some curated vehicle requirements are classified as credentials even
+    # though they assert two separate profile facts.  Do this before the
+    # canonical-family fast path so "... insured vehicle" cannot be
+    # satisfied by ownership alone.
+    if re.search(r"\binsured\b", kw) and indicates_own_car(kw):
+        return has("own_car") and has("car_insurance")
+
+    # Curated credential phrases may use the family routing below.  A phrase
+    # outside the exact credential lexicon must first match one of these
+    # closed, whole-phrase grammars.  This prevents a genuine credential name
+    # followed by a duty tail ("Blue Card application processing", "AHPRA
+    # compliance administration", etc.) from being promoted by profile data.
+    if canonical_noise_type != "credential":
+        if re.fullmatch(
+            r"(?:vehicle\s+ownership\s+with|reliable\s+vehicle\s+with(?:\s+minimum)?)\s+"
+            r"(?:comprehensive|comprehensively insured|third party vehicle)?\s*insurance",
+            kw,
+        ):
+            return has("own_car") and has("car_insurance")
+        if re.fullmatch(
+            r"(?:(?:current|valid|proof of)\s+)?(?:comprehensive\s+)?"
+            r"(?:car|vehicle|motor|auto[- ]?)\s*insurance"
+            r"(?:\s+(?:policy|required|requirement|requirements|compliance))?",
+            kw,
+        ):
+            return has("car_insurance")
+
+        strict_own_car = bool(
+            re.fullmatch(
+                r"(?:own\s+(?:a\s+)?(?:reliable\s+)?(?:car|vehicle)|"
+                r"reliable\s+(?:insured\s+)?(?:car|vehicle)|"
+                r"access\s+to\s+(?:a\s+)?(?:own\s+)?(?:reliable\s+)?(?:car|vehicle)|"
+                r"use\s+of\s+(?:a\s+)?(?:own\s+)?(?:car|vehicle)|"
+                r"must\s+have\s+(?:a\s+)?(?:own\s+)?(?:car|vehicle)|"
+                r"personal\s+vehicle\s+(?:required|essential)|"
+                r"(?:a\s+)?(?:own|reliable)\s+(?:car|vehicle)\s+(?:required\s+)?"
+                r"(?:to|for)\s+transport\s+.+|"
+                r"own\s+car\s+required\s+for\s+.+|"
+                r"must\s+have\s+own\s+car\s+and\s+transport\s+.+|"
+                r"ownership\s+of\s+(?:a\s+)?(?:reliable\s+)?"
+                r"(?:comprehensively\s+insured\s+)?(?:car|vehicle)|"
+                r"(?:own|reliable|personal|private)\s+transport(?:\s+to\s+work)?|"
+                r"must\s+have\s+access\s+to\s+transport|means\s+of\s+transport|"
+                r"use\s+of\s+(?:own\s+)?transport)",
+                kw,
+            )
+        )
+        strict_driver = bool(
+            re.fullmatch(
+                r"(?:(?:current|valid|full|open|unrestricted|australian)\s+)*"
+                r"(?:(?:nsw|vic|qld|wa|sa|tas|act|nt)\s+)?"
+                r"(?:driver'?s?|driving|c\s+class|class\s+c|p\s*plate)\s+licen[cs]e"
+                r"|(?:(?:current|valid|full)\s+)?unrestricted\s+australian\s+licen[cs]e",
+                kw,
+            )
+        )
+        if re.fullmatch(
+            r"(?:driving|(?:(?:current|valid|full|open)\s+)*driver'?s?\s+licen[cs]e)"
+            r"\s+(?:and|with)\s+access\s+to\s+(?:a\s+)?(?:reliable\s+)?(?:car|vehicle)",
+            kw,
+        ):
+            return has("drivers_licence") and has("own_car")
+        if strict_driver and strict_own_car:
+            return has("drivers_licence") and has("own_car")
+        if strict_driver:
+            return has("drivers_licence")
+        if strict_own_car:
+            asserts_insurance = bool(
+                re.search(r"\b(?:insured|insurance)\b", kw)
+            )
+            return has("own_car") and (
+                not asserts_insurance or has("car_insurance")
+            )
+
+        if re.fullmatch(
+            r"(?:(?:current|valid)\s+)?(?:national\s+)?police\s+"
+            r"(?:check|clearance|certificate)(?:\s+requirements?)?"
+            r"|(?:(?:current|valid)\s+)?criminal\s+"
+            r"(?:record|history|background)\s+check"
+            r"|(?:(?:current|valid)\s+)?background\s+check",
+            kw,
+        ):
+            return has("police_check")
+        if re.fullmatch(
+            r"(?:(?:current|valid)\s+)?(?:first[- ]aid|hltaid011)"
+            r"(?:\s+(?:certificate|certification))?",
+            kw,
+        ):
+            return has("first_aid")
+        if re.fullmatch(
+            r"(?:(?:current|valid)\s+)?(?:cpr|hltaid009|cardiopulmonary resuscitation)"
+            r"(?:\s+(?:certificate|certification))?",
+            kw,
+        ):
+            return has("cpr")
+        if re.fullmatch(
+            r"(?:(?:current|valid)\s+)?forklift\s+licen[cs]e",
+            kw,
+        ):
+            return has("forklift_licence")
+        if re.fullmatch(
+            r"(?:medication\s+(?:administration\s+)?competency|"
+            r"administer(?:s|ed|ing)?\s+(?:prescribed\s+)?(?:medication|medicines?|drugs?))",
+            kw,
+        ):
+            return has("medication_competency")
+        if re.fullmatch(
+            r"(?:(?:current|valid)\s+)?(?:(?:nsw|vic|victorian|qld|wa|"
+            r"western australian|sa|tas|act|nt|sa dhs)\s+)?"
+            r"working with children check(?:\s*(?:\([a-z]{2,3}\)|[a-z]{2,3}))?"
+            r"|(?:(?:current|valid)\s+)?wwcc(?:\s*(?:\([a-z]{2,3}\)|[a-z]{2,3}))?"
+            r"|blue card(?:\s+clearance)?",
+            kw,
+        ):
+            return has("wwcc")
+        if re.fullmatch(
+            r"(?:(?:current|valid)\s+)?(?:ndis(?:\s+worker)?\s+"
+            r"(?:screening(?:\s+check)?|workers? check|clearance)|"
+            r"ndiswcs?|yellow card(?:\s+clearance)?)",
+            kw,
+        ):
+            return has("ndis_screening")
+        if re.fullmatch(r"(?:(?:current|valid)\s+)?white card(?:\s+clearance)?", kw):
+            return has("white_card")
+        if re.fullmatch(
+            r"(?:(?:current|valid|proof of)\s+)?"
+            r"(?:covid(?:-19)?|coronavirus|sars-cov-?2)\s+"
+            r"(?:vaccination|vaccine|immuni[sz]ation|booster)"
+            r"(?:\s+(?:required|requirement|requirements|compliance|status))?",
+            kw,
+        ):
+            return has("covid_vaccination")
+        if re.fullmatch(
+            r"(?:(?:current|valid|annual|proof of)\s+)?"
+            r"(?:flu|influenza)\s+(?:vaccination|vaccine|immuni[sz]ation|shot)",
+            kw,
+        ):
+            return has("flu_vaccination")
+        if re.fullmatch(
+            r"(?:(?:current|valid|general)\s+)?(?:ahpra|nmba)\s+registration"
+            r"|(?:(?:current|valid|general)\s+)?registration\s+(?:as\s+(?:a\s+)?"
+            r"(?:registered|enrolled)?\s*(?:nurse|midwife)|with\s+(?:ahpra|nmba|the\s+"
+            r"nursing and midwifery board(?: of australia)?))"
+            r"|(?:nursing|midwife|midwifery|nursing and midwifery board)\s+registration",
+            kw,
+        ):
+            return has("ahpra_number")
+        return False
+
+    # 1. Car insurance — word-boundary guarded on both "car" (matches inside
+    #    "care"/"childcare"/"aftercare") and "auto" (matches inside
+    #    "automation"/"autonomy") — same bare-substring bug class as #5, on
+    #    the same rule the audit's fix pass had already touched but not
+    #    finished. The negative lookahead targets "auto-renewal"/"auto
+    #    renewal" specifically (a real insurance-billing term, nothing to
+    #    do with vehicles) rather than a bare `(?!-)`, which independent
+    #    review found was simultaneously too broad (wrongly excluded the
+    #    standard spelling "auto-insurance") and too narrow (still matched
+    #    the unhyphenated "auto renewal insurance admin").
+    if "insurance" in kw and (
+        bool(re.search(r"\bcar\b", kw))
+        or "vehicle" in kw
+        or "motor" in kw
+        or bool(re.search(r"\bauto\b(?!-?\s*renew)", kw))
+    ):
+        if re.search(r"\binsurance\s+(?:claims?|administration|admin|processing|handling|management)\b", kw):
+            return False
+        return has("car_insurance") and (
+            not indicates_own_car(kw) or has("own_car")
+        )
 
     # 2. Compound Licence + Car (e.g. "driving and access to reliable car")
-    # Use word-boundary match for 'car' to avoid matching 'care', 'cardiac', etc.
-    is_licence_kw = "driver" in kw or "driving" in kw or "licence" in kw or "license" in kw
-    is_car_kw = bool(re.search(r"\bcar\b", kw)) or "vehicle" in kw or "transport" in kw or "automobile" in kw
-    if is_licence_kw and is_car_kw:
+    is_licence_kw = indicates_driver_licence(kw)
+    if is_licence_kw and indicates_own_car(kw):
         return has("drivers_licence") and has("own_car")
 
     # 3. Forklift
@@ -305,16 +593,20 @@ def user_has_credential(kw: str, contact_details: Dict[str, Any] | None) -> bool
         return has("forklift_licence")
 
     # 4. Driver's licence
-    if "driver" in kw or "driving" in kw or "licence" in kw or "license" in kw:
+    if indicates_driver_licence(kw):
         return has("drivers_licence")
 
-    # 5. Own car — word-boundary match prevents 'wound care' / 'continence care'
-    #    from triggering via the 'car' substring inside 'care'.
-    if bool(re.search(r"\bcar\b", kw)) or "vehicle" in kw or "transport" in kw or "automobile" in kw:
+    # 5. Own car
+    if indicates_own_car(kw):
         return has("own_car")
 
     # 6. Police check
-    if "police" in kw or "npc" in kw or "criminal" in kw or "background check" in kw or "national police check" in kw:
+    if (
+        bool(re.search(r"\b(?:national\s+)?police\s+(?:check|clearance|certificate)\b", kw))
+        or bool(re.search(r"\bnpc\b", kw))
+        or "background check" in kw
+        or bool(re.search(r"\bcriminal\s+(?:record|history|background)(?:\s+check)?\b", kw))
+    ):
         return has("police_check")
 
     # 7. First aid
@@ -326,27 +618,63 @@ def user_has_credential(kw: str, contact_details: Dict[str, Any] | None) -> bool
         return has("cpr")
 
     # 9. Medication
-    if "medication" in kw or "med competency" in kw or "administer" in kw:
+    if (
+        "medication" in kw
+        or "med competency" in kw
+        or bool(re.search(r"\badminister(?:s|ed|ing)?\b.{0,24}\b(?:medicine|medicines|drug|drugs)\b", kw))
+    ):
         return has("medication_competency")
 
     # 10. WWCC
-    if "wwcc" in kw or "working with children" in kw or "child check" in kw or "blue card" in kw:
+    if (
+        bool(re.search(r"\bwwcc\b", kw))
+        or bool(
+            re.fullmatch(
+                r"(?:(?:current|valid)\s+)?"
+                r"(?:(?:nsw|vic|qld|wa|sa|tas|act|nt|sa dhs)\s+)?"
+                r"working with children"
+                r"(?:\s+(?:(?:check|clearance|card)(?:\s+requirements?)?|requirements?))?",
+                kw,
+            )
+        )
+        or "child check" in kw
+        or "blue card" in kw
+    ):
         return has("wwcc")
 
     # 11. NDIS
-    if "ndis" in kw or "disability screening" in kw or "yellow card" in kw:
+    if (
+        bool(
+            re.search(
+                r"\bndis\b.{0,40}\b(?:screening|workers?\s+check|clearance|"
+                r"orientation|induction|quality\s+and\s+safeguarding)\b",
+                kw,
+            )
+        )
+        or bool(re.search(r"\b(?:current\s+|valid\s+)?ndiswcs?\b", kw))
+        or "disability screening" in kw
+        or "yellow card" in kw
+    ):
         return has("ndis_screening")
 
     # 12. White card
     if "white card" in kw:
         return has("white_card")
 
-    # 13. Flu
-    if "flu" in kw or "influenza" in kw:
+    # 13. Flu — word-boundary guarded. Independent review of finding #1
+    #     flagged that a bare "flu" substring matches "fluid balance
+    #     charting", "fluency in English", "affluent clients" — the first
+    #     is a core nursing keyword, arguably a worse fabrication than the
+    #     originally reported one since it stamps a medical vaccination
+    #     record the user never confirmed.
+    if bool(re.search(r"\bflu\b", kw)) or "influenza" in kw:
         return has("flu_vaccination")
 
     # 14. Covid
-    if "covid" in kw or "corona" in kw or "sars-cov" in kw or "covid-19" in kw:
+    if (
+        ("covid" in kw or "corona" in kw or "sars-cov" in kw)
+        and bool(re.search(r"\b(?:vaccin(?:e|ation|ated)|immuni[sz](?:e|ed|ation)|compliance|status)\b", kw))
+    ):
         return has("covid_vaccination")
 
     # 15. General vaccination
@@ -354,7 +682,7 @@ def user_has_credential(kw: str, contact_details: Dict[str, Any] | None) -> bool
         return has("covid_vaccination") or has("flu_vaccination")
 
     # 16. Work rights
-    if "work rights" in kw or "visa" in kw or "citizenship" in kw or "right to work" in kw or "australian citizen" in kw:
+    if indicates_work_rights(kw):
         return has_work_rights()
 
     # 17. AHPRA / nursing registration — satisfied by a saved AHPRA number.
@@ -367,11 +695,18 @@ def user_has_credential(kw: str, contact_details: Dict[str, Any] | None) -> bool
         or "registered nurse" in kw
         or "enrolled nurse" in kw
         or "nursing registration" in kw
+        or "midwife registration" in kw
+        or "midwifery registration" in kw
         or "nmba" in kw
-        or (
-            "registration" in kw
-            and re.search(r"\b(nurse|nursing|midwife|midwifery|ahpra)\b", kw)
+        or bool(
+            re.search(
+                r"\b(?:current|valid|professional|general)?\s*registration\s+"
+                r"(?:as|with)\s+(?:an?\s+)?(?:registered\s+|enrolled\s+)?"
+                r"(?:nurse|midwife|ahpra|nmba)\b",
+                kw,
+            )
         )
+        or bool(re.search(r"\b(?:nursing and midwifery board|nursing board|midwifery board)\s+registration\b", kw))
     ):
         return has("ahpra_number")
 
@@ -596,10 +931,10 @@ def _empty_plan() -> Dict[str, Any]:
 #
 # Rule: an `inject_directly` entry must have an `evidence` quote that
 # (a) appears in cv_text and (b) shares a >=4-char prefix-match content
-# token with the keyword. Entries failing this test are DOWNGRADED to
-# `inject_with_inference` — same content survives, but the UI now labels
-# it "Inferred from adjacent evidence (defensible in interview)" instead
-# of "Strong CV evidence — verbatim".
+# token with the keyword. Entries failing this test are DROPPED entirely
+# (see the groundedness gate below) — not downgraded to
+# `inject_with_inference`, consistent with the prompt's HARD "no
+# fabrication" rule.
 
 _VERBATIM_TOKEN_MIN_LEN = 4
 
@@ -655,13 +990,12 @@ def _evidence_grounds_keyword_verbatim(
 def _enforce_inject_directly_groundedness(
     plan: Dict[str, List[Dict[str, Any]]], cv_text: str,
 ) -> Dict[str, List[Dict[str, Any]]]:
-    """Drop `inject_directly` entries whose evidence doesn't literally
-    contain the keyword's word family (M4 — Phase F).
+    """Re-home direct entries with ungrounded evidence as honest gaps.
 
     Previously these were downgraded to inject_with_inference, which
     silently softened the honesty contract ("must be verbatim → may be
-    inferred"). Now ungrounded entries are dropped entirely, consistent
-    with the prompt's HARD "no fabrication" rule.
+    inferred"). Ungrounded entries are not injected, but remain visible in
+    ``cannot_inject`` so the user receives a truthful gap explanation.
     Mutates a shallow copy. Idempotent.
     """
     if not plan or not cv_text:
@@ -671,6 +1005,7 @@ def _enforce_inject_directly_groundedness(
         return plan
     kept_direct: List[Dict[str, Any]] = []
     dropped: List[str] = []
+    rejected: List[Dict[str, Any]] = []
     for entry in direct:
         if not isinstance(entry, dict):
             continue
@@ -680,10 +1015,20 @@ def _enforce_inject_directly_groundedness(
             kept_direct.append(entry)
         else:
             dropped.append(kw)
+            rejected.append({
+                "keyword": kw,
+                "category": entry.get("category") or "",
+                "bucket": entry.get("bucket") or "",
+                "reason": (
+                    "Classifier evidence was absent from the CV or did not contain "
+                    "the keyword; recorded as an honest gap."
+                ),
+            })
     if not dropped:
         return plan
     out = dict(plan)
     out["inject_directly"] = kept_direct
+    out["cannot_inject"] = list(plan.get("cannot_inject") or []) + rejected
     logger.info(
         "feasibility groundedness gate: dropped %d inject_directly "
         "(evidence quote did not contain keyword): %s",

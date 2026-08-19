@@ -8,7 +8,7 @@
  * resolution → OAuth token → Gmail/Outlook dispatch → sent stamps.
  */
 
-import { NextRequest, NextResponse }  from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createAdminClient }          from "@/lib/supabase/admin";
 import { getValidAccessToken }        from "@/lib/email/tokens";
 import { sendViaGmail }               from "@/lib/email/gmail";
@@ -18,11 +18,59 @@ import { buildDefaultEmailDraft }    from "@/lib/email/draftBody";
 import { emitEvent }                 from "@/lib/admin/events";
 import type { ContactDetails }       from "@/lib/types";
 import { jsonError } from "@/lib/api-utils";
+import { MAX_APPLICATION_BODY_LEN, MAX_APPLICATION_SUBJECT_LEN, TAILORED_CV_BUCKET } from "@/lib/constants";
 
-const TAILORED_CV_BUCKET = "tailored-cvs";
-const MAX_SUBJECT_LEN = 300;
-const MAX_BODY_LEN    = 20_000;
+const MAX_SUBJECT_LEN = MAX_APPLICATION_SUBJECT_LEN;
+const MAX_BODY_LEN    = MAX_APPLICATION_BODY_LEN;
 const MAX_CV_PDF_BYTES = 4 * 1024 * 1024;  // 4 MB — generous; a typical CV is ~80-200KB
+
+/**
+ * Records the sent-email stamps after a successful send. Both writes are
+ * checked for {error} — B2-P2 (audit): the old code fired both via a bare
+ * Promise.all with no check at all. The email has already been
+ * irreversibly sent by this point, so a silent DB failure here isn't just
+ * a display nit: pipelineState.ts keys a job's "applied" state SOLELY off
+ * jobs.applied_at, so if that write doesn't stick, the job keeps showing
+ * as unapplied — inviting the user to generate and send a SECOND cover
+ * letter/email for a job an employer was already emailed about (the
+ * step-7 claim above only blocks a retry of the SAME letter_id, not a
+ * brand-new one). Both failures are logged loudly with letter/job ids so
+ * ops can find and manually reconcile a stuck row, rather than the write
+ * silently vanishing.
+ *
+ * Extracted as its own function for testability — mocking the whole send
+ * flow (multipart parsing, PDF generation, OAuth, Gmail/Outlook) just to
+ * exercise this one post-send bookkeeping step isn't worth it.
+ */
+export async function recordSentStamps(
+  admin: ReturnType<typeof createAdminClient>,
+  params: { letterId: string; jobId: string; sentTo: string | null; sentAt: string },
+): Promise<{ letterStampOk: boolean; jobStampOk: boolean }> {
+  const { letterId, jobId, sentTo, sentAt } = params;
+  const [letterStamp, jobStamp] = await Promise.all([
+    admin
+      .from("cover_letters")
+      .update({ email_sent_at: sentAt, email_sent_to: sentTo })
+      .eq("id", letterId),
+    admin
+      .from("jobs")
+      .update({ applied_at: sentAt })
+      .eq("id", jobId),
+  ]);
+  if (letterStamp.error) {
+    console.error(
+      `[send-email] POST-SEND STAMP FAILED (cover_letters) — letter ${letterId} was emailed but its sent-at/sent-to record did not persist:`,
+      letterStamp.error.message,
+    );
+  }
+  if (jobStamp.error) {
+    console.error(
+      `[send-email] POST-SEND STAMP FAILED (jobs.applied_at) — job ${jobId} may still show as unapplied despite letter ${letterId} having been emailed; a duplicate application could be sent:`,
+      jobStamp.error.message,
+    );
+  }
+  return { letterStampOk: !letterStamp.error, jobStampOk: !jobStamp.error };
+}
 
 
 /** Everything after auth + param resolution. Returns the route response. */
@@ -322,33 +370,48 @@ export async function sendApplicationEmail(
     }
   } catch (err) {
     // Send failed — release the claim so the user can retry.
-    await admin
+    // C67: this release's own result was discarded — if IT also fails
+    // (transient DB error, network blip), email_sent_at stays stamped from
+    // the claim above even though no email was ever sent. The next attempt
+    // then always fails step 7's `is("email_sent_at", null)` check with
+    // "Email already sent" (409) — the application is permanently stuck,
+    // since retrying is exactly what can never work once the claim itself
+    // can't be released. Distinguished here so the user gets an honest
+    // "contact support" message instead of a misleading "try again".
+    const { error: releaseError } = await admin
       .from("cover_letters")
       .update({ email_sent_at: null })
       .eq("id", letter_id);
     console.error("[send-email] send failed:", err instanceof Error ? err.message : String(err));
+    if (releaseError) {
+      console.error(
+        "[send-email] CRITICAL: send failed AND releasing the claim also failed — " +
+        `letter ${letter_id} is stuck with email_sent_at set but no email sent:`,
+        releaseError.message,
+      );
+      return jsonError("Send failed and this application is now stuck — please contact support.", 500);
+    }
     return jsonError("Send failed — please try again.", 502);
   }
 
   // ── 9. Record recipient + mark applied ───────────────────────────────────
   const now = new Date().toISOString();
 
-  await Promise.all([
-    admin
-      .from("cover_letters")
-      .update({ email_sent_at: now, email_sent_to: job.contact_email })
-      .eq("id", letter_id),
-    admin
-      .from("jobs")
-      .update({ applied_at: now })
-      .eq("id", letter.job_id),
-  ]);
+  await recordSentStamps(admin, {
+    letterId: letter_id,
+    jobId:    letter.job_id,
+    sentTo:   job.contact_email,
+    sentAt:   now,
+  });
 
-  void emitEvent({
+  // C67: `after()` instead of a bare `void` — see analyze/start.ts's note on
+  // this same class of bug (serverless can freeze right after the response,
+  // silently dropping an un-awaited fire-and-forget promise).
+  after(() => emitEvent({
     userId:    user.id,
     eventType: "email_sent",
     metadata:  { letter_id, job_id: letter.job_id, to: job.contact_email },
-  });
+  }));
 
   return NextResponse.json({ sent: true, to: job.contact_email });
 }

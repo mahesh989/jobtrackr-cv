@@ -48,6 +48,8 @@ from app.services.ai.prompts import (
     CV_JD_MATCHING_SYSTEM,
     CV_JD_MATCHING_USER_TEMPLATE,
 )
+from app.services.pipeline.steps._keyword_match import literal_match as _literal_match
+from app.services.skills.classifier import is_noise
 
 logger = logging.getLogger(__name__)
 
@@ -186,7 +188,7 @@ async def run_cv_jd_matching(
             )
 
     # Derived counts and rates — computed by us, not the AI.
-    result["counts"] = _compute_counts(result["matched"], jd_analysis)
+    result["counts"] = _compute_counts(result["matched"], result["missed"])
     result["match_rates"] = _compute_match_rates(result["counts"])
 
     # Auxiliary fields
@@ -307,17 +309,73 @@ def _promote_literal_matches(
 
 
 def _literal_match_in_text(keyword: str, cv_text: str) -> bool:
-    """Word-boundary case-insensitive search for keyword in cv_text.
+    """Case-insensitive search for keyword in cv_text: word-boundary regex
+    for word-only keywords, plain substring for the rest (e.g. "c#",
+    "c++", ".net", "excel (advanced)" — none of these can ever match a
+    \\b...\\b pattern, since their trailing character is non-word with
+    nothing for \\b to anchor against).
 
-    Word boundaries prevent false positives like "ai" matching "fair".
-    Punctuation in keyword (e.g. "ci/cd", "c++") is escaped.
-    Accepts raw (mixed-case) or pre-lowered cv_text — always lowercases both.
+    C49 (AUDIT-REPORT.md #11): this function used to ALWAYS wrap the
+    keyword in \\b...\\b, unlike tailored_rescoring's sibling matcher —
+    the drift meant a JD keyword like "C#" the CV genuinely held could
+    never be promoted from missed to matched HERE (understating the
+    original ATS score), while the same keyword, carried through
+    unchanged into the tailored CV, WAS credited by the tailored-side
+    matcher — reported to the user as something tailoring "injected" and
+    inflating ats_lift with a gain tailoring never produced. Now delegates
+    to the single shared implementation both matchers use.
+
+    Accepts raw (mixed-case) or pre-lowered cv_text — always lowercases
+    both (this function's own established contract; the shared helper
+    itself requires pre-lowered text, matching tailored_rescoring's
+    convention).
     """
     kw = (keyword or "").strip().lower()
     if not kw:
         return False
-    pattern = r"\b" + _re.escape(kw) + r"\b"
-    return _re.search(pattern, cv_text.lower()) is not None
+    return _literal_match(kw, cv_text.lower())
+
+
+# Trailing JD-obligation qualifier words that decorate a credential's NAME
+# without changing what it IS — "vaccination requirements" and "vaccination"
+# name the same credential, the former just phrases it as an obligation the
+# way JDs (not CVs) write it. Same pattern as tailored_rescoring.py's
+# _CREDENTIAL_PREFIX_QUALIFIERS (leading "current"/"valid"/etc.), mirrored
+# here for TRAILING words because _build_credentials_gap's literal-CV-text
+# check needs it, not the synonym-map lookup that module owns.
+_CREDENTIAL_QUALIFIER_SUFFIXES: Tuple[str, ...] = (
+    "compliance", "requirements", "requirement", "clearance",
+)
+
+
+def _credential_qualifier_stems(phrase: str) -> List[str]:
+    """Yield progressively-shorter stems of `phrase`, popping ONE trailing
+    JD-obligation qualifier word at a time (longest stem first). The
+    original `phrase` itself is never included — only strictly-shorter
+    stems produced by popping at least one qualifier word.
+
+    'national police check compliance' -> ['national police check']
+    'ndis worker screening clearance' -> ['ndis worker screening']
+    'police clearance compliance' -> ['police clearance', 'police']
+
+    C20b: popping ALL trailing qualifier words in one shot before testing
+    anything (the previous single-shot _strip_credential_qualifier_suffix)
+    could overshoot a valid intermediate stem — "police clearance
+    compliance" stripped straight to "police" (too generic to safely
+    credit — see the caller's own is_noise gate) instead of stopping at
+    "police clearance" (a real, recognised credential the CV literally
+    documents). Yielding every intermediate stem, longest first, lets the
+    caller test each one against its existing is_noise + literal-match
+    safety gate and accept the FIRST (longest, most specific) one that
+    passes — never forced to overshoot past a valid stopping point.
+    """
+    words = phrase.strip().split()
+    stems: List[str] = []
+    while words and words[-1].lower().strip(".,;:()") in _CREDENTIAL_QUALIFIER_SUFFIXES:
+        words.pop()
+        if words:
+            stems.append(" ".join(words))
+    return stems
 
 
 # Australian VET qualification ladder. A higher AQF level in the same vocational
@@ -520,6 +578,46 @@ def _build_credentials_gap(
             return True
         if _qualification_subsumed_by_cv(phrase, cv_text):
             return True
+        # Chunk C20's own review: fixing the noise-lexicon load order (finding
+        # #27) let extract_credentials_from_jd's greedy longest-match picker
+        # (credentials.py) start preferring a JD's own obligation-shaped
+        # wording — "vaccination requirements", "National Police Check
+        # compliance" — over the shorter base form ("vaccination", "National
+        # Police Check") it used to extract by accident. CVs document the
+        # credential itself, not the JD's obligation phrasing, so the exact
+        # literal match above now fails for a real, already-documented
+        # credential. Retry once against the qualifier-stripped form.
+        #
+        # Round 2 of that same review: a plain strip-and-retry is unsafe —
+        # "clearance" is sometimes a real credential NOUN, not a decorative
+        # qualifier ("Police Clearance", "NDIS Clearance"), so stripping it
+        # unconditionally left a bare, dangerously generic stem ("police",
+        # "ndis") that word-boundary-matched ANY incidental CV mention —
+        # e.g. "liaised with police and ambulance services" wrongly marking
+        # a Police Clearance the candidate never obtained as present. Only
+        # accept the stripped form if IT is itself still a recognised
+        # credential/eligibility phrase — that's what distinguishes
+        # "National Police Check compliance" -> "National Police Check"
+        # (still a real credential, safe) from "Police Clearance" ->
+        # "Police" (not a credential on its own, unsafe).
+        #
+        # C20b: a single-shot strip-everything-then-check-once approach
+        # could overshoot past a valid intermediate stem — "police
+        # clearance compliance" stripped straight to "police" (fails the
+        # is_noise gate below, forcing a false "missing") instead of
+        # stopping at "police clearance" (passes the SAME gate — a real
+        # credential the CV literally documents). Testing every
+        # progressively-shorter stem and accepting the first (longest,
+        # most specific) one that passes this exact gate fixes the
+        # overshoot without weakening the gate itself in any way — a stem
+        # too generic to be a real credential ("police" alone) still
+        # correctly fails is_noise and is never accepted.
+        for stripped in _credential_qualifier_stems(phrase):
+            if (
+                is_noise(stripped) in ("credential", "eligibility")
+                and _literal_match_in_text(stripped, cv_text)
+            ):
+                return True
         if contact_details and user_has_credential(phrase, contact_details):
             return True
         return False
@@ -643,20 +741,35 @@ def _reconcile_with_jd(
 
 
 def _compute_counts(
-    matched: Dict[str, Dict[str, List[str]]], jd_analysis: Dict[str, Any]
+    matched: Dict[str, Dict[str, List[str]]],
+    missed: Dict[str, Dict[str, List[str]]],
 ) -> Dict[str, Any]:
+    """Finding #2 — the denominator must be derived from matched+missed, not
+    re-derived from jd_analysis[f"{bucket}_skills"]. _reconcile_with_jd
+    establishes matched ⊎ missed == the JD's keyword set for every
+    bucket/category (disjoint, exhaustive); every pass between reconciliation
+    and this call (_extract_credential_sidecar, _verify_match_evidence,
+    _promote_literal_matches, promote_matched_equivalents,
+    _promote_profile_credentials, and tailored_rescoring's
+    _promote_injections) only moves keywords between matched and missed or
+    removes them from both — it never changes the union. So
+    len(matched[b][c]) + len(missed[b][c]) is always the true, current total,
+    with no separate value (jd_analysis, a credentials_sidecar) that a second
+    call site could pass inconsistently or forget to pass at all. This
+    previously used jd_analysis minus a separately-threaded credentials_sidecar;
+    that was correct at cv_jd_matching.py's own call site but the ONLY other
+    caller (tailored_rescoring.py) passed jd_analysis without the sidecar,
+    silently reproducing the same denominator bug on the tailored score.
+    """
     counts: Dict[str, Any] = {}
     grand_matched = 0
     grand_total = 0
 
     for bucket in _BUCKETS:
-        jd_block = jd_analysis.get(f"{bucket}_skills") or {}
-        if not isinstance(jd_block, dict):
-            jd_block = {}
         bucket_counts: Dict[str, Dict[str, int]] = {}
         for cat in _CATEGORIES:
-            total = len(_normalise_keyword_list(jd_block.get(cat)))
             m = len(matched[bucket][cat])
+            total = m + len(missed[bucket][cat])
             bucket_counts[cat] = {"matched": m, "total": total}
             grand_matched += m
             grand_total += total

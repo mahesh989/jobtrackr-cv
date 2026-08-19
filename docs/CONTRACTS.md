@@ -84,7 +84,7 @@ different maturity:
   it's the platform default, already in effect today.
 - **Notification — in-code half closed.** `src/index.ts` now distinguishes
   a deploy-triggered SIGTERM (expected — writes a Redis "expected
-  shutdown" marker via `notifications/restartDetection.ts` before exiting,
+  shutdown" marker directly in `index.ts` before exiting,
   stays quiet on next boot) from anything that skips that path: an
   uncaught exception/unhandled rejection (new `process.on` handlers,
   alerts immediately with the real error before exiting) or an OOM

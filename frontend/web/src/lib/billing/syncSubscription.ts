@@ -19,7 +19,16 @@ function iso(unixSeconds: number | null | undefined): string | null {
   return unixSeconds ? new Date(unixSeconds * 1000).toISOString() : null;
 }
 
-/** Resolve our user_id for a Stripe subscription, trying the cheap paths first. */
+/**
+ * Resolve our user_id for a Stripe subscription, trying the cheap paths first.
+ *
+ * ⚠️ DO NOT DELETE AS "DEAD CODE" — a grep for cross-file imports of
+ * `resolveUserId` finds none because its sole caller, `upsertFromSubscription`
+ * below, is IN THIS SAME FILE. That function has 5 call sites across
+ * api/billing/webhook/route.ts and api/billing/checkout/confirm/route.ts.
+ * Deleting this breaks Stripe subscription sync entirely (mis-flagged dead
+ * once already — audit finding #63).
+ */
 export async function resolveUserId(
   stripe: Stripe,
   sub: Stripe.Subscription,
@@ -29,8 +38,14 @@ export async function resolveUserId(
   if (fromSub) return fromSub;
 
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
-  const { data: row } = await admin
+  const { data: row, error } = await admin
     .from("subscriptions").select("user_id").eq("stripe_customer_id", customerId).maybeSingle();
+  if (error) {
+    // Logged, not swallowed (BUG-26) — the Stripe customer-metadata fallback
+    // below usually self-heals this, but a silent DB error here is still a
+    // visibility gap worth a trace.
+    console.error(`[billing] resolveUserId DB lookup failed for customer ${customerId}:`, error.message);
+  }
   if ((row as { user_id?: string } | null)?.user_id) return (row as { user_id: string }).user_id;
 
   // Last resort: read the customer's metadata.
@@ -41,12 +56,21 @@ export async function resolveUserId(
   return null;
 }
 
-export async function upsertFromSubscription(stripe: Stripe, sub: Stripe.Subscription): Promise<void> {
-  const admin = createAdminClient();
+export async function upsertFromSubscription(
+  stripe: Stripe,
+  sub: Stripe.Subscription,
+  admin: ReturnType<typeof createAdminClient> = createAdminClient(),
+): Promise<void> {
   const userId = await resolveUserId(stripe, sub, admin);
   if (!userId) {
-    console.error("[billing] could not resolve user_id for sub", sub.id);
-    return;
+    // MUST throw, not log-and-return (BUG-26). Both callers already handle a
+    // thrown error correctly (checkout/confirm's catch logs it and still
+    // redirects; the webhook's catch returns 500 so Stripe retries and, since
+    // #36's fix, its dedupe claim is released first) — but log-and-return let
+    // the webhook's runIdempotent read this as a SUCCESSFUL handler
+    // completion, permanently and silently dropping the sync with no trace
+    // and no further chance to recover.
+    throw new Error(`[billing] could not resolve user_id for sub ${sub.id}`);
   }
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   const item = sub.items.data[0];

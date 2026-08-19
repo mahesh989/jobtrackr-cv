@@ -40,9 +40,13 @@ Output:
 from __future__ import annotations
 
 import logging
-import re
 from typing import Any, Dict, List, Set, Tuple
 
+# The underscore-prefixed names below are intentionally-shared internals of
+# their modules, not accidental reach-ins — rescoring a tailored CV needs the
+# exact same formatting-score cap and count/rate math the initial ATS scoring
+# and CV↔JD matching steps use, so results stay comparable pre/post-tailoring.
+from app.services.pipeline.steps._keyword_match import literal_match as _literal_match
 from app.services.pipeline.steps.ats_scoring import (
     _FORMATTING_MAX,
     _to_pct,
@@ -157,9 +161,12 @@ def run_tailored_rescoring(
     # Build a tailored matching by promoting the credited keywords.
     tailored_matching = _promote_injections(matching, credited)
 
-    # Recompute counts + rates against the JD as ground truth.
+    # Recompute counts + rates. _promote_injections only moves keywords
+    # missed → matched (never changes the matched⊎missed union), so deriving
+    # the denominator from matched+missed here — same as the original
+    # cv_jd_matching call site — stays consistent with it. See _compute_counts.
     tailored_matching["counts"] = _compute_counts(
-        tailored_matching["matched"], jd_analysis
+        tailored_matching["matched"], tailored_matching["missed"]
     )
     tailored_matching["match_rates"] = _compute_match_rates(
         tailored_matching["counts"]
@@ -547,16 +554,6 @@ def _kw_present(keyword: str, text_lower: str) -> bool:
             break  # only try the first separator that's present
 
     return False
-
-
-def _literal_match(kw: str, text_lower: str) -> bool:
-    """Word-boundary regex match for word-only keywords; substring for the rest."""
-    if not kw:
-        return False
-    if re.fullmatch(r"[\w\s\-]+", kw):
-        pattern = r"\b" + re.escape(kw) + r"\b"
-        return re.search(pattern, text_lower) is not None
-    return kw in text_lower
 
 
 def _promote_injections(

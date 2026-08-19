@@ -83,3 +83,38 @@ class TestRenderedSections:
                 for sec, old, new in result.changed
             )
         )
+
+
+class TestMissingSnapshotDoesNotSilentlyRecord:
+    """C67: evaluate()'s default path (record=False, what the pytest suite
+    always uses via session_results) previously auto-wrote a new snapshot
+    to disk the moment it found none — so a snapshot that went missing
+    (accidental deletion, a bad merge, a new corpus id added without
+    running --record) would silently self-heal on the very next test run,
+    writing whatever the current (possibly broken) output was as the new
+    ground truth, with zero human review. Fixed: only the explicit
+    --record CLI path (record=True) writes."""
+
+    def test_missing_snapshot_is_not_written_by_default(self, tmp_path, monkeypatch):
+        import tests.golden.rendered_harness as rh
+
+        monkeypatch.setattr(rh, "SNAPSHOTS_DIR", tmp_path / "snapshots")
+        jd_id = rh.CORPUS_IDS[0]
+
+        result = rh.evaluate(jd_id)  # record defaults to False
+
+        assert result.is_new is True
+        assert not (tmp_path / "snapshots" / f"{jd_id}.json").exists(), (
+            "evaluate() must not write a snapshot when record=False"
+        )
+
+    def test_missing_snapshot_is_written_only_with_explicit_record(self, tmp_path, monkeypatch):
+        import tests.golden.rendered_harness as rh
+
+        monkeypatch.setattr(rh, "SNAPSHOTS_DIR", tmp_path / "snapshots")
+        jd_id = rh.CORPUS_IDS[0]
+
+        result = rh.evaluate(jd_id, record=True)
+
+        assert result.is_new is True
+        assert (tmp_path / "snapshots" / f"{jd_id}.json").exists()

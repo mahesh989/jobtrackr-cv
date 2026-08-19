@@ -4,7 +4,7 @@ import { applyKeywordFilter } from "../keywordFilter.js";
 import { dedup } from "../dedup.js";
 import { saveJobs } from "../save.js";
 import { resolveSlices, recordCoverage, releaseSliceLocks } from "../coverage.js";
-import { bucketEnabled, upsertGlobalJobs, serveProfileFromBucket, BUCKET_RETENTION_DAYS } from "../bucket.js";
+import { bucketEnabled, upsertGlobalJobs, serveProfileFromBucket, dropServedCrossProfileDuplicates } from "../bucket.js";
 import { postFetchFilter, formatExcludeBreakdown } from "../postFetchFilter.js";
 import { startRunLog, finishRunLog, setStage } from "../runLog.js";
 import { runLogContext } from "../logContext.js";
@@ -45,8 +45,6 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     console.warn(`[pipeline] profile ${profileId} is a manual "Saved Jobs" container — refusing to fetch`);
     return;
   }
-
-  profile.is_manual_run = trigger === "manual";
 
   // User-level visa status + work types (My CV → user_preferences
   // .contact_details.visa_status / .credentials.availability — same
@@ -173,14 +171,12 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     // Stage 4a: normalise — only truly new URLs from here on
     const normalised = newRawJobs.map(normalise);
 
-    // Stage 4b: keyword filter — title-only with optional smart-filter rescue.
+    // Stage 4b: keyword filter — title-only.
     // Phrase source: profile.must_include_phrases if set, else profile.keywords.
-    // Teaser rescue activates only when must_include_phrases is non-empty.
     const filtered = applyKeywordFilter(normalised, profile);
     const usingSmartFilter = (profile.must_include_phrases ?? []).filter((s) => s && s.trim()).length > 0;
     console.log(
-      `[pipeline] stage 4b — keyword filter (title-only` +
-      `${usingSmartFilter ? " + teaser rescue" : ""}): ` +
+      `[pipeline] stage 4b — keyword filter (title-only): ` +
       `${filtered.length} kept, ${normalised.length - filtered.length} dropped` +
       `${usingSmartFilter ? ` (smart filter: ${(profile.must_include_phrases ?? []).join(", ")})` : ""}`,
     );
@@ -188,7 +184,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       console.warn(
         `[pipeline] ⚠ stage 4b dropped ALL ${normalised.length} jobs — your "Title must include any of" ` +
         `(${(usingSmartFilter ? (profile.must_include_phrases ?? []) : (profile.keywords ?? [])).join(", ")}) ` +
-        `matched no title or teaser. Loosen it or add more phrases.`,
+        `matched no title. Loosen it or add more phrases.`,
       );
     }
 
@@ -238,43 +234,50 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     // needs_sponsorship users the matrix drops a strict superset anyway.
     let toSave = settingReady;
 
-    // Stage 10b+: eligibility matrix (migration 080) — hard-drop jobs the
-    // user's declared visa status (My CV) makes them ineligible for, e.g. a
-    // student-visa holder vs "unrestricted working rights required". LEGACY
-    // path only — bucket mode replays this inside serveProfileFromBucket
-    // AFTER the shared write, same reasoning as the setting filter below.
+    // Stages 10b+/10b++/10d: eligibility matrix, work-type filter, work-setting
+    // filter. LEGACY (non-bucket) path only by default — bucket mode replays
+    // all three inside serveProfileFromBucket AFTER the shared bucket write
+    // (upsertGlobalJobs below), so filtering `toSave` before that write would
+    // drop jobs from the shared global_jobs bucket that OTHER profiles want
+    // (bucket poisoning). Extracted to a closure (finding B5-P2 / chunk C15)
+    // so the SAME filters can also be applied as a fallback further down when
+    // bucket mode's own serve is skipped or its result can't be trusted — the
+    // raw scrape must never reach saveJobs unfiltered on ANY path.
     const userVisa = profile.user_visa_status;
-    if (!bucketEnabled() && isUserVisaStatus(userVisa)) {
-      const before = toSave.length;
-      toSave = toSave.filter((j) => computeEligibility(j, userVisa) !== "not_eligible");
-      if (before !== toSave.length) {
-        console.log(`[pipeline] stage 10b+ — eligibility (${userVisa}): ${before - toSave.length} dropped, ${toSave.length} remaining`);
-      }
-    }
+    const applyOwnershipFilters = (jobs: typeof toSave): typeof toSave => {
+      let filtered = jobs;
 
-    // Stage 10b++: work-type filter. User-level (My CV → Details tab "Work
-    // types"), same legacy-only gating. A job with no extracted types always
-    // passes — never hide jobs we couldn't classify.
-    if (!bucketEnabled() && (profile.user_work_types?.length ?? 0) > 0) {
-      const keep = new Set(profile.user_work_types);
-      const before = toSave.length;
-      toSave = toSave.filter((j) => {
-        const types = j.employment_types ?? [];
-        return types.length === 0 || types.some((t) => keep.has(t));
-      });
-      if (before !== toSave.length) {
-        console.log(`[pipeline] stage 10b++ — work-type filter [${profile.user_work_types!.join(",")}]: ${before - toSave.length} dropped, ${toSave.length} remaining`);
+      if (isUserVisaStatus(userVisa)) {
+        const before = filtered.length;
+        filtered = filtered.filter((j) => computeEligibility(j, userVisa) !== "not_eligible");
+        if (before !== filtered.length) {
+          console.log(`[pipeline] eligibility (${userVisa}): ${before - filtered.length} dropped, ${filtered.length} remaining`);
+        }
       }
-    }
 
-    // Stage 10d: work-setting filter (per-profile). LEGACY (non-bucket) path
-    // ONLY — in bucket mode the identical filter runs inside serveProfileFromBucket
-    // AFTER the shared bucket write. Filtering `toSave` here would drop jobs from
-    // the shared global_jobs bucket that OTHER profiles want (bucket poisoning).
-    if (!bucketEnabled() && (profile.setting_filter?.length ?? 0) > 0) {
-      const { kept: afterSetting, dropped, byCategory } = applySettingFilter(toSave, profile);
-      toSave = afterSetting;
-      console.log(`[pipeline] stage 10d — setting filter: ${dropped} dropped, ${toSave.length} remaining${formatSettingBreakdown(byCategory)}`);
+      if ((profile.user_work_types?.length ?? 0) > 0) {
+        const keep = new Set(profile.user_work_types);
+        const before = filtered.length;
+        filtered = filtered.filter((j) => {
+          const types = j.employment_types ?? [];
+          return types.length === 0 || types.some((t) => keep.has(t));
+        });
+        if (before !== filtered.length) {
+          console.log(`[pipeline] work-type filter [${profile.user_work_types!.join(",")}]: ${before - filtered.length} dropped, ${filtered.length} remaining`);
+        }
+      }
+
+      if ((profile.setting_filter?.length ?? 0) > 0) {
+        const { kept: afterSetting, dropped, byCategory } = applySettingFilter(filtered, profile);
+        filtered = afterSetting;
+        console.log(`[pipeline] setting filter: ${dropped} dropped, ${filtered.length} remaining${formatSettingBreakdown(byCategory)}`);
+      }
+
+      return filtered;
+    };
+
+    if (!bucketEnabled()) {
+      toSave = applyOwnershipFilters(toSave);
     }
 
     // Stage 11b: distance computation (Migration 048).
@@ -356,7 +359,6 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       const served = await serveProfileFromBucket(profile, bucketSlices, {
         tier,
         homeOrigin,
-        serveWindowDays: BUCKET_RETENTION_DAYS,
       });
       // Trust a successful bucket serve even when it legitimately returns
       // zero — that's serveProfileFromBucket's geo-radius + filter replay
@@ -371,19 +373,51 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
         if (served.length !== toSave.length) {
           console.log(`[pipeline] bucket serve — replacing ${toSave.length} scraped with ${served.length} from bucket`);
         }
-        toSave = served;
+        // C67: earlyDedup's stage 3b cross-profile check (line ~168 above)
+        // only filtered the fresh scrape delta — `served` is an independent
+        // full-retention-window re-serve from the SHARED bucket, so that
+        // check never touches it. Without this, two of the user's own
+        // profiles with overlapping criteria both serve the same postings.
+        const { jobs: crossProfileDeduped } = await dropServedCrossProfileDuplicates(served, profileId, profile.user_id);
+        toSave = crossProfileDeduped;
       } else {
+        // Finding B5-P2 (chunk C15) — the raw scrape was previously saved
+        // as-is here, having never passed through ANY of the three filters
+        // above (all gated on !bucketEnabled()). A student-visa user could
+        // get jobs the eligibility matrix would hard-drop, and auto-analyze
+        // would then spend AI credits tailoring CVs for them. This is the
+        // one place bucket mode's own filter replay (serveProfileFromBucket)
+        // didn't run, so apply the same legacy filters directly before this
+        // set reaches saveJobs.
         const why = served === null ? "serve unavailable" : "upsert failed, serve result untrusted";
-        console.warn(`[pipeline] bucket ${why} — keeping ${toSave.length} scraped (unfiltered) set`);
+        const before = toSave.length;
+        toSave = applyOwnershipFilters(toSave);
+        console.warn(`[pipeline] bucket ${why} — applying legacy filters directly to the ${before} scraped jobs (${toSave.length} remaining)`);
       }
     }
 
     // Stage 12: save with visa info included
     await setStage(runLogId, `Saving ${toSave.length} jobs`);
-    const { saved, newSaved, bySource, savedIds } = await saveJobs(toSave, profileId);
+    const { saved, newSaved, errors: saveErrors, bySource, savedIds } = await saveJobs(toSave, profileId);
     jobsSaved = saved;
     sourcesSaved = bySource;
     console.log(`[pipeline] stage 12 — saved: ${saved} (${newSaved} new)`);
+
+    // Finding #54 — saveJobs can silently drop every write batch (Supabase
+    // outage, schema drift, etc.) and the caller used to throw the error
+    // count away entirely: the run finished status "completed" with no
+    // alert, indistinguishable from "no new jobs this run". Surface it: an
+    // alert always fires so a partial loss doesn't go unnoticed, and if
+    // literally nothing saved despite jobs being found, the run is marked
+    // "failed" (same as any other fatal error) rather than reporting a
+    // false success.
+    let saveErrorMessage: string | undefined;
+    if (saveErrors > 0) {
+      saveErrorMessage = `${saveErrors} of ${toSave.length} job(s) failed to save`;
+      console.error(`[pipeline] stage 12 — ${saveErrorMessage}`);
+      await sendPipelineFailureAlert(profileId, saveErrorMessage);
+    }
+    const totalSaveFailure = toSave.length > 0 && saveErrors === toSave.length;
 
     // Auto-run new-jobs notification queue — never for manual runs. A failure
     // here must NEVER fail the pipeline; it's purely a notification side effect.
@@ -457,7 +491,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     }
 
     await finishRunLog(runLogId, {
-      status: "completed",
+      status: totalSaveFailure ? "failed" : "completed",
       jobs_fetched: jobsFetched,
       jobs_after_dedup: jobsAfterDedup,
       jobs_saved: jobsSaved,
@@ -465,6 +499,7 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
       sources_run: sourcesRun,
       sources_saved: sourcesSaved,
       source_methods: sourceMethods,
+      ...(saveErrorMessage ? { error_message: saveErrorMessage } : {}),
     });
 
     // Phase A — record search-coverage (write-only). Warms the freshness ledger
@@ -472,9 +507,6 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     // not-yet-applied migration 066 no-ops with a warning, never affects the run.
     const coverageSlices = resolveSlices(profile.keywords, profile.location, Array.from(coverageSources));
     await recordCoverage(coverageSlices, lookbackDays, jobsFetched);
-    // Release single-flight locks so the next caller isn't blocked. (recordCoverage
-    // upserts the row but leaves `refreshing` as-is, so we must clear it here.)
-    if (bucketLockedSlices.length > 0) await releaseSliceLocks(bucketLockedSlices);
 
     console.log(`[pipeline] ─── run complete ───\n`);
   } catch (err) {
@@ -499,5 +531,12 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
     } else {
       console.log(`[pipeline] Run gracefully stopped due to user cancellation.`);
     }
+  } finally {
+    // Single-flight locks must be released whether this run succeeded or
+    // threw — previously this only happened on the success path, so any
+    // exception between acquiring a lock and here left it held until the
+    // 10-minute staleness timeout, silently forcing every profile sharing
+    // that slice onto bucket-only serving for up to 10 minutes (#35 audit).
+    if (bucketLockedSlices.length > 0) await releaseSliceLocks(bucketLockedSlices);
   }
 }

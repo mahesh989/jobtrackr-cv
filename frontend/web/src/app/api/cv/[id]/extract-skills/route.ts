@@ -40,13 +40,19 @@ export const POST = withUser(async (
   const admin = createAdminClient();
 
   // Ownership check + fetch stored text (fallback when no body text).
-  const { data: cv } = await admin
+  const { data: cv, error: cvErr } = await admin
     .from("cv_versions")
     .select("id, cv_text, normalized_cv_text")
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle();
 
+  // Fails closed either way — but a transient read failure previously
+  // returned the same 404 as "doesn't exist", misleading and non-retryable.
+  if (cvErr) {
+    console.error("[cv/[id]/extract-skills] ownership probe failed:", cvErr.message);
+    return jsonError("Could not load CV, try again", 500);
+  }
   if (!cv) return jsonError("CV not found", 404);
 
   // Client may send the current builder text directly (before saving) so we

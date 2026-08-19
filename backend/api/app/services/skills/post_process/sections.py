@@ -54,6 +54,36 @@ _INLINE_ESSENTIAL = re.compile(
 _INLINE_DESIRABLE = re.compile(
     r"(?im)^\s*(?:[-*•]\s*)?(?:desirable|preferred|nice\s+to\s+have|highly\s+desirable)\s*[:\-]\s*(.+)$",
 )
+# A heading that marks the start of a DIFFERENT section entirely — "About
+# Us", "Why join us", benefits/culture blurbs, application instructions.
+# Ends the current Essential/Desirable body so this boilerplate doesn't get
+# absorbed into it (finding #24 residual, chunk C19b — see _collect_section_
+# bodies). Deliberately NOT a blank line: real JDs routinely split one
+# logical Essential/Desirable list into multiple bullet clusters separated
+# by a blank line with no new header in between, and resetting on every
+# blank line was tried and reverted — it dropped the second cluster's
+# content from the blob entirely, which silently disabled correctly-firing
+# clamps (a real regression on this repo's own primary test fixture under a
+# double-spaced variant) and, worse, could flip a legitimately-preferred
+# skill to required by removing the desirable-blob evidence that was
+# protecting it from the preferred→required promotion branch.
+#
+# WHOLE-LINE match only (round 2 of this same chunk used `\b.*$` — matched
+# anywhere the phrase STARTED a line, so a genuine requirement bullet like
+# "Benefits administration and payroll experience" or "To apply for this
+# role you must hold a current NDIS Worker Screening Check" tripped it too,
+# reintroducing the exact wrong-bucketing bug this pattern exists to
+# prevent). Same shape as _SECTION_HEAD_ESSENTIAL/_SECTION_HEAD_DESIRABLE
+# above: the heading phrase must BE the line (plus optional trailing
+# punctuation), not just start it.
+_SECTION_END = re.compile(
+    r"(?im)^\s*(?:[-*•]\s*)?\**\s*"
+    r"(?:why\s+join(?:\s+us)?|about\s+(?:us|the\s+(?:role|company|organisation))|"
+    r"what\s+we\s+offer|benefits?|our\s+(?:culture|values|team)|"
+    r"how\s+to\s+apply|to\s+apply|the\s+offer|what'?s\s+in\s+it\s+for\s+you|"
+    r"we\s+offer|join\s+us|apply\s+now|next\s+steps?)"
+    r"\s*[:\-?!]?\s*\**\s*$",
+)
 
 
 def _collect_section_bodies(jd_text: str) -> Tuple[str, str]:
@@ -70,6 +100,9 @@ def _collect_section_bodies(jd_text: str) -> Tuple[str, str]:
     for line in lines:
         bare = line.strip()
         if not bare:
+            continue
+        if _SECTION_END.match(bare):
+            current = None
             continue
         # Inline prefix lines contribute regardless of current section.
         m = _INLINE_ESSENTIAL.match(bare)
@@ -88,10 +121,10 @@ def _collect_section_bodies(jd_text: str) -> Tuple[str, str]:
         if _SECTION_HEAD_DESIRABLE.match(bare):
             current = "desirable"
             continue
-        # Section bodies end at a blank line OR a long header-like line. We
-        # already skipped blanks; cap by length to avoid running into prose
-        # paragraphs. 200 chars is generous for a bullet, restrictive for
-        # the "About Us" paragraph that often follows.
+        # Section bodies end at a boilerplate/other-section heading (above)
+        # OR a long header-like line — cap by length to avoid running into
+        # prose paragraphs. 200 chars is generous for a bullet, restrictive
+        # for an unheaded "About Us" paragraph that slips past _SECTION_END.
         if current and len(bare) <= 200:
             if current == "essential":
                 essential_parts.append(bare.lower())
@@ -102,17 +135,22 @@ def _collect_section_bodies(jd_text: str) -> Tuple[str, str]:
 
 def _phrase_in_blob(phrase: str, blob: str) -> bool:
     """True when any content token of ``phrase`` (>3 chars) appears in
-    ``blob`` AND the matched span is within a window suggesting the phrase
-    really belongs to that section. Approximation — but combined with the
+    ``blob`` as a whole word. Approximation — but combined with the
     head/body extraction in ``_collect_section_bodies`` it catches the
     common cases without over-firing on incidental keyword mentions
-    elsewhere in the JD."""
+    elsewhere in the JD.
+
+    Word-boundary match, not bare substring — a bare-substring check let a
+    4-char token like "care" match inside unrelated words ("career",
+    "carefully"), so a JD's "Career development" under Desirable falsely
+    matched (and demoted) every required *care* skill: personal/aged/
+    dementia care, this product's primary vertical (finding #24)."""
     if not phrase or not blob:
         return False
     tokens = [t for t in re.findall(r"[a-z][a-z\-]+", phrase.lower()) if len(t) > 3]
     if not tokens:
         return False
-    return any(t in blob for t in tokens)
+    return any(re.search(r"\b" + re.escape(t) + r"\b", blob) for t in tokens)
 
 
 def clamp_by_jd_sections(

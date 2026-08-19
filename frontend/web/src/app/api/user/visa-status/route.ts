@@ -13,11 +13,16 @@ import { jsonError, withUser } from "@/lib/api-utils";
 
 export const GET = withUser(async (_req, _ctx, { user, supabase }) => {
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("user_preferences")
     .select("contact_details")
     .eq("user_id", user.id)
     .maybeSingle();
+
+  // A discarded error here was indistinguishable from "no visa status set"
+  // — the badge and the pipeline's stage-10b eligibility filter would
+  // silently treat a real failure as "no restriction".
+  if (error) return jsonError(error.message, 500);
 
   const vs = (data?.contact_details as { visa_status?: string } | null)?.visa_status ?? null;
   return NextResponse.json({ visa_status: isUserVisaStatus(vs) ? vs : null });
@@ -41,11 +46,14 @@ export const PATCH = withUser(async (request: NextRequest, _ctx, { user, supabas
   // Read-merge-write on the contact_details jsonb — preserves role_families
   // and every other key. The row exists for any user who completed My CV;
   // if it doesn't yet, there's nothing to attach the status to.
-  const { data: row } = await supabase
+  const { data: row, error: readErr } = await supabase
     .from("user_preferences")
     .select("contact_details")
     .eq("user_id", user.id)
     .maybeSingle();
+  // A discarded error here previously looked identical to "row doesn't
+  // exist" — a transient read failure told the user to redo Profile setup.
+  if (readErr) return jsonError(readErr.message, 500);
   if (!row) {
     return jsonError("Complete your Profile setup first — no preferences row exists yet", 409);
   }

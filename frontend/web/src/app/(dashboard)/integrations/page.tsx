@@ -1,6 +1,6 @@
 import { createClient }        from "@/lib/supabase/server";
 import { createAdminClient }   from "@/lib/supabase/admin";
-import { ADMIN_ROLES }         from "@/lib/constants";
+import { ADMIN_ROLES, TIER_DEFAULTS, type SourceTier, type TierConfig } from "@/lib/constants";
 import { redirect }            from "next/navigation";
 import { ApifyCard } from "@/features/integrations/ApifyCard";
 import { SourcesCard } from "@/features/admin/SourcesCard";
@@ -24,15 +24,12 @@ export default async function IntegrationsPage() {
     .from("platform_source_tiers")
     .select("tier, enabled_sources, adzuna_method, seek_method");
 
-  type TierConfig = { enabled_sources: string[]; adzuna_method: "api" | "direct"; seek_method: "direct" | "actor" };
-  const tierDefaults: Record<string, TierConfig> = {
-    weekly:    { enabled_sources: ["adzuna", "seek", "careerjet"], adzuna_method: "api",    seek_method: "direct" },
-    monthly:   { enabled_sources: ["adzuna", "seek", "careerjet"], adzuna_method: "api",    seek_method: "direct" },
-    unlimited: { enabled_sources: ["adzuna", "seek", "careerjet"], adzuna_method: "direct", seek_method: "direct" },
-  };
-  const sources = { ...tierDefaults } as Record<string, TierConfig>;
+  // C67: this page used to hand-maintain its own byte-for-byte copy of
+  // lib/constants.ts's TIER_DEFAULTS (same class of drift risk as C56/C61's
+  // duplicated-constant findings) — imports the canonical export instead.
+  const sources = { ...TIER_DEFAULTS } as Record<string, TierConfig>;
   for (const row of (tierRows ?? []) as Array<{ tier: string; enabled_sources: string[] | null; adzuna_method: string | null; seek_method: string | null }>) {
-    const def = tierDefaults[row.tier] ?? tierDefaults.weekly;
+    const def = TIER_DEFAULTS[row.tier as SourceTier] ?? TIER_DEFAULTS.weekly;
     sources[row.tier] = {
       enabled_sources: (row.enabled_sources as string[] | null) ?? def.enabled_sources,
       adzuna_method:   (row.adzuna_method as "api" | "direct" | null)   ?? def.adzuna_method,

@@ -210,6 +210,20 @@ export function SidebarLinks({ email, profiles = [], favouriteCount = 0, role, u
   const pathname = usePathname();
   const isSavedActive = (pathname === "/profiles" || pathname.startsWith("/profiles/")) && !pathname.startsWith("/profiles/new");
   const [savedOpen, setSavedOpen] = useState(isSavedActive);
+  // C67: useState's initial value only seeds the FIRST render — a
+  // client-side nav from elsewhere into /profiles/* afterward left this
+  // section collapsed, since nothing re-synced savedOpen when isSavedActive
+  // flipped to true. One-directional: only force it open when the active
+  // page enters this section; never force it closed, so a user's manual
+  // toggle on an unrelated page isn't overwritten. Adjusted during render
+  // (React's documented "adjusting state on prop change" pattern) rather
+  // than in an effect, since an unconditional setState-in-effect trips
+  // react-hooks/set-state-in-effect and costs an extra render pass anyway.
+  const [prevIsSavedActive, setPrevIsSavedActive] = useState(isSavedActive);
+  if (isSavedActive !== prevIsSavedActive) {
+    setPrevIsSavedActive(isSavedActive);
+    if (isSavedActive) setSavedOpen(true);
+  }
   const [showAllProfiles, setShowAllProfiles] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
 

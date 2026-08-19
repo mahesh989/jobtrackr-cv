@@ -623,6 +623,20 @@ CERTIFICATIONS SECTION  (## Certifications) — OPTIONAL, RARELY INCLUDED
         - AWS Certified Solutions Architect — AWS 2023
 """
 
+# C67: str.replace() silently no-ops if the placeholder string is ever
+# broken (a typo introduced while editing the surrounding prompt text,
+# accidental duplication, etc.) — the module would still import fine, but
+# every tailored-CV generation would silently ship without
+# EDUCATION_EXACT_RULES spliced in, with no error anywhere to catch it.
+# Fail loudly at import time instead, matching this codebase's existing
+# module-load-time assertion convention (see auto_cover_letter.py).
+assert TAILORED_CV_SYSTEM.count("__EDUCATION_RULES_PLACEHOLDER__") == 1, (
+    "bug: TAILORED_CV_SYSTEM must contain the education-rules placeholder "
+    "exactly once — found "
+    f"{TAILORED_CV_SYSTEM.count('__EDUCATION_RULES_PLACEHOLDER__')}. "
+    "A prompt edit likely broke or duplicated it, which would otherwise "
+    "silently ship without EDUCATION_EXACT_RULES spliced in."
+)
 TAILORED_CV_SYSTEM = TAILORED_CV_SYSTEM.replace(
     "__EDUCATION_RULES_PLACEHOLDER__", EDUCATION_EXACT_RULES
 )

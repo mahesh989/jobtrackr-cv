@@ -178,15 +178,18 @@ export function computeProfileLookback(
 
 /**
  * Single-flight lock (thundering herd). Atomically claims the slices that are
- * not currently being refreshed (or whose lock is stale). Returns the count
- * claimed. Best-effort: errors → 0 claimed (caller proceeds without the lock).
- * Slices with no coverage row yet (cold start) can't be locked and aren't
- * counted — the caller scrapes them anyway.
+ * not currently being refreshed (or whose lock is stale). Returns exactly the
+ * slices actually claimed by THIS call — the caller must only ever release
+ * (or otherwise treat as "locked by me") slices from this returned list, not
+ * the input list, or it can release/act on another in-flight run's lock for
+ * a slice this call failed to claim. Best-effort: errors → [] claimed (caller
+ * proceeds without the lock). Slices with no coverage row yet (cold start)
+ * can't be locked and aren't returned — the caller scrapes them anyway.
  */
-export async function acquireSliceLocks(slices: CoverageSlice[]): Promise<number> {
-  if (slices.length === 0) return 0;
+export async function acquireSliceLocks(slices: CoverageSlice[]): Promise<CoverageSlice[]> {
+  if (slices.length === 0) return [];
   const staleBefore = new Date(Date.now() - LOCK_STALE_MINUTES * 60_000).toISOString();
-  let claimed = 0;
+  const claimed: CoverageSlice[] = [];
   try {
     for (const s of slices) {
       const { data } = await db
@@ -197,7 +200,7 @@ export async function acquireSliceLocks(slices: CoverageSlice[]): Promise<number
         .eq("source", s.source)
         .or(`refreshing.eq.false,refresh_started_at.lt.${staleBefore}`)
         .select("id");
-      if ((data ?? []).length > 0) claimed++;
+      if ((data ?? []).length > 0) claimed.push(s);
     }
   } catch (err) {
     console.warn(`[coverage] acquireSliceLocks threw — ${err instanceof Error ? err.message : err}`);

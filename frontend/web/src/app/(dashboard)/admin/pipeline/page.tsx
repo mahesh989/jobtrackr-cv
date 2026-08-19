@@ -8,16 +8,8 @@
  *   - How often do AI transient errors fire and how effective is the retry?
  *   - What's the ATS uplift distribution across all runs?
  */
-import { requireAdmin, resolveRange, rangeStart, RANGE_LABELS } from "@/lib/admin/guard";
+import { requireAdmin, resolveRange, rangeStart, RANGE_LABELS, timeAgo } from "@/lib/admin/guard";
 
-function timeAgo(iso: string): string {
-  const secs = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (secs < 60)          return "just now";
-  if (secs < 3600)        return `${Math.floor(secs / 60)}m ago`;
-  if (secs < 86400)       return `${Math.floor(secs / 3600)}h ago`;
-  if (secs < 86400 * 7)   return `${Math.floor(secs / 86400)}d ago`;
-  return new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short" });
-}
 function formatLatency(ms: number): string {
   if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
   return `${ms}ms`;
@@ -100,14 +92,21 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
   // ── Run status breakdown ─────────────────────────────────────────────────
   const total     = runs.length;
   const completed = runs.filter((r) => r.status === "completed").length;
-  const failed    = runs.filter((r) => r.status === "failed").length;
   const cancelled = runs.filter((r) => r.status === "failed" && (r.error_message ?? "").toLowerCase().startsWith("cancelled")).length;
+  // ── Failure taxonomy from error_message ─────────────────────────────────
+  // C67: `failed` (below) used to be every status='failed' row, including
+  // user-initiated cancellations (also stored as status='failed', see
+  // orchestrator.py's _CancelledByUser handling) — a user choosing to stop
+  // a run isn't a pipeline reliability signal, so lumping it in inflated
+  // the reported failure rate. `failedRuns` already excluded cancellations
+  // correctly for the error taxonomy/step-failure breakdown below; `failed`
+  // now uses the same predicate instead of a separately-computed, wider one.
+  const failedRuns = runs.filter((r) => r.status === "failed" && !(r.error_message ?? "").toLowerCase().startsWith("cancelled"));
+  const failed    = failedRuns.length;
   const running   = runs.filter((r) => r.status === "running").length;
   const successPct = total > 0 ? (completed / total) * 100 : 0;
   const failPct    = total > 0 ? (failed / total) * 100 : 0;
 
-  // ── Failure taxonomy from error_message ─────────────────────────────────
-  const failedRuns = runs.filter((r) => r.status === "failed" && !(r.error_message ?? "").toLowerCase().startsWith("cancelled"));
   const errGroups: Record<string, number> = {};
   failedRuns.forEach((r) => {
     const msg = r.error_message ?? "Unknown";

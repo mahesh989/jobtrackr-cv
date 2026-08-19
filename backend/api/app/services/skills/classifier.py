@@ -55,6 +55,10 @@ MatchKindT = Literal["exact", "normalised", "fuzzy"]
 _VERTICALS: Tuple[VerticalT, ...] = ("nursing", "cleaning", "tech")
 from app.enums import CATEGORY_KEYS as _CATEGORY_KEYS  # noqa: E402 — canonical source
 _CATEGORIES: Tuple[CategoryT, ...] = _CATEGORY_KEYS  # type: ignore[assignment]
+# The set of valid noise types. NOT the load order used to resolve
+# cross-list duplicates in _universal_noise.json — that's the separate
+# `load_order` local inside _load_noise(), which deliberately differs
+# from this tuple's order (see that function's docstring, chunk C20).
 _NOISE_TYPES: Tuple[NoiseT, ...] = ("credential", "eligibility", "noise")
 
 
@@ -152,6 +156,22 @@ def normalise(phrase: str) -> str:
     return s
 
 
+def _normalise_exact(phrase: str) -> str:
+    """Normalise punctuation/case without removing semantic prefixes.
+
+    This is intentionally narrower than :func:`normalise`: callers using it
+    need to know whether the complete supplied phrase is in the curated
+    lexicon, not whether a leading qualifier can be stripped to reach one.
+    """
+    if not phrase:
+        return ""
+    s = phrase.strip().lower()
+    for ch in "‐‑‒–—−":
+        s = s.replace(ch, "-")
+    s = _PUNCT_RE.sub(" ", s)
+    return _WS_RE.sub(" ", s).strip()
+
+
 # ---------------------------------------------------------------------------
 # Lexicon loading (once at import)
 # ---------------------------------------------------------------------------
@@ -177,11 +197,30 @@ def _load_noise() -> Dict[str, NoiseT]:
     """Build {normalised_phrase: noise_type} from _universal_noise.json.
 
     _universal_noise.json is cross-vertical and stays in skills/lexicons/.
+
+    Finding #27: 14 phrases (e.g. "vaccination requirements", "immunisation
+    compliance") are duplicated across two of the three lists in the JSON
+    data, a curation artifact from separate editing sessions rather than a
+    deliberate ambiguity. Loading in `_NOISE_TYPES` order (credential,
+    eligibility, noise) meant the generic "noise" bucket — which routes to
+    a silent drop, not a surfaced classification — always won for any
+    duplicate, since it loads last and each `out[key] = typ` assignment
+    overwrites the previous one. That silently dropped real credentials
+    (e.g. "vaccination requirements") and eligibility/work-rights items
+    (e.g. "own reliable vehicle") that should have been surfaced instead.
+    Load "noise" FIRST so a duplicate's more specific credential/
+    eligibility classification correctly overwrites it, not the reverse.
+    This only changes outcomes for the noise-vs-(credential|eligibility)
+    duplicates (12 of the 14) — the 2 remaining duplicates are
+    credential-vs-eligibility only (no noise involved) and keep their
+    existing resolution unchanged, since "eligibility" still loads after
+    "credential" in this order.
     """
     path = _LEXICON_DIR / "_universal_noise.json"
     data = json.loads(path.read_text())
     out: Dict[str, NoiseT] = {}
-    for typ in _NOISE_TYPES:
+    load_order: Tuple[NoiseT, ...] = ("noise", "credential", "eligibility")
+    for typ in load_order:
         for term in data.get(typ, []):
             key = normalise(term)
             if key:
@@ -231,6 +270,13 @@ def _load_subsumes(vertical: VerticalT) -> Dict[str, set]:
 
 
 _NOISE_LOOKUP: Dict[str, NoiseT] = _load_noise()
+_NOISE_EXACT_LOOKUP: Dict[str, NoiseT] = {}
+_noise_data = json.loads((_LEXICON_DIR / "_universal_noise.json").read_text())
+for _noise_type in ("noise", "credential", "eligibility"):
+    for _noise_term in _noise_data.get(_noise_type, []):
+        _noise_key = _normalise_exact(_noise_term)
+        if _noise_key:
+            _NOISE_EXACT_LOOKUP[_noise_key] = _noise_type  # type: ignore[assignment]
 _VERTICAL_LOOKUPS: Dict[VerticalT, Dict[str, Tuple[str, CategoryT]]] = {
     v: _load_vertical(v) for v in _VERTICALS
 }
@@ -253,6 +299,19 @@ def is_noise(phrase: str) -> Optional[NoiseT]:
     if not phrase:
         return None
     return _NOISE_LOOKUP.get(normalise(phrase))
+
+
+def is_noise_exact(phrase: str) -> Optional[NoiseT]:
+    """Return a noise type only when the complete phrase is curated.
+
+    Unlike :func:`is_noise`, this does not strip prefixes such as
+    ``"experience with"`` or ``"current"``.  It is used by high-stakes
+    credential evidence checks where accepting a decorated duty phrase as a
+    profile credential would fabricate evidence.
+    """
+    if not phrase:
+        return None
+    return _NOISE_EXACT_LOOKUP.get(_normalise_exact(phrase))
 
 
 # Minimum string length for fuzzy matching to apply. Below this, difflib's

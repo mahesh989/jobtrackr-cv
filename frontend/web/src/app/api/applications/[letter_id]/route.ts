@@ -11,8 +11,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { jsonError, withUser } from "@/lib/api-utils";
+import { MAX_APPLICATION_BODY_LEN } from "@/lib/constants";
 
-const MAX_LETTER_LEN = 20_000;   // generous — typical cover letter is ~2KB
+const MAX_LETTER_LEN = MAX_APPLICATION_BODY_LEN;
 const MIN_LETTER_LEN = 50;       // some minimum sanity check
 
 // ── GET ──────────────────────────────────────────────────────────────────────

@@ -30,12 +30,93 @@ interface AdzunaResponse {
   count: number;
 }
 
+// Trailing AU state token (abbreviation or full name), preceded by a
+// comma/whitespace — i.e. following a real city name. Deliberately does
+// NOT also match at the very start of the string (round-3 fix,
+// independent review): an earlier draft used `(?:^|[,\s]+)` so a BARE
+// multi-word state name like "Western Australia" alone would reduce to
+// "Australia" — but that same start-of-string match ALSO fired for every
+// other bare state token (`"NSW"`, `"Victoria"`, `"New South Wales"`, all
+// 16 of them), discarding a real, useful location down to a bare country
+// fallback. Combined with `distance` also being sent as a search radius
+// (buildBaseParams), a bare "NSW" input silently became a radius search
+// centred on "Australia" — a materially broken query, not just a wider
+// one. Adzuna's own location taxonomy accepts state names directly
+// (Australia > New South Wales > Sydney), so a bare state name is left
+// UNCHANGED here now, same as seekDirect.ts already does — no fallback to
+// "Australia" for bare state input at all.
+//
+// Known, accepted tradeoff (independent review, non-blocking): a hand-typed
+// location with NO state qualifier at all, whose own last word happens to
+// BE a state name — "Mount Victoria" (a real NSW locality), "Port Victoria"
+// (a real SA locality) — truncates to "Mount"/"Port" the same way a state
+// suffix would. State-QUALIFIED input is unaffected ("Mount Victoria NSW"
+// -> "Mount Victoria", correct). Distinguishing "Victoria the trailing word
+// of a real place name" from "Victoria the state suffix" with no other
+// signal present is not solvable without a full AU place-name gazetteer —
+// out of scope for this fix.
+const AU_STATE_SUFFIX_RE = new RegExp(
+  "[,\\s]+(NSW|VIC|QLD|WA|SA|TAS|ACT|NT" +
+  "|New South Wales|Victoria|Queensland|Western Australia|South Australia" +
+  "|Tasmania|Australian Capital Territory|Northern Territory)\\s*$",
+  "i",
+);
+
+// Redundant trailing country suffix a user sometimes appends to an
+// otherwise valid location, e.g. "Sydney, Australia" -> "Sydney". Needs
+// the same Western/South lookbehind guard seekDirect.ts uses — now that
+// AU_STATE_SUFFIX_RE no longer reduces a bare "Western Australia"/"South
+// Australia" to "", this strip would otherwise wrongly mangle it to
+// "Western"/"South" on its own.
+const AU_COUNTRY_SUFFIX_RE = /,?\s*(?<!\bwestern\s)(?<!\bsouth\s)australia$/i;
+
 /**
  * Normalize location — Adzuna works best with city name only.
  * "Sydney NSW" → "Sydney", "Melbourne, VIC" → "Melbourne"
+ *
+ * Strips a trailing AU state token, not just the first whitespace-split
+ * token — a bare `.split(/[,\s]+/)[0]` truncated every multi-word city
+ * name ("Gold Coast" → "Gold", "Alice Springs" → "Alice", "Port
+ * Macquarie" → "Port", "Wagga Wagga" → "Wagga") since it had no state
+ * suffix to strip in the first place (finding #20 / C28).
+ *
+ * Also strips a trailing country suffix (round-2 fix — the original
+ * split-on-first-token bug accidentally handled "Sydney, Australia" too,
+ * as a side effect of truncating everything; the targeted state-only
+ * strip regressed that case until this was added). Only re-runs the state
+ * strip a second time when the country strip actually removed something
+ * (e.g. "Gold Coast, QLD, Australia" -> "Gold Coast, QLD" exposes "QLD" as
+ * a new trailing token). Running the state strip twice UNCONDITIONALLY
+ * would cascade onto ordinary city names whose own second word happens to
+ * be a state name too — "Mount Victoria NSW" must reduce to "Mount
+ * Victoria" (one real state token, "NSW", to strip), not "Mount" (which
+ * would happen if "Victoria" got treated as a second, spurious state
+ * suffix on an unrelated re-run).
  */
-function normalizeLocation(location: string): string {
-  return location.split(/[,\s]+/)[0].trim() || "Australia";
+export function normalizeLocation(location: string): string {
+  let s = location.trim();
+  if (!s) return "Australia";
+
+  // AU-wide sentinel — checked on the ORIGINAL string, before any
+  // stripping, same guard seekDirect.ts uses and for the same reason:
+  // checking after the strips below would be too late, since the
+  // country-suffix strip already reduces "All Australia" to the bare
+  // word "All" on its own (verified) — checking post-strip would just
+  // re-hide this bug the same way finding #21/C28 describes for
+  // seekDirect.ts. Unlike careerjet.ts/seekDirect.ts, adzuna has no
+  // "omit the param" option — buildBaseParams always sends `where=`, so
+  // the AU-wide case here normalizes to "Australia" (not ""), which is
+  // exactly what a bare "Australia" input already resolves to below.
+  const low = s.toLowerCase();
+  if (low === "australia" || low === "all australia") return "Australia";
+
+  s = s.replace(AU_STATE_SUFFIX_RE, "").trim();
+  const beforeCountryStrip = s;
+  s = s.replace(AU_COUNTRY_SUFFIX_RE, "").trim();
+  if (s !== beforeCountryStrip) {
+    s = s.replace(AU_STATE_SUFFIX_RE, "").trim();
+  }
+  return s || "Australia";
 }
 
 async function fetchPage(params: URLSearchParams, page: number): Promise<AdzunaResult[]> {

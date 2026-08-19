@@ -11,6 +11,7 @@ import type { BoardJob } from "../../lib/jobFilters";
 import type { BoardDetailPayload, MatchingData, CategorisedKeywords } from "../../lib/boardDetailTypes";
 import { CAT_ORDER } from "../../lib/boardDetailTypes";
 import { SKILL_CATEGORY_LABELS, type SkillCategory } from "@/lib/types";
+import { MIN_INITIAL_ATS, MIN_FINAL_ATS } from "@/lib/atsThresholds";
 
 function scoreTone(score: number, thresholds: { initial: number; final: number }): "green" | "amber" | "red" {
   if (score >= thresholds.final) return "green";
@@ -21,7 +22,7 @@ function scoreTone(score: number, thresholds: { initial: number; final: number }
 export function MatchScoreTab({ job, detail }: { job: BoardJob; detail: BoardDetailPayload | null }) {
   const run = detail?.run;
   const score = run?.match_score ?? job.initial_ats_score ?? null;
-  const thresholds = job.atsThresholds ?? { initial: 60, final: 70 };
+  const thresholds = job.atsThresholds ?? { initial: MIN_INITIAL_ATS, final: MIN_FINAL_ATS };
 
   if (score == null) {
     return <p className="text-label text-text-3 italic">No score yet for this job.</p>;
@@ -32,7 +33,7 @@ export function MatchScoreTab({ job, detail }: { job: BoardJob; detail: BoardDet
   const matching = run?.cv_jd_matching_result;
   const stoppedEarly = tone === "red" && !matching;
   const jd = run?.jd_analysis_result;
-  const order = (jd?.category_order as SkillCategory[] | undefined) ?? CAT_ORDER as readonly SkillCategory[] as SkillCategory[];
+  const order = (jd?.category_order as readonly SkillCategory[] | undefined) ?? CAT_ORDER;
   const labels = jd?.category_labels as Record<string, string> | undefined ?? SKILL_CATEGORY_LABELS;
 
   return (
@@ -53,7 +54,7 @@ export function MatchScoreTab({ job, detail }: { job: BoardJob; detail: BoardDet
   );
 }
 
-function MatchingContent({ matching, order, labels }: { matching: MatchingData | null | undefined; order: SkillCategory[]; labels: Record<string, string> }) {
+function MatchingContent({ matching, order, labels }: { matching: MatchingData | null | undefined; order: readonly SkillCategory[]; labels: Record<string, string> }) {
   if (!matching) return null;
 
   const matched  = matching.matched;
@@ -172,7 +173,7 @@ function MatchingContent({ matching, order, labels }: { matching: MatchingData |
   );
 }
 
-function KeywordsSection({ data, order, labels, tone }: { data: CategorisedKeywords | undefined; order: SkillCategory[]; labels: Record<string, string>; tone: "matched" | "missed" }) {
+function KeywordsSection({ data, order, labels, tone }: { data: CategorisedKeywords | undefined; order: readonly SkillCategory[]; labels: Record<string, string>; tone: "matched" | "missed" }) {
   if (!data) return null;
   const hasAny = order.some((c) => (data[c]?.length ?? 0) > 0);
   if (!hasAny) {

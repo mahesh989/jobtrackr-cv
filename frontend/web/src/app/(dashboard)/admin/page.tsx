@@ -11,7 +11,7 @@
  *   4. Recent user events — live activity feed
  *   5. Invite codes — manage (existing)
  */
-import { requireAdmin } from "@/lib/admin/guard";
+import { requireAdmin, timeAgo } from "@/lib/admin/guard";
 
 function formatCost(millicents: number): string {
   const dollars = millicents / 100_000;
@@ -20,14 +20,6 @@ function formatCost(millicents: number): string {
   if (dollars < 0.10)  return `$${dollars.toFixed(4)}`;
   if (dollars < 10)    return `$${dollars.toFixed(3)}`;
   return `$${dollars.toFixed(2)}`;
-}
-function timeAgo(iso: string): string {
-  const secs = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (secs < 60)          return "just now";
-  if (secs < 3600)        return `${Math.floor(secs / 60)}m ago`;
-  if (secs < 86400)       return `${Math.floor(secs / 3600)}h ago`;
-  if (secs < 86400 * 7)   return `${Math.floor(secs / 86400)}d ago`;
-  return new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short" });
 }
 import { ADMIN_ROLES } from "@/lib/constants";
 import Link from "next/link";
@@ -70,6 +62,7 @@ export default async function AdminOverviewPage() {
   const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
   const d7ago      = new Date(now.getTime() - 7 * 86400_000);
   const d30ago     = new Date(now.getTime() - 30 * 86400_000);
+  const d60ago     = new Date(now.getTime() - 60 * 86400_000);
   const h24ago     = new Date(now.getTime() - 86400_000);
 
   // Core queries — always exist
@@ -102,11 +95,20 @@ export default async function AdminOverviewPage() {
     admin.from("search_profiles").select("id, user_id, name, is_active"),
     admin.from("subscriptions").select("user_id, plan_id, status"),
     admin.from("plans").select("id, price_cents, billing_interval"),
-    // For TTV: earliest completed run per user (completed_at asc)
+    // For TTV: earliest completed run per user (completed_at asc).
+    // C67: had no .gte() bound at all — PostgREST's default row cap (1000)
+    // meant that once total completed runs exceeded it, only the
+    // CHRONOLOGICALLY OLDEST rows survived (ascending order), silently
+    // excluding every user whose first completion happened after that
+    // cutoff — i.e. every recent signup. The metric only ever reflected
+    // old users' onboarding speed. Bounded to the last 60 days (2x the
+    // downstream 30-day TTV window, so no valid recent pair is clipped)
+    // to keep the returned rows recent regardless of table growth.
     admin.from("analysis_runs")
       .select("user_id, completed_at")
       .eq("status", "completed")
       .not("completed_at", "is", null)
+      .gte("completed_at", d60ago.toISOString())
       .order("completed_at", { ascending: true }),
   ]);
 

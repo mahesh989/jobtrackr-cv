@@ -3,9 +3,9 @@
 /**
  * AddModal — lets the user add a job they found anywhere on the web.
  *
- * Two paths:
- *   1. Paste a URL → we fetch + parse the page, pre-fill all fields
- *   2. Paste the JD directly → manual entry with title/company/location fields
+ * One form, no tabs (demo `.modal-body .stack`): every field is visible from
+ * the start. Paste a listing URL and "Fetch" fills the rest in for you;
+ * otherwise just type them yourself. Both paths end at the same Save.
  *
  * On save → addManualJob() inserts into the user's "Saved Jobs" profile,
  * then optionally kicks off analysis immediately.
@@ -13,46 +13,31 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Link2, FileText, X } from "lucide-react";
+import { Link2, X } from "lucide-react";
 import { Modal, Button, Input, Textarea } from "@/components/ui";
 import { addManualJob } from "@/lib/actions/jobs";
 
-type Tab = "url" | "paste";
-
-interface Prefilled {
-  title:       string;
-  company:     string;
-  location:    string;
-  description: string;
-  source_url:  string;
-}
-
 export function AddModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
-  const [tab, setTab]       = useState<Tab>("url");
 
-  // URL tab state
-  const [url, setUrl]       = useState("");
-  const [fetching, setFetching] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const [prefilled, setPrefilled] = useState<Prefilled | null>(null);
-
-  // Shared fields
+  const [url, setUrl]           = useState("");
   const [title, setTitle]       = useState("");
   const [company, setCompany]   = useState("");
   const [location, setLocation] = useState("");
   const [jd, setJd]             = useState("");
 
-  // Save state
-  const [saving, setSaving]     = useState(false);
+  const [fetching, setFetching]     = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [fetched, setFetched]       = useState(false);
+
+  const [saving, setSaving]       = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // ── URL fetch ──────────────────────────────────────────────────────────────
+  // ── Fetch from the listing URL → fills every field below ──────────────────
   async function handleFetch() {
-    if (!url.trim()) return;
+    if (!url.trim() || fetching) return;
     setFetching(true);
     setFetchError(null);
-    setPrefilled(null);
     try {
       const res = await fetch("/api/jobs/scrape-url", {
         method:  "POST",
@@ -61,18 +46,12 @@ export function AddModal({ onClose }: { onClose: () => void }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to fetch job page");
-      const p: Prefilled = {
-        title:       data.title       ?? "",
-        company:     data.company     ?? "",
-        location:    data.location    ?? "",
-        description: data.description ?? "",
-        source_url:  data.source_url  ?? url.trim(),
-      };
-      setPrefilled(p);
-      setTitle(p.title);
-      setCompany(p.company);
-      setLocation(p.location);
-      setJd(p.description);
+      setTitle(data.title ?? "");
+      setCompany(data.company ?? "");
+      setLocation(data.location ?? "");
+      setJd(data.description ?? "");
+      if (data.source_url) setUrl(data.source_url);
+      setFetched(true);
     } catch (err) {
       setFetchError(err instanceof Error ? err.message : "Could not fetch the page");
     } finally {
@@ -82,8 +61,8 @@ export function AddModal({ onClose }: { onClose: () => void }) {
 
   // ── Save ──────────────────────────────────────────────────────────────────
   async function handleSave(analyseNow: boolean) {
-    if (!title.trim() || !jd.trim()) {
-      setSaveError("Title and job description are required.");
+    if (!title.trim() || jd.trim().length < 50) {
+      setSaveError("Job title and a job description (50+ characters) are required.");
       return;
     }
     setSaving(true);
@@ -94,7 +73,7 @@ export function AddModal({ onClose }: { onClose: () => void }) {
         company:     company || null,
         location:    location || null,
         description: jd,
-        source_url:  (tab === "url" ? prefilled?.source_url : null) ?? null,
+        source_url:  url.trim() || null,
       });
 
       if (result.alreadyExisted) {
@@ -105,6 +84,12 @@ export function AddModal({ onClose }: { onClose: () => void }) {
 
       onClose();
       if (analyseNow) {
+        // C67: a rejected analyze call (billing cap, validation error, ...)
+        // or a network failure both fell into the SAME `.catch(() =>
+        // router.refresh())` as a clean non-2xx response — silently
+        // discarded, with the modal already closed by this point (onClose()
+        // above), so there was no path left for the user to learn the job
+        // WAS saved but analysis was NOT actually started.
         await fetch(`/api/jobs/${result.jobId}/analyze`, {
           method:  "POST",
           headers: { "Content-Type": "application/json" },
@@ -114,9 +99,14 @@ export function AddModal({ onClose }: { onClose: () => void }) {
             const { run_id } = await r.json();
             router.push(`/jobs/${result.jobId}/analyze/${run_id}`);
           } else {
+            const j = await r.json().catch(() => ({}));
             router.refresh();
+            window.alert(`Job saved, but analysis could not start: ${j.error ?? `Failed (${r.status})`}`);
           }
-        }).catch(() => router.refresh());
+        }).catch((e) => {
+          router.refresh();
+          window.alert(`Job saved, but analysis could not start: ${e instanceof Error ? e.message : "network error"}`);
+        });
       } else {
         router.refresh();
       }
@@ -127,44 +117,32 @@ export function AddModal({ onClose }: { onClose: () => void }) {
   }
 
   const canSave = title.trim().length > 0 && jd.trim().length >= 50;
-  const showFields = tab === "paste" || prefilled !== null;
 
   return (
     <Modal open onClose={onClose} size="md">
-        <div className="px-5 py-4 border-b border-[var(--border)] flex items-start justify-between gap-3">
+        {/* Demo `.modal-head`: small uppercase eyebrow + title, close icon. */}
+        <div className="px-5 py-4 border-b border-border flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-lead font-semibold text-text">Add a job</h2>
-            <p className="text-label text-text-2 mt-0.5">
-              Found a job elsewhere? Add it here to analyse and track it.
-            </p>
+            <p className="text-micro font-semibold uppercase tracking-[0.08em] text-text-3">Jobs</p>
+            <h2 className="text-lead font-bold text-text mt-0.5">Add a job</h2>
           </div>
           <button onClick={onClose} disabled={saving} aria-label="Close" className="text-text-3 hover:text-text mt-0.5">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Tab switcher */}
-        <div className="px-5 pt-3 flex gap-1">
-          {([["url", Link2, "Fetch from URL"], ["paste", FileText, "Paste JD"]] as const).map(([t, Icon, label]) => (
-            <button key={t} type="button" onClick={() => { setTab(t); setPrefilled(null); setFetchError(null); }} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-label font-medium transition-colors ${ tab === t ? "bg-[var(--brand)] text-[var(--brand-fg)]" : "bg-[var(--surface-2)] text-text-2 hover:bg-[var(--surface)] hover:text-text" }`}>
-              <Icon className="w-3.5 h-3.5" />
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {/* Body */}
+        {/* Body — demo `.modal-body .stack`: one full-width field per row,
+            all visible at once. The URL sits first because fetching it fills
+            in everything below. */}
         <div className="px-5 py-4 overflow-y-auto flex-1 space-y-4">
-
-          {/* URL input */}
-          {tab === "url" && (
+          <div>
+            <label className="block text-label font-medium text-text-2 mb-1">Listing URL</label>
             <div className="flex gap-2">
-              {/* ponytail: inline URL input in flex row with Fetch button — Input's stacked label layout breaks it */}
               <input
                 type="url"
                 value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleFetch()}
+                onChange={(e) => { setUrl(e.target.value); setFetchError(null); }}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleFetch(); } }}
                 placeholder="https://www.seek.com.au/job/123456"
                 disabled={fetching}
                 className="field flex-1 text-body"
@@ -183,68 +161,59 @@ export function AddModal({ onClose }: { onClose: () => void }) {
                 Fetch
               </Button>
             </div>
-          )}
+            <p className="text-caption text-text-3 mt-1">
+              Paste a link and hit Fetch to fill the fields below automatically — or just fill them in yourself.
+            </p>
+          </div>
 
           {fetchError && (
             <p className="text-label text-danger bg-danger-subtle border border-danger-border rounded px-3 py-2">
-              {fetchError} — try the &quot;Paste JD&quot; tab instead.
+              {fetchError} — fill the fields in manually instead.
             </p>
           )}
-
-          {/* Pre-filled confirmation (URL tab) */}
-          {tab === "url" && prefilled && (
+          {fetched && !fetchError && (
             <p className="text-label text-success bg-success-subtle border border-success-border rounded px-3 py-2">
               ✓ Job details fetched — review and edit below, then save.
             </p>
           )}
 
-          {/* Shared fields — shown once we have something to edit */}
-          {showFields && (
-            <>
-              <div>
-                <Input
-                  label="Job title *"
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. Personal Care Worker"
-                  autoFocus={tab === "paste"}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <Input
-                  label="Company"
-                  type="text"
-                  value={company}
-                  onChange={(e) => setCompany(e.target.value)}
-                  placeholder="e.g. Bolton Clarke"
-                />
-                <Input
-                  label="Location"
-                  type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="e.g. Sydney NSW"
-                />
-              </div>
-              <div>
-                <Textarea
-                  label="Job description *"
-                  value={jd}
-                  onChange={(e) => setJd(e.target.value)}
-                  rows={7}
-                  placeholder="Paste the full job description here. Trim company blurbs and EEO statements to focus the AI on responsibilities and requirements."
-                  className="text-label font-mono resize-y"
-                  spellCheck={false}
-                />
-                {jd.trim().length > 0 && jd.trim().length < 200 && (
-                  <p className="text-caption text-warning mt-1">
-                    Too short for reliable analysis — paste more of the JD (aim for 200+ chars).
-                  </p>
-                )}
-              </div>
-            </>
-          )}
+          <Input
+            label="Job title *"
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="e.g. Personal Care Worker"
+          />
+          <Input
+            label="Company"
+            type="text"
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+            placeholder="e.g. Bolton Clarke"
+          />
+          <Input
+            label="Location"
+            type="text"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            placeholder="e.g. Sydney NSW"
+          />
+          <div>
+            <Textarea
+              label="Job description *"
+              value={jd}
+              onChange={(e) => setJd(e.target.value)}
+              rows={7}
+              placeholder="Paste the full job description here. Trim company blurbs and EEO statements to focus the AI on responsibilities and requirements."
+              className="text-label font-mono resize-y"
+              spellCheck={false}
+            />
+            {jd.trim().length > 0 && jd.trim().length < 200 && (
+              <p className="text-caption text-warning mt-1">
+                Too short for reliable analysis — paste more of the JD (aim for 200+ chars).
+              </p>
+            )}
+          </div>
 
           {saveError && (
             <p className="text-label text-danger bg-danger-subtle border border-danger-border rounded px-3 py-2">
@@ -253,35 +222,31 @@ export function AddModal({ onClose }: { onClose: () => void }) {
           )}
         </div>
 
-        {/* Footer */}
-        {showFields && (
-          <div className="px-5 py-3 border-t border-[var(--border)] flex items-center justify-between gap-2 bg-[var(--surface-2)] rounded-b-lg">
-            <span className="text-caption text-text-3">
-              Saved to your <strong className="text-text-2">Saved Jobs</strong> profile
-            </span>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                type="button"
-                onClick={() => handleSave(false)}
-                disabled={saving || !canSave}
-                isLoading={saving}
-              >
-                Save
-              </Button>
-              <Button
-                variant="brand"
-                size="sm"
-                type="button"
-                onClick={() => handleSave(true)}
-                disabled={saving || !canSave}
-                isLoading={saving}
-              >
-                Save &amp; Analyse
-              </Button>
-            </div>
-          </div>
-        )}
+        {/* Footer — demo `.modal-foot`: plain bordered bar, right-aligned. */}
+        <div className="px-5 py-3 border-t border-border flex justify-end gap-2">
+          <Button size="sm" type="button" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            type="button"
+            onClick={() => handleSave(false)}
+            disabled={saving || !canSave}
+            isLoading={saving}
+          >
+            Save
+          </Button>
+          <Button
+            variant="brand"
+            size="sm"
+            type="button"
+            onClick={() => handleSave(true)}
+            disabled={saving || !canSave}
+            isLoading={saving}
+          >
+            Save &amp; Analyse
+          </Button>
+        </div>
     </Modal>
   );
 }

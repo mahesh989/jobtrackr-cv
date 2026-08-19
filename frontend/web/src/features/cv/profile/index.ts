@@ -1,5 +1,3 @@
-"use client";
-
 export { ProfileDetailsProvider } from "./ProfileDetailsContext";
 export { ContactSection } from "./ContactSection";
 export { VerticalsSection } from "./VerticalsSection";

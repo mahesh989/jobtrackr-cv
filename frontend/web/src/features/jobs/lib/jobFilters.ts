@@ -73,6 +73,10 @@ export interface ViewFilters {
   /** "1" → hide not_eligible jobs (eligibility derived in page.tsx from the
    *  user's My CV visa status). Unclear jobs stay visible. */
   eligibleOnly?: string;
+  /** Date-posted window in days ("1"/"3"/"7") — mirrors the server's dataset
+   *  narrowing (getDashboardData: posted_at >= now − N days) so badge counts
+   *  stay honest with the query that actually fetched the rows. */
+  postedWithin?: string;
 }
 
 /** Minimum manual-JD length (chars) that counts as "the user supplied a usable
@@ -259,6 +263,22 @@ export function filterJobs(jobs: BoardJob[], f: ViewFilters): BoardJob[] {
     }
   }
 
+  // Date-posted window. In-memory mirror of the server's dataset narrowing —
+  // jobs without a posted_at are treated as outside the window (the server
+  // query could not have matched them either).
+  if (f.postedWithin) {
+    const days = parseInt(f.postedWithin, 10);
+    if (!isNaN(days)) {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+      const t = cutoff.getTime();
+      out = out.filter((x) => {
+        const p = x.posted_at ? Date.parse(x.posted_at) : NaN;
+        return !Number.isNaN(p) && p >= t;
+      });
+    }
+  }
+
   return out;
 }
 
@@ -284,6 +304,17 @@ export function matchScore(j: BoardJob): number {
   if (j.applied_at)   s = Math.min(s, 5);
   if (j.dismissed_at) s = Math.min(s, 5);
   return Math.max(0, Math.min(100, Math.round(s)));
+}
+
+/** Distance ascending (closest first). Nulls sort to the bottom. Shared by
+ *  sortJobs's "distance" column and buildGroups's within-bucket ordering. */
+export function byDistanceAsc(a: BoardJob, b: BoardJob): number {
+  const aNull = a.distance_km == null;
+  const bNull = b.distance_km == null;
+  if (aNull && bNull) return 0;
+  if (aNull) return 1;
+  if (bNull) return -1;
+  return (a.distance_km as number) - (b.distance_km as number);
 }
 
 /** Sort in-memory. Mirrors the server's sort handling; `asc` = ascending. */
@@ -349,7 +380,7 @@ export function sortJobs(jobs: BoardJob[], sortCol: string, asc: boolean): Board
       return (a.distance_km as number) - (b.distance_km as number);
     });
   }
-  if (sortCol === "match" || sortCol === "ats_score") {
+  if (sortCol === "ats_score") {
     // Ascending = lowest score within band first (the "find the borderline
     // ones" use case driving the ATS chips). Nulls sort to the bottom.
     return arr.sort((a, b) => {
@@ -488,25 +519,16 @@ function groupByTime(
   // structural axis, distance is the within-bucket order. Stable as time
   // passes because the comparator only reads j.distance_km (immutable for the
   // jobs in a bucket) — re-bucketing as a job ages doesn't reorder the others.
-  const byDistAsc = (a: BoardJob, b: BoardJob): number => {
-    const aNull = a.distance_km == null;
-    const bNull = b.distance_km == null;
-    if (aNull && bNull) return 0;
-    if (aNull) return 1;
-    if (bNull) return -1;
-    return (a.distance_km as number) - (b.distance_km as number);
-  };
-
   const out: JobGroup[] = [];
   // Sort buckets newest-first (smaller key = more recent).
   const keys = Array.from(buckets.keys()).sort((a, b) => a - b);
   for (const k of keys) {
     const slot = buckets.get(k)!;
-    slot.jobs.sort(byDistAsc);
+    slot.jobs.sort(byDistanceAsc);
     out.push({ id: `t${k}`, label: slot.label, jobs: slot.jobs });
   }
   if (unknown.length) {
-    unknown.sort(byDistAsc);
+    unknown.sort(byDistanceAsc);
     out.push({ id: "tUnknown", label: "Unknown time", jobs: unknown });
   }
   return out;
@@ -586,6 +608,8 @@ export const FILTER_LABELS: Record<string, string> = {
   // lowercase param ("favourite") instead of a label.
   favourite: "Favourite",
   full: "Full JD", thin: "Thin JD",
+  // posted_within dataset-window labels (toolbar DATE segment + tokens)
+  "1": "Last 24h", "3": "Last 3 days", "7": "Last 7 days",
 };
 
 /**

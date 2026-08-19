@@ -82,6 +82,8 @@ const H = vi.hoisted(() => {
     visaByTitle: {} as Record<string, string>,
     /** saveJobs' newSaved return (null ⇒ "every row was new"). */
     newSaved: null as number | null,
+    /** saveJobs' errors return (finding #54 — write-failure surfacing). */
+    saveErrors: 0,
   };
 
   // ── Chainable Supabase query-builder mock ───────────────────────────────
@@ -220,9 +222,9 @@ vi.mock("./save.js", () => ({
       bySource[j.source] = (bySource[j.source] ?? 0) + 1;
     }
     return {
-      saved: jobs.length,
+      saved: jobs.length - H.state.saveErrors,
       newSaved: H.state.newSaved ?? jobs.length,
-      errors: 0,
+      errors: H.state.saveErrors,
       bySource,
       savedIds: jobs.map((_, i) => `job-${i}`),
     };
@@ -240,6 +242,10 @@ vi.mock("./bucket.js", () => ({
   serveProfileFromBucket: vi.fn(async () => {
     H.state.trace.push("bucketServe");
     return H.state.serveResult;
+  }),
+  dropServedCrossProfileDuplicates: vi.fn(async (jobs: unknown[]) => {
+    H.state.trace.push(`crossProfileDedup:${jobs.length}`);
+    return { jobs, dropped: 0 };
   }),
 }));
 
@@ -328,7 +334,11 @@ vi.mock("../lib/distance.js", () => ({
 vi.mock("../notifications/gate.js", () => ({
   applyGate: async () => { H.state.trace.push("gate"); return { proceed: true }; },
 }));
-vi.mock("../notifications/errorAlert.js", () => ({ sendPipelineFailureAlert: vi.fn(async () => {}) }));
+vi.mock("../notifications/errorAlert.js", () => ({
+  sendPipelineFailureAlert: vi.fn(async (profileId: string, message: string) => {
+    H.state.trace.push(`alert:${profileId}:${message}`);
+  }),
+}));
 vi.mock("../automation/triggerAutoAnalyze.js", () => ({
   autoAnalyzeBatch: vi.fn(async (ids: string[]) => {
     H.state.trace.push(`autoAnalyze:${ids.length}`);
@@ -395,6 +405,7 @@ beforeEach(() => {
   s.userVisaStatus = "citizen";
   s.visaByTitle = {};
   s.newSaved = null;
+  s.saveErrors = 0;
 });
 
 const savedUrls = () =>
@@ -475,6 +486,45 @@ describe("A. golden master — legacy mode (USE_GLOBAL_BUCKET off)", () => {
     await runPipeline("profile-1", "manual");
     expect(H.state.notified).toBeNull();
     expect(H.state.writes).not.toContain("pending_job_notifications.insert");
+  });
+});
+
+// ── B. saveJobs write-failure surfacing (finding #54) ──────────────────────────
+// Before the fix, saveJobs' `errors` count was destructured away entirely: a
+// run where every write batch failed still finished status "completed" with
+// no alert — indistinguishable from "no new jobs this run".
+describe("B. saveJobs write-failure surfacing (finding #54)", () => {
+  it("alerts and marks the run failed when every save batch fails", async () => {
+    H.state.saveErrors = 3; // all 3 fixture jobs fail to save
+    await runPipeline("profile-1", "auto");
+    expect(H.state.finished).toMatchObject({
+      status: "failed",
+      jobs_saved: 0,
+      error_message: "3 of 3 job(s) failed to save",
+    });
+    expect(H.state.trace).toContain(
+      "alert:profile-1:3 of 3 job(s) failed to save",
+    );
+  });
+
+  it("alerts but keeps status completed on a PARTIAL save failure", async () => {
+    H.state.saveErrors = 1; // 1 of 3 fixture jobs fails to save
+    await runPipeline("profile-1", "auto");
+    expect(H.state.finished).toMatchObject({
+      status: "completed",
+      jobs_saved: 2,
+      error_message: "1 of 3 job(s) failed to save",
+    });
+    expect(H.state.trace).toContain(
+      "alert:profile-1:1 of 3 job(s) failed to save",
+    );
+  });
+
+  it("does not alert and reports no error_message when nothing fails to save", async () => {
+    await runPipeline("profile-1", "auto"); // saveErrors defaults to 0
+    expect(H.state.finished).toMatchObject({ status: "completed" });
+    expect(H.state.finished).not.toHaveProperty("error_message");
+    expect(H.state.trace.some((t) => t.startsWith("alert:"))).toBe(false);
   });
 });
 
@@ -622,6 +672,7 @@ describe("A5. collaborator call order", () => {
       "settings:3",
       "bucketUpsert:3",
       "bucketServe",
+      "crossProfileDedup:0",
       "save:0",
       "finishRunLog:completed",
       "recordCoverage",
@@ -658,6 +709,37 @@ describe("A6. filter-placement and new-vs-saved invariants", () => {
     H.state.serveResult = [];
     await runPipeline("profile-1", "auto");
     expect(H.state.trace).toContain("bucketUpsert:3");
+  });
+
+  /**
+   * Finding B5-P2 (chunk C15). Before the fix, a bucket-mode run whose serve
+   * call failed/was skipped fell back to `toSave` UNCHANGED — which had never
+   * passed through the eligibility/work-type/setting filters at all (all
+   * gated on !bucketEnabled()). The shared bucket write above is correctly
+   * unfiltered (bucket-poisoning invariant); this is about what gets saved to
+   * THIS profile's own `jobs` table afterward, which must still be filtered.
+   */
+  it("still applies the eligibility filter when the bucket serve is unavailable", async () => {
+    restrictive();
+    H.state.bucketOn = true;
+    H.state.serveResult = null; // serve unavailable -> fallback path
+    await runPipeline("profile-1", "auto");
+    expect(savedUrls()).toEqual([
+      "https://www.adzuna.com.au/details/111",
+      "https://www.seek.com.au/job/333",
+    ]);
+  });
+
+  it("still applies the eligibility filter when the bucket upsert failed", async () => {
+    restrictive();
+    H.state.bucketOn = true;
+    H.state.upsertOk = false;
+    H.state.serveResult = []; // masked-failure shape, same as the existing upsertOk test above
+    await runPipeline("profile-1", "auto");
+    expect(savedUrls()).toEqual([
+      "https://www.adzuna.com.au/details/111",
+      "https://www.seek.com.au/job/333",
+    ]);
   });
 
   /**

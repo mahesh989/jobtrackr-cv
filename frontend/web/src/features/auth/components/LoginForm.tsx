@@ -10,14 +10,16 @@ import { TurnstileBox, type TurnstileBoxHandle } from "./TurnstileBox";
 import { ErrorNotice, GOOGLE_SVG, Spinner, TURNSTILE_CONFIGURED } from "./brand";
 import { Input } from "@/components/ui";
 import { THIN_JD_HIDE_KEY } from "@/features/jobs/components/ThinJdModal";
+import { sanitizeNextPath } from "@/lib/safeRedirect";
 
 export function LoginForm() {
   const searchParams = useSearchParams();
   const confirmed = searchParams.get("confirmed");
   // ?next= — return the user to where they were headed (e.g. /pricing sends
-  // signed-out visitors here before plan checkout). Same-origin paths only.
-  const rawNext = searchParams.get("next");
-  const next = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/";
+  // signed-out visitors here before plan checkout). Same-origin paths only —
+  // see safeRedirect.ts's header comment for why this can't be a manual
+  // string-prefix check (B4-P2).
+  const next = sanitizeNextPath(searchParams.get("next"));
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [error, setError]       = useState<string | null>(null);

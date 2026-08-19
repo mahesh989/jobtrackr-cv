@@ -164,6 +164,38 @@ def _normalise_url(value: Optional[str]) -> str:
 # heading and let the role-pack rename it via to_canonical/restore_and_order.
 _CREDENTIALS_HEADING = "## Registration & Licences"
 
+# Every heading name the credentials section can carry BY THE TIME
+# stamp_credentials runs (i.e. after restore_and_order has already renamed
+# canonical headings back to the family's own names). Matching only the
+# literal "registration & licences" missed both of these, causing a second,
+# duplicate section to be appended instead of the existing one being
+# replaced in place (#57 audit, C23):
+#   • "checks & clearances" — restore_and_order's _relabel_registration
+#     renames the nursing section to this for an unregistered care worker
+#     (clearances only, no AHPRA) — the DEFAULT case for that user segment.
+#   • "certifications & checks" — the manual role-pack's OWN canonical name
+#     for this section (_TO_CANONICAL's reverse mapping restores it before
+#     stamp_credentials runs) — every manual CV hits this, not just some.
+_CREDENTIALS_HEADING_ALIASES = frozenset({
+    "registration & licences",
+    "checks & clearances",
+    "certifications & checks",
+    # C22k: this file's own heading search never got C22c's corroborated
+    # bare/plural forms (added to the PDF-render layer's _SECTION_ALIASES,
+    # pdf_generator/parsing.py) — a writer emitting one of these was
+    # invisible to the exact-match lookup below, so a fresh "## Registration
+    # & Licences" section got APPENDED instead of the existing one being
+    # replaced in place. Same corroborated set as C22c (twice-independently
+    # evidenced — see that chunk's own investigation notes); the two
+    # zero-corroboration variants it deliberately left out stay left out
+    # here too.
+    "registration and licences",
+    "registration",
+    "registrations",
+    "licences",
+    "licenses",
+})
+
 # Role families that surface credentials. Each picks a different subset of
 # the unified credentials JSON via build_credentials_line(family_id=...).
 _CREDENTIAL_FAMILIES = frozenset({"nursing", "manual"})
@@ -295,9 +327,14 @@ def build_availability_line(contact_details: Optional[Dict[str, Any]]) -> str:
     values saved before that change; both render the same display labels.
 
     Returns "" unless the user flipped ``show_availability`` AND ticked at
-    least one work type. Family-agnostic — the caller (stamp_credentials)
-    applies the role-family gate. Rendered on its OWN line, in italics, by
-    stamp_credentials so it reads as a soft note rather than a hard licence.
+    least one work type. Family-agnostic — availability applies to every
+    role family (a tech contractor signals "Casual" just as a care worker
+    does), so unlike ``stamp_credentials`` this is deliberately NOT
+    role-gated. Rendered on its OWN line, in italics, by
+    ``stamp_availability_in_summary`` (below) at the end of the Professional
+    Summary — NOT by ``stamp_credentials``, which only ever handles the
+    Registration & Licences line since the two were split apart (see that
+    function's own body comment).
     """
     if not contact_details:
         return ""
@@ -359,7 +396,7 @@ def stamp_credentials(
     # deterministic line so we never compound user input with AI noise.
     start_idx = next(
         (i for i, l in enumerate(lines)
-         if l.startswith("## ") and l[3:].strip().lower().rstrip(":") == "registration & licences"),
+         if l.startswith("## ") and l[3:].strip().lower().rstrip(":") in _CREDENTIALS_HEADING_ALIASES),
         -1,
     )
     if start_idx >= 0:

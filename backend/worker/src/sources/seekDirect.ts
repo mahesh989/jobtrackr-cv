@@ -15,9 +15,8 @@
 // Cost: zero (no API/proxy). Risk: SEEK can change bot-defence rules
 // any time. That's why we keep the Apify path wired in.
 //
-// Full JD enrichment lives in `enrichWithDirectJDs` (mirrors the actor's
-// enrichWithFullJDs shape). Orchestrator picks the right enrich function
-// based on which fetch path produced the SEEK jobs in this run.
+// Full JD enrichment lives in `enrichWithDirectJDs` below — the only SEEK
+// JD-enrichment path; the Apify actor's own JD-fetcher fallback was removed.
 
 import type { SourceAdapter, SearchProfile, RawJob } from "./types.js";
 import type { NormalisedJob } from "../pipeline/types.js";
@@ -98,13 +97,27 @@ function extractRedux(html: string): ReduxData | null {
  *
  * Returns empty string for AU-wide searches (no `where` param).
  */
-function normaliseSeekLocation(raw: string): string {
-  let loc = raw.trim();
-  // Strip trailing ", Australia" or " Australia" (case-insensitive)
-  loc = loc.replace(/,?\s*australia$/i, "").trim();
-  const low = loc.toLowerCase();
-  if (!low || low === "australia" || low === "all australia") return "";
-  return loc;
+export function normaliseSeekLocation(raw: string): string {
+  const loc = raw.trim();
+  const lowFull = loc.toLowerCase();
+  if (!lowFull) return "";
+  // AU-wide sentinels — checked on the ORIGINAL string, before any
+  // stripping, so a trailing-"Australia" strip can never corrupt them
+  // (previously "All Australia" -> stripped to "All" -> sentinel check
+  // ran too late to ever match, making this branch unreachable — finding
+  // #21 / C28).
+  if (lowFull === "australia" || lowFull === "all australia") return "";
+  // Strip a redundant trailing ", Australia" / " Australia" suffix a user
+  // sometimes appends to an otherwise valid location, e.g. "Sydney,
+  // Australia" -> "Sydney" — but NOT when "Australia" is itself the tail
+  // of a real AU state name ("Western Australia", "South Australia"),
+  // regardless of whether a city precedes it. Round-1 fix only guarded
+  // the BARE state name (an exact-match Set lookup) — "Perth, Western
+  // Australia" still fell through to the bare strip and became "Perth,
+  // Western", the identical failure mode finding #21 describes one input
+  // shape over. The lookbehind blocks the strip whenever "Australia" is
+  // immediately preceded by "Western "/"South ", city-qualified or not.
+  return loc.replace(/,?\s*(?<!\bwestern\s)(?<!\bsouth\s)australia$/i, "").trim();
 }
 
 function buildSearchUrl(keyword: string, location: string, page: number, dateRange: number): string {
@@ -296,8 +309,7 @@ export const seekDirectAdapter: SourceAdapter = {
 // ── Full JD enrichment ────────────────────────────────────────────────────────
 /**
  * Fetch full job descriptions for SEEK survivors via direct HTML scraping
- * of /job/<id> pages. Mirrors enrichWithFullJDs from seek.ts so the
- * orchestrator can swap call sites cleanly.
+ * of /job/<id> pages. The only SEEK JD-enrichment path in production.
  *
  * Returns the same shape (with costUsd = 0 — this path is free).
  */

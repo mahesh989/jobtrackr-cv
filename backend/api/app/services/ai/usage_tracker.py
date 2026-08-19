@@ -62,6 +62,7 @@ _MODEL_PRICES: dict[str, tuple[int, int]] = {
     "anthropic/claude-opus-4-8":  (15_000, 75_000),
     "anthropic/claude-sonnet-4":  ( 3_000, 15_000),   # $3/$15 /MTok
     "anthropic/claude-sonnet-4-6":( 3_000, 15_000),
+    "anthropic/claude-sonnet-5":  ( 3_000, 15_000),   # mirrors sonnet-4 rate pending confirmed pricing
     "anthropic/claude-haiku-4":   (   800,  4_000),   # $0.80/$4 /MTok
     "anthropic/claude-3-5-sonnet":( 3_000, 15_000),
     "anthropic/claude-3-5-haiku": (   800,  4_000),
@@ -101,9 +102,16 @@ def compute_cost_millicents(
     """
     key_prefix = f"{provider}/{model}"
     price_entry = None
-    for k, v in _MODEL_PRICES.items():
+    # Match the LONGEST (most specific) key, not the first one encountered
+    # in dict order. A plain first-match walk picks whichever entry happens
+    # to be inserted earliest — since generic family keys ("claude-opus-4")
+    # are listed before their more specific, dated-version keys
+    # ("claude-opus-4-5", "-4-7", "-4-8"), a first-match walk always
+    # matches the generic entry and leaves the specific ones unreachable
+    # dead code (C41b), regardless of intent.
+    for k in sorted(_MODEL_PRICES, key=len, reverse=True):
         if key_prefix.startswith(k):
-            price_entry = v
+            price_entry = _MODEL_PRICES[k]
             break
 
     if price_entry is None:

@@ -2,7 +2,10 @@
  * POST /api/billing/webhook — Stripe events (the ONLY writer of paid status).
  *
  * - Raw body + signature verification (Stripe replay/forgery protection).
- * - Idempotent: every event id is recorded in stripe_events; replays are no-ops.
+ * - Idempotent: every event id is claimed in stripe_events for the duration
+ *   of the handler. A genuine replay of an already-SUCCEEDED event is a
+ *   no-op; a retry after a FAILED attempt re-runs the handler instead of
+ *   being swallowed as a duplicate (see lib/billing/webhookIdempotency.ts).
  * - Syncs subscriptions table from the authoritative Stripe objects.
  *
  * Auto-renewal: Stripe renews subscriptions automatically each period and
@@ -21,8 +24,13 @@ import { createAdminClient }         from "@/lib/supabase/admin";
 import { getStripe, STRIPE_WEBHOOK_SECRET } from "@/lib/billing/stripe";
 import { upsertFromSubscription } from "@/lib/billing/syncSubscription";
 import { jsonError } from "@/lib/api-utils";
+import { runIdempotent, outcomeToHttpResponse } from "@/lib/billing/webhookIdempotency";
+import { createStripeEventStore } from "@/lib/billing/stripeEventStore";
 
 export const runtime = "nodejs";
+// stripeEventStore.ts's claim staleness window (45s) is sized just above
+// this — keep them in sync if either changes (independent review, round 2).
+export const maxDuration = 20;
 
 export async function POST(req: NextRequest) {
   const sig = req.headers.get("stripe-signature");
@@ -41,17 +49,15 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient();
 
-  // Idempotency: insert event id; if it already exists, this is a replay.
-  const { error: dupeErr } = await admin
-    .from("stripe_events").insert({ event_id: event.id, type: event.type });
-  if (dupeErr) {
-    // Unique violation = already processed. Anything else, log but ack 200 so
-    // Stripe doesn't hammer retries on a transient DB blip.
-    if (dupeErr.code === "23505") return NextResponse.json({ received: true, duplicate: true });
-    console.error("[billing/webhook] dedupe insert error:", dupeErr.message);
-  }
+  // Idempotency store backed by stripe_events, via the claim_stripe_event()
+  // Postgres function (migrations/011_stripe_events_claim_status.sql) — a
+  // durable status column + row-locked atomic claim decision, replacing
+  // the original insert/delete design (BUG #36) once its own two residuals
+  // (BUG-25 F3/F4 — no forensic trace, no ownership token on release) were
+  // found by independent review. See stripeEventStore.ts.
+  const store = createStripeEventStore(admin);
 
-  try {
+  const outcome = await runIdempotent(store, event.id, event.type, async () => {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
@@ -66,7 +72,22 @@ export async function POST(req: NextRequest) {
       case "customer.subscription.created":
       case "customer.subscription.updated":
       case "customer.subscription.deleted": {
-        await upsertFromSubscription(stripe, event.data.object as Stripe.Subscription);
+        // Re-fetch rather than trust event.data.object — that snapshot is
+        // frozen at event-creation time, and this fix (BUG #36) makes a
+        // FAILED event replayable on Stripe's own retry schedule (up to
+        // ~3 days later). Passing the stale snapshot straight through would
+        // let a late retry overwrite a newer, correct status with an old
+        // one — e.g. a stale "active" clobbering a since-recorded
+        // "canceled", with no further event ever arriving to correct it
+        // (independent review of this chunk, live-traced against
+        // entitlements.ts's active/trialing/past_due -> access:"full"
+        // branch). Subscriptions are never hard-deleted at Stripe, so
+        // retrieving after .deleted still returns it, with status
+        // "canceled" — safe. Matches the re-fetch pattern the other two
+        // branches below already use.
+        const snapshot = event.data.object as Stripe.Subscription;
+        const sub = await stripe.subscriptions.retrieve(snapshot.id);
+        await upsertFromSubscription(stripe, sub);
         break;
       }
       case "invoice.paid":
@@ -84,11 +105,26 @@ export async function POST(req: NextRequest) {
         // Unhandled event types are acknowledged so Stripe stops retrying.
         break;
     }
-  } catch (err) {
-    console.error("[billing/webhook] handler error:", err instanceof Error ? err.message : err);
-    // 500 → Stripe retries with backoff (idempotency makes that safe).
-    return jsonError("Handler failed", 500);
-  }
+  });
 
-  return NextResponse.json({ received: true });
+  if (outcome.status === "failed") {
+    const err = outcome.error;
+    console.error("[billing/webhook] handler error:", err instanceof Error ? err.message : err);
+  }
+  if (outcome.status === "in-flight") {
+    // Greppable — this is the one operationally interesting new signal
+    // this chunk introduces: it means concurrent deliveries of the same
+    // event are genuinely happening, and it will show up as a "failed"
+    // 409 delivery in the Stripe dashboard (round-2 review, N3). Expected
+    // and self-resolving (Stripe's own retry converges once the
+    // original claim settles), not a real failure.
+    console.warn("[billing/webhook] CLAIM_IN_FLIGHT_409 — genuinely concurrent delivery of a still-fresh claim, asking Stripe to retry:", event.id);
+  }
+  // outcomeToHttpResponse is the actual fix for BUG-25 F3 (independent
+  // review, round 2): "duplicate" (a TRUE, already-succeeded duplicate)
+  // gets a 2xx; "in-flight" (a genuinely concurrent delivery whose
+  // original claim is still fresh and might yet fail) does NOT — Stripe
+  // must keep retrying it rather than receive a false all-clear.
+  const { status, body } = outcomeToHttpResponse(outcome);
+  return NextResponse.json(body, { status });
 }

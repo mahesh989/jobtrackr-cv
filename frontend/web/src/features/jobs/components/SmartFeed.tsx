@@ -11,13 +11,14 @@ import type { FunnelCounts } from "./PipelineFunnel";
 import { SmartToolbar } from "./SmartToolbar";
 import { SelectModeButton, SelectAllButton } from "./SelectModeButton";
 import { JobSelectionContext, useJobSelection, type JobSelectionCtx } from "./feedSelection";
-import { HeroCard, JobCard, EmptyState, AppliedRow } from "./FeedCards";
+import { JobCard, EmptyState, AppliedRow } from "./FeedCards";
 import { shallowSetParams } from "../lib/shallowNav";
 import {
   clampInt, isPostedToday, byDistanceAsc } from "@/features/jobs/lib/smartFeedUtils";
 import { DistanceRibbon } from "./DistanceRibbon";
 import { BulkActionBar } from "./BulkActionBar";
-import { BoardDetailPanel, EmptyDetail } from "./detail/BoardDetailPanel";
+import { BoardDetailPanel } from "./detail/BoardDetailPanel";
+import { DetailSlideOver } from "./detail/DetailSlideOver";
 
 // ── smart-section bucketing ─────────────────────────────────────────────
 
@@ -28,7 +29,6 @@ interface FeedSection {
   tone: "brand" | "green" | "amber" | "muted";
   Icon: typeof Sparkles;
   jobs: BoardJob[];
-  hero?: boolean;
 }
 
 /**
@@ -80,7 +80,7 @@ function bucketJobs(jobs: BoardJob[]): FeedSection[] {
 
 export function SmartFeed({
   jobs, groups, hasActiveFilter, currentTab, counts, atsCounts,
-  viewCounts, excludeKeywords }: {
+  viewCounts, postedWithinCounts, excludeKeywords }: {
   jobs:            BoardJob[];
   groups?:         JobGroup[];
   hasActiveFilter: boolean;
@@ -88,12 +88,18 @@ export function SmartFeed({
   counts:          FunnelCounts;
   atsCounts:       Record<AtsBand, number>;
   viewCounts?:     Record<string, number>;
+  postedWithinCounts?: Record<string, number>;
   excludeKeywords?: string;
 }) {
   const router   = useRouter();
   const sp       = useSearchParams();
   const pathname = usePathname();
   const isFavouriteFilter = sp.get("stage") === "favourite";
+
+  // Applied/Favourite are a flat list first, detail only on an explicit click
+  // (see the isFlatStage branch below) — nothing auto-opens, and the pane is
+  // never dimmed there.
+  const isFlatStage = currentTab === "applied" || currentTab === "favourite";
 
   const selectedJobId = sp.get("job");
   const openDetail = useCallback((id: string) => {
@@ -145,8 +151,11 @@ export function SmartFeed({
       onOpenDetail: openDetail,
       onOpenDetailAndApply: openDetailAndApply,
       activeJobId:  selectedJobId,
+      // Focus dimming (handoff §2.1): non-flat stages dim every card but the
+      // selected one while the detail pane is open.
+      paneOpen: !isFlatStage && selectedJobId != null,
     }),
-    [selected, toggle, setMany, openDetail, openDetailAndApply, selectedJobId],
+    [selected, toggle, setMany, openDetail, openDetailAndApply, selectedJobId, isFlatStage],
   );
 
   const toggleSelectMode = useCallback((sectionId: string, sectionJobs?: BoardJob[]) => {
@@ -267,15 +276,24 @@ export function SmartFeed({
     setProgress({ done: 0, total: ids.length });
     let idx = 0;
     let done = 0;
+    // C67: every attempt — network failure OR a non-2xx response (fetch()
+    // only throws on the former; a 402 billing cap / 500 error resolves
+    // normally with res.ok=false and was never checked) — was silently
+    // counted as "done" with no distinction from a real success. The bulk
+    // operation always reported as if every job analyzed successfully.
+    let failed = 0;
     const worker = async () => {
       while (idx < ids.length && !cancelledRef.current) {
         const id = ids[idx++];
         try {
-          await fetch(`/api/jobs/${id}/analyze?override=all`, {
+          const res = await fetch(`/api/jobs/${id}/analyze?override=all`, {
             method:  "POST",
             headers: { "Content-Type": "application/json" },
             body:    "{}" });
-        } catch { /* best-effort */ }
+          if (!res.ok) failed++;
+        } catch {
+          failed++;
+        }
         if (!cancelledRef.current) {
           done++;
           setProgress({ done, total: ids.length });
@@ -287,18 +305,24 @@ export function SmartFeed({
       setProgress(null);
       exitAllSelectModes();
       router.refresh();
+      if (failed > 0) {
+        window.alert(`${failed} of ${ids.length} job${ids.length === 1 ? "" : "s"} failed to analyze. The rest completed — try the failed ones again individually.`);
+      }
     }
   }
 
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  function scrollToJob(id: string) {
+  const scrollToJob = useCallback((id: string) => {
     const el = cardRefs.current[id];
     if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    // `nearest`, not `center`: with the pane open the board keeps its own
+    // scroll context, and a whole-card jump would yank the user away from
+    // where they were reading.
+    el.scrollIntoView({ behavior: "smooth", block: "nearest" });
     el.classList.add("ring-2", "ring-[var(--brand)]");
     setTimeout(() => el.classList.remove("ring-2", "ring-[var(--brand)]"), 1500);
-  }
+  }, []);
 
   const visibleJobs = useMemo(
     () => (hiddenIds.size === 0 ? patchedJobs : patchedJobs.filter((j) => !hiddenIds.has(j.id))),
@@ -336,64 +360,22 @@ export function SmartFeed({
     shallowSetParams(pathname, next);
   }
 
-  // State rather than a ref: reading a ref during render is exactly the
-  // cascading-render smell the lint config flags, and this value IS render
-  // input — it decides which job the detail pane shows on first paint.
-  // Assigning during render is the sanctioned derive-state pattern, and the
-  // `=== null` guard makes it fire once (the first job stays selected even as
-  // filtering reorders the list underneath).
-  // Applied/Favourite are a flat list first, detail only on an explicit click
-  // (see isFlatStage below) — they don't auto-open the first row the way the
-  // split-pane board auto-fills its (otherwise empty-looking) detail column.
-  const isFlatStage = currentTab === "applied" || currentTab === "favourite";
-
-  const [defaultJobId, setDefaultJobId] = useState<string | null>(null);
-  if (!isFlatStage && !selectedJobId && hasJobs && defaultJobId === null) setDefaultJobId(visibleJobs[0].id);
-
-  // defaultJobId auto-fills the split-pane board's right column, and it's
-  // component state — it survives a client-side switch to the Applied/Favourite
-  // tab (no remount). It must NOT leak into those flat lists: their whole design
-  // is "nothing expanded until an explicit click", and an expansion driven by
-  // this state (not the URL `job` param) can't be dismissed by Collapse, which
-  // only clears the URL. So on a flat stage, selection comes from the URL alone.
-  const resolvedJobId = selectedJobId ?? (isFlatStage ? null : defaultJobId);
-
+  // Selection is URL-driven, full stop. The old desktop split auto-filled its
+  // right column with the first job so it never sat empty; the slide-over
+  // (handoff §2.1) mounts only on an explicit click or ← / →, so there is
+  // nothing to auto-fill — the board keeps its whole width and the pane's
+  // "No job selected" hint stands until the first pick. Applied/Favourite are
+  // their own flat lists and never auto-open either.
   const selectedJob = useMemo(
-    () => {
-      if (!resolvedJobId) return null;
-      const found = visibleJobs.find((j) => j.id === resolvedJobId);
-      if (found) return found;
-      // The split-pane board fills its right column with the first job when the
-      // requested id isn't in the current list. The flat accordion must NOT —
-      // a stale/non-matching id there means "nothing expanded", so Collapse and
-      // fresh navigation behave the same as a full reload.
-      return isFlatStage ? null : (visibleJobs[0] ?? null);
-    },
-    [visibleJobs, resolvedJobId, isFlatStage],
-  );
-
-  // The job the user actually asked for, ignoring the auto-selected default.
-  //
-  // `defaultJobId` exists to fill the desktop split's right-hand column, which
-  // would otherwise sit empty on arrival. Below `lg` there IS no such column —
-  // the detail renders as a `fixed inset-0` full-screen overlay — so feeding it
-  // the default meant every narrow-viewport visit to the board opened straight
-  // into a job detail and the user never saw their list at all.
-  //
-  // Deliberately NOT gated on useIsDesktop(): that hook's server snapshot is
-  // `true`, so the SSR HTML would contain the overlay and only shed it on
-  // hydration — a visible flash on exactly the viewports this is fixing. The
-  // distinction is about intent, not width, and the URL already carries it.
-  const explicitJob = useMemo(
     () => (selectedJobId ? visibleJobs.find((j) => j.id === selectedJobId) ?? null : null),
     [visibleJobs, selectedJobId],
   );
 
-  function closeDetail() {
+  const closeDetail = useCallback(() => {
     const next = new URLSearchParams(Array.from(sp.entries()));
     next.delete("job");
     shallowSetParams(pathname, next);
-  }
+  }, [sp, pathname]);
 
   // Changing the query means a different list, so the old scroll offset is
   // meaningless — it dropped you into the middle of results you had never
@@ -407,7 +389,7 @@ export function SmartFeed({
   const queryKey = [
     "stage", "triage", "ats", "jd", "not_applied",
     "sort", "dir", "max_distance", "min_distance", "min_keywords",
-    "employment", "eligible", "location",
+    "employment", "eligible", "location", "posted_within",
   ].map((k) => sp.get(k) ?? "").join("|");
   const prevQueryKey = useRef(queryKey);
   useEffect(() => {
@@ -415,6 +397,43 @@ export function SmartFeed({
     prevQueryKey.current = queryKey;
     listRef.current?.scrollTo({ top: 0 });
   }, [queryKey]);
+
+  // Handoff §2.1 keyboard navigation: ← / → step through the currently
+  // filtered board (wrapping around, and working even with the pane closed);
+  // Esc closes the pane. Typing in a field never navigates. Skip entirely on
+  // the flat Applied/Favourite stages — they're accordions, not a stepper.
+  const visibleIds = useMemo(() => visibleJobs.map((j) => j.id), [visibleJobs]);
+  useEffect(() => {
+    if (isFlatStage) return;
+    function onKey(e: KeyboardEvent) {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (e.key === "Escape") {
+        if (selectedJobId) closeDetail();
+        return;
+      }
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      if (visibleIds.length === 0) return;
+      e.preventDefault();
+      const cur = selectedJobId ? visibleIds.indexOf(selectedJobId) : -1;
+      const dir = e.key === "ArrowRight" ? 1 : -1;
+      const next = cur === -1
+        ? (dir === 1 ? 0 : visibleIds.length - 1)
+        : (cur + dir + visibleIds.length) % visibleIds.length;
+      openDetail(visibleIds[next]);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [visibleIds, selectedJobId, openDetail, closeDetail, isFlatStage]);
+
+  // Auto-scroll (handoff §2.1): keep the selected card in view behind the
+  // pane. Fires once per selection — the rAF lets the new card mount (or the
+  // list reflow) before measuring.
+  useEffect(() => {
+    if (!selectedJobId) return;
+    const id = requestAnimationFrame(() => scrollToJob(selectedJobId));
+    return () => cancelAnimationFrame(id);
+  }, [selectedJobId, scrollToJob]);
 
 
   if (isFlatStage) {
@@ -432,7 +451,7 @@ export function SmartFeed({
         {visibleJobs.length === 0 ? (
           <EmptyState favourite={isFavouriteFilter} />
         ) : (
-          <div ref={listRef} data-scroll-container="board-list" className="space-y-2.5">
+          <div ref={listRef} data-scroll-container="board-list" className="space-y-[14px]">
             <JobSelectionContext.Provider value={selectionValue}>
               {visibleJobs.map((job) =>
                 job.id === selectedJob?.id ? (
@@ -461,6 +480,7 @@ export function SmartFeed({
         counts={counts}
         atsCounts={atsCounts}
         viewCounts={viewCounts}
+        postedWithinCounts={postedWithinCounts}
       />
 
       {distanceMax > 0 && (
@@ -474,28 +494,37 @@ export function SmartFeed({
       )}
 
       <div className="flex gap-0 -mx-4 sm:-mx-6">
-        {/* Fixed-width master column ONLY where there is a detail pane beside
-            it. Below `lg` the pane is a full-screen overlay, so this is the
-            whole screen — and `w-[440px] min-w-[400px] shrink-0` unconditionally
-            meant a 440px column inside a 375px viewport, with `min-w` forbidding
-            the shrink that would have saved it. Every card inherited the
-            overflow: titles clipped, the Apply button sliced in half, and an
-            ancestor's overflow-hidden swallowed the rest rather than letting the
-            page scroll to it. `min-w-0` is load-bearing — without it the flex
-            item's automatic minimum size re-floors at its content width. */}
+        {/* The board is now a single full-width column — the detail pane
+            lives in the slide-over overlay below (handoff §2.1), so there is
+            no fixed-width master rail or second column to share the row
+            with. `min-w-0` remains load-bearing: without it the flex item's
+            automatic minimum size re-floors at its content width. */}
         {/* The viewport-height column and its own scroller are `lg:` ONLY.
-            They exist so the list and the detail pane beside it scroll
-            independently — which requires a pane to sit beside. Below `lg`
-            there is none (the detail is a full-screen overlay), so pinning
-            this to 100dvh put a second scroller INSIDE the already-scrolling
-            main column: measured at 768px, `main` scrolled 1024->1505 while
-            `board-list` scrolled 992->3066. Two nested scrollbars, and
-            BulkActionBar — sticky to the inner container's bottom — sat below
-            the fold, so bulk actions were unreachable without scrolling the
-            outer column first. Below `lg` the list now flows and the page is
-            the only thing that scrolls. */}
-        <div className="w-full min-w-0 lg:w-[440px] lg:min-w-[400px] lg:shrink-0 lg:h-[calc(100dvh-2rem)] bg-[var(--bg)] border-r border-border self-start">
+            They existed so the list and the detail pane beside it could
+            scroll independently — which required a pane to sit beside. The
+            pane is an overlay now, so pinning this to 100dvh would put a
+            second scroller INSIDE the already-scrolling main column: measured
+            at 768px, `main` scrolled 1024->1505 while `board-list` scrolled
+            992->3066. Two nested scrollbars, and BulkActionBar — sticky to
+            the inner container's bottom — sat below the fold, so bulk actions
+            were unreachable without scrolling the outer column first. Below
+            `lg` the list flows and the page is the only thing that scrolls.
+            Above `lg` it keeps its own rail (the overlay shares the screen,
+            so the list can stay put while the pane slides over it). */}
+        <div className="w-full min-w-0 lg:h-[calc(100dvh-2rem)] bg-[var(--bg)] self-start">
           <div className="lg:h-full flex flex-col">
+            {/* Keyboard discoverability (handoff §2.1): with no auto-fill
+                there's nothing open until the first pick, so the ← → hint
+                sits above the feed exactly where the pane used to be. */}
+            {!selectedJobId && (
+              <div className="px-5 pt-4 pb-0">
+                <p className="text-caption text-text-3">
+                  Tip: press <kbd className="rounded border border-border bg-[var(--surface-2)] px-1 py-px text-[10px] font-sans">←</kbd>{" "}
+                  <kbd className="rounded border border-border bg-[var(--surface-2)] px-1 py-px text-[10px] font-sans">→</kbd>{" "}
+                  to preview a job without the sidebar.
+                </p>
+              </div>
+            )}
             {/* The feed's own scroller (lg and up) — the outer main column
                 doesn't move with it, so ScrollRestoration has to know about
                 this one to put the user back on the card they were reading. */}
@@ -532,24 +561,19 @@ export function SmartFeed({
             />
           </div>
         </div>
-
-        <div
-          className="hidden lg:block flex-1 min-w-[540px] lg:h-[calc(100dvh-2rem)] bg-surface self-start overflow-hidden"
-        >
-          {selectedJob
-            ? <BoardDetailPanel job={selectedJob} onClose={closeDetail} onPatchJob={patchJob} />
-            : <EmptyDetail />}
-        </div>
       </div>
 
-      {/* `explicitJob`, not `selectedJob` — see its definition. This overlay
-          covers the whole screen, so it may only ever appear because the user
-          opened a job, never because one was auto-selected for the desktop
-          column that isn't rendered at this width. */}
-      {explicitJob && (
-        <div className="lg:hidden">
-          <BoardDetailPanel job={explicitJob} onClose={closeDetail} onPatchJob={patchJob} mobile />
-        </div>
+      {/* The slide-over draws over the whole board at every width (`w-full`
+          below lg = the old full-screen drawer; `max-w-[560px]` above = the
+          desktop side pane). Keyed by job so selecting another job replays
+          the entrance choreography. */}
+      {selectedJob && (
+        <DetailSlideOver
+          key={selectedJob.id}
+          job={selectedJob}
+          onClose={closeDetail}
+          onPatchJob={patchJob}
+        />
       )}
     </div>
   );
@@ -569,8 +593,6 @@ function SmartFeedBody({
   onToggleSelectMode?: (sectionId: string, sectionJobs?: BoardJob[]) => void;
   excludeKeywords?: string;
 }) {
-  const sp       = useSearchParams();
-  const pathname = usePathname();
   const parentSelection = useJobSelection()!;
 
   const groupSections: FeedSection[] | null = useMemo(() => {
@@ -592,7 +614,7 @@ function SmartFeedBody({
   return (
     <>
       {sections ? (
-        <div className="space-y-7">
+        <div className="space-y-[34px]">
           {sections.map((sec, idx) => (
             <FeedSectionView
               key={sec.id}
@@ -623,7 +645,7 @@ function SmartFeedBody({
             </div>
           )}
           <JobSelectionContext.Provider value={{ ...parentSelection, selectMode: activeSelectModes.has("flat") }}>
-            <div className="grid gap-2.5">
+            <div className="grid gap-[14px]">
               {jobs.map((job) => (
                 <JobCard
                   key={job.id}
@@ -678,7 +700,7 @@ function FeedSectionView({
           heading. The negative inline margins cancel the scroller's p-5 so the
           bar spans the full rail width and cards pass underneath it rather than
           beside it. */}
-      <div className={`sticky -top-5 z-10 -mx-5 px-5 ${isFirst ? "pt-0" : "pt-6"} pb-2 -mt-1 mb-2.5 bg-[var(--bg)] border-b border-[var(--border-muted)] flex items-baseline justify-between gap-3`}>
+      <div className={`sticky -top-5 z-10 -mx-5 px-5 ${isFirst ? "pt-0" : "pt-6"} pb-2 -mt-1 mb-2.5 bg-[var(--bg)] flex items-baseline justify-between gap-3`}>
         <div className="flex items-baseline gap-2 min-w-0 flex-1">
           <Icon className={`w-4 h-4 self-center shrink-0 ${toneClass[section.tone]}`} strokeWidth={2.5} />
           <h3 className="text-lead font-semibold text-text">{section.label}</h3>
@@ -703,23 +725,13 @@ function FeedSectionView({
         </div>
       </div>
 
-      {section.hero ? (
-        <div className="grid gap-2.5 sm:grid-cols-1 lg:grid-cols-3">
-          {section.jobs.map((job) => (
-            <HeroCard key={job.id} job={job} currentTab={currentTab} refSetter={refSetter(job.id)} excludeKeywords={excludeKeywords} />
-          ))}
-        </div>
-      ) : (
-        <div className="grid gap-2.5">
-          {section.jobs.map((job) => (
-            <JobCard key={job.id} job={job} currentTab={currentTab} refSetter={refSetter(job.id)} excludeKeywords={excludeKeywords} />
-          ))}
-        </div>
-      )}
+      <div className="grid gap-[14px]">
+        {section.jobs.map((job) => (
+          <JobCard key={job.id} job={job} currentTab={currentTab} refSetter={refSetter(job.id)} excludeKeywords={excludeKeywords} />
+        ))}
+      </div>
       </section>
     </JobSelectionContext.Provider>
   );
 }
-
-// ── hero card ───────────────────────────────────────────────────────────
 

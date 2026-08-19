@@ -10,28 +10,29 @@ JobTrackr + on-demand AI CV tailoring. Three services, one Supabase database:
 
 Frontend and worker communicate with backend/api via HMAC-signed HTTP. Never expose backend/api endpoints to the browser.
 
-**Read `docs/design.md` once at the start of every fresh conversation** — the phased plan, bridge contract, and data model live there. Then check `.claude/graph.json` for current state.
+**Read `docs/design.md` and `docs/CONTRACTS.md` once at the start of every fresh conversation** — the phased plan, bridge contract, data model, and cross-service do-not-touch constraints live there. Then check `.claude/graph.json` for current state.
 
 ## How to Use This Repo Efficiently
 
 **SESSION START — mandatory:**
 1. Read `.claude/graph.json` in full
 2. Read `docs/design.md` (skim if already familiar)
-3. Check `build_state.current_phase` — as of 2026-08-02 this reads
+3. Read `docs/CONTRACTS.md` (cross-service and deployment invariants)
+4. Check `build_state.current_phase` — as of 2026-08-02 this reads
    **phase-13 COMPLETE, LIVE in production**: the original phased
    rollout is done and this repo has been in general maintenance mode
    (refactors, bug fixes, audits — see `_meta.session_notes` and
    `known_issues`/`deferred_features`) for several weeks. There is no
    `planned`-status task queue to resume by default.
-4. If `build_state` ever shows a genuinely new phase in flight again
+5. If `build_state` ever shows a genuinely new phase in flight again
    (a fresh `next_action` with real `planned` tasks under it), the
    original discipline still applies: find the next task whose
    `depends_on` are all `completed`, and do NOT skip phases — each one
    has a verification gate that must pass before moving on.
-5. Otherwise, treat the session as maintenance work: check
+6. Otherwise, treat the session as maintenance work: check
    `known_issues` / `deferred_features` for open items, or follow
    whatever the user asks for directly.
-6. Do NOT modify production JobTrackr (`/Users/mahesh/Documents/Next Phase Cleaning/APPlication/JobTrackr`) — this is a separate project
+7. Do NOT modify production JobTrackr (`/Users/mahesh/Documents/Next Phase Cleaning/APPlication/JobTrackr`) — this is a separate project
 
 **DURING SESSION — update graph.json immediately when:**
 - Any item moves: `planned` → `in_progress` → `completed`
@@ -114,7 +115,7 @@ frontend/web/src/
     integrations/   # Third-party integrations (ApifyCard, EmailIntegrationCard)
   lib/              # Shared utilities, types, helpers
     types.ts        # Canonical shared types (ContactDetails, SkillCategory, etc.)
-    api-utils.ts    # requireUser(), requireAdmin(), parseJsonBody(), jsonError()
+    api-utils.ts    # withUser(), withAdmin() (canonical route wrappers), requireUser(), requireAdmin(), parseJsonBody(), jsonError()
     constants.ts    # RunStatus, StepState, ADMIN_ROLES, VisaStatus, JOB_SOURCES, TIER_DEFAULTS
     supabase/       # Supabase client creation (browser + server)
     cv/             # CV-specific helpers (skillLabels, etc.)
@@ -149,9 +150,8 @@ backend/worker/src/
 ## Key Patterns
 
 ### Auth Flow
-- Middleware (`middleware.ts`) protects all `/dashboard/*` routes
-- API routes in `app/api/` use `requireUser()` from `lib/api-utils.ts` — returns `{ userId, supabase }`
-- Admin routes use `requireAdmin()` — same pattern, adds role check
+- `proxy.ts` (Next's middleware, renamed `proxy` in this Next version — see its own header comment for why it must never be deleted) protects all `/dashboard/*` routes
+- Canonical pattern (since 2026-07-23) is `withUser()` / `withAdmin()` from `lib/api-utils.ts` — a route handler wrapper that acquires the session via `getClaims()` and denies with 401/403 *before* the handler runs, so a wrapped route is structurally incapable of skipping auth. `scripts/check-route-auth.mjs` treats these as the canonical guard in CI. `requireUser()`/`requireAdmin()` still exist as the lower-level primitives `withUser`/`withAdmin` call internally, and are used directly only by the handful of routes that need a redirect-on-fail flow instead of a 401 JSON response (e.g. `admin/view-as`) — see the allowlist in `check-route-auth.mjs`.
 - Auth pages (`/auth/*`) are public. The FOUC script lives in the ROOT layout, so `<html>` DOES carry the user's theme class there — the old claim that it doesn't was wrong and caused a real bug (Aurora Dark users saw white labels on a white card, because the shared `Input`/`FieldLabel` read `.field`/`text-text`). Since 2026-08-07 the auth screens sit inside a `.auth-shell` scope (globals.css) that pins surface/text/border/brand plus the raw hue families, so they render the same regardless of the active theme — by construction, not by a route check.
 
 ### Data Flow
@@ -178,6 +178,9 @@ backend/worker/src/
 - No SQLAlchemy — direct Supabase REST writes via httpx
 
 ## Non-Negotiable Decisions
+
+See `docs/CONTRACTS.md` for the incident-backed cross-service and deployment
+constraints that elaborate these decisions.
 
 1. **Two services, one DB.** `frontend/web` + `backend/worker` stay TypeScript. `backend/api` stays Python (FastAPI). Communicating via HMAC-signed HTTP. Shared Supabase.
 2. **No logic porting.** cv-magic's pipeline orchestrator, 7 step files, ReportLab PDF generator, AI prompts — all stay Python verbatim.
