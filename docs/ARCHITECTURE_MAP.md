@@ -211,35 +211,44 @@ RLS: 20 of 21 core tables have RLS enabled. Realtime publication: `analysis_runs
 
 ## 4. External Boundaries
 
+> **Corrected 2026-08-19** — Turnstile has no dedicated lib file (see below).
+
 | Integration | Owning module | Purpose |
 |---|---|---|
 | Supabase (Postgres/Storage/Realtime/Auth) | all three services | Shared DB, file storage, live subscriptions, auth |
 | Stripe | `frontend/web` (`lib/billing/stripe.ts`, `app/api/billing/*`) | Subscriptions, checkout, webhook |
-| Cloudflare Turnstile | `frontend/web` (`lib/turnstile.ts`) | CAPTCHA on login/signup |
+| Cloudflare Turnstile | `frontend/web` (`features/auth/components/TurnstileBox.tsx`, wired into `LoginForm.tsx`/`SignupForm.tsx`/`ForgotPasswordForm.tsx`) | CAPTCHA on login/signup |
 | Resend | `frontend/web` (`app/api/applications/.../send-email`) | Transactional email |
 | Google OAuth, Microsoft OAuth | `frontend/web` (`app/api/auth/email/*`) | Gmail/Outlook account linking |
 | Apify (actor execution) | `backend/worker` (`sources/seekDirect.ts`, `adzunaActor.ts`, `careerjetActor.ts`) | Paid fallback scraping, Unlimited tier only |
 | SEEK (direct scrape), Adzuna API, Careerjet API, Greenhouse, Lever, Jora (disabled) | `backend/worker` (`src/sources/*`, 36 adapters) | Job listing/JD sourcing |
-| Nominatim, OSRM | `backend/worker` (`pipeline/orchestrator.ts`) | Geocoding, driving-distance |
+| Nominatim, OSRM | `backend/worker` (`pipeline/orchestrator/`) | Geocoding, driving-distance |
 | Anthropic, OpenAI (visa/setting classify) | `backend/worker` (`src/ai/*`) | Cheap classification fallback |
 | Anthropic, OpenAI, DeepSeek (CV pipeline) | `backend/api` (`services/ai/client.py`) | JD matching, tailoring, cover letters |
 | Tavily | `backend/api` (`routes/internal/company.py`) | Company research web search |
-| ReportLab | `backend/api` (`services/cv/pdf_generator.py`) | PDF rendering (local, not external) |
+| ReportLab | `backend/api` (`services/cv/pdf_generator/`) | PDF rendering (local, not external) |
 
 ## 5. Deployment Units Today
+
+> **Corrected 2026-08-19** — the "manual flyctl, lags main by days" row below
+> was wrong and stayed wrong for a while; `.github/workflows/deploy.yml` push-
+> triggers on `main`, path-filtered per service, with an inline gate
+> (typecheck/test for worker, pytest for api) before each `flyctl deploy` —
+> confirmed live this session across two `dev-5 → main` promotions (worker
+> v210→211, api v449→450, both auto-deployed within seconds of the merge, no
+> manual flyctl invocation). `graph.json`'s own `_meta.deploy` field already
+> had this right. Manual `flyctl deploy` still exists as the documented
+> break-glass path (plus a `workflow_dispatch` force-deploy trigger), but it
+> is not the normal route.
 
 | Unit | Host | Deploy trigger | Cadence/coupling |
 |---|---|---|---|
 | `frontend/web` | Vercel (`jobtrackr-cv`) | `git push origin main` — **auto** | Ships every merge to main; no staging gate beyond CI |
-| `backend/worker` | Fly.io `jobtrackr-worker` (syd, 512MB shared-cpu-1x, concurrency=1) | `flyctl deploy --config backend/worker/fly.toml` — **manual** | Frequently lags main by days (graph.json shows repeated "flyctl deploy pending" entries) |
-| `backend/api` | Fly.io `jobtrackr-cv-api` (syd, 512MB, min_machines=1 always-warm) | `flyctl deploy --config backend/api/fly.toml` — **manual** | Same manual-lag pattern as worker |
+| `backend/worker` | Fly.io `jobtrackr-worker` (syd, 512MB shared-cpu-1x, concurrency=1) | `git push origin main` (path-filtered on `backend/worker/**`) — **auto**, via `.github/workflows/deploy.yml` | Ships every merge that touches worker files; manual `flyctl deploy --config backend/worker/fly.toml` is the break-glass fallback |
+| `backend/api` | Fly.io `jobtrackr-cv-api` (syd, 512MB, min_machines=1 always-warm) | `git push origin main` (path-filtered on `backend/api/**`) — **auto**, via `.github/workflows/deploy.yml` | Same auto-deploy pattern as worker; also has a zombie-VM guard job (checks for a duplicate worker machine post-deploy) |
 
 CI (`.github/workflows/ci.yml`): hard gates = auth/migration-lint guard, web
 typecheck, api pytest. Non-blocking = web eslint (66 inherited errors).
-
-**Existing pain point**: because worker/api deploys are manual while web
-auto-deploys, code merged to `main` is not automatically live for the two Fly
-services — a real operational seam, independent of any future service split.
 
 ## 6. Shared Code
 
@@ -251,11 +260,15 @@ services — a real operational seam, independent of any future service split.
   level.
 - **Within frontend/web** (cross-feature-directory, 3+ importers):
   `lib/supabase/admin.ts` (61 routes), `lib/supabase/server.ts` (23 routes + lib/actions),
-  `lib/supabase/client.ts` (10+ components), `lib/cvBackend.ts` (23 routes),
-  `lib/actions.ts` (13 components + 5 routes), `lib/rateLimit.ts` (11 routes),
-  `lib/billing/entitlements.ts` (9 routes + components), `lib/atsThresholds.ts` (9 locations).
-- **Within backend/worker**: `sources/index.ts` (dispatch used by all 36 adapters),
-  `ai/costCap.ts` (budget tracking used by both AI classifiers).
+  `lib/supabase/client.ts` (10+ components), `lib/cv/backend.ts` (26 importers —
+  moved from a flat `lib/cvBackend.ts`), `lib/actions/` (split from a flat
+  `lib/actions.ts` into `_helpers.ts`/`jobs.ts`/`profiles.ts`/`runs.ts`/`invites.ts`),
+  `lib/rateLimit.ts` (11 routes), `lib/billing/entitlements.ts` (9 routes + components),
+  `lib/atsThresholds.ts` (9 locations).
+- **Within backend/worker**: `sources/index.ts` (dispatch used by all 36 adapters).
+  (`ai/costCap.ts` — corrected 2026-08-19: no longer exists; the budget-tracking
+  feature it described was removed, and `audit_cleanup.test.ts` now guards
+  against it coming back.)
 - **Within backend/api**: `services/ai/client.py` (used by pipeline steps + cover
   letter generator), `app/security/hmac.py` (every `/internal/*` route).
 
