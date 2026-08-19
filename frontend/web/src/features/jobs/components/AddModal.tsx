@@ -84,6 +84,12 @@ export function AddModal({ onClose }: { onClose: () => void }) {
 
       onClose();
       if (analyseNow) {
+        // C67: a rejected analyze call (billing cap, validation error, ...)
+        // or a network failure both fell into the SAME `.catch(() =>
+        // router.refresh())` as a clean non-2xx response — silently
+        // discarded, with the modal already closed by this point (onClose()
+        // above), so there was no path left for the user to learn the job
+        // WAS saved but analysis was NOT actually started.
         await fetch(`/api/jobs/${result.jobId}/analyze`, {
           method:  "POST",
           headers: { "Content-Type": "application/json" },
@@ -93,9 +99,14 @@ export function AddModal({ onClose }: { onClose: () => void }) {
             const { run_id } = await r.json();
             router.push(`/jobs/${result.jobId}/analyze/${run_id}`);
           } else {
+            const j = await r.json().catch(() => ({}));
             router.refresh();
+            window.alert(`Job saved, but analysis could not start: ${j.error ?? `Failed (${r.status})`}`);
           }
-        }).catch(() => router.refresh());
+        }).catch((e) => {
+          router.refresh();
+          window.alert(`Job saved, but analysis could not start: ${e instanceof Error ? e.message : "network error"}`);
+        });
       } else {
         router.refresh();
       }

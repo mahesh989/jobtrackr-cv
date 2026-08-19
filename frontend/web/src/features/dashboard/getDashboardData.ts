@@ -135,6 +135,47 @@ export function readMyCvVerticals(prefRow: { contact_details?: unknown } | null)
   ).filter(Boolean);
 }
 
+const COUNT_ROWS_PAGE_SIZE = 1000;
+const COUNT_ROWS_MAX = 20_000;
+
+/**
+ * The countRows query (totalJobs/totalNew/totalApplied + every downstream
+ * count/id list derived from `allRows`) had no explicit .limit(), so it
+ * silently rode PostgREST's default row cap (1000) — an active account with
+ * more non-expired jobs than that across its profiles got quietly
+ * undercounted with no error anywhere. Paginate explicitly instead, ordered
+ * by id for a stable cursor across pages (Supabase query builders are
+ * single-use, so each page needs a fresh one from `buildQuery`).
+ */
+export async function fetchAllCountRows(
+  supabase: SupabaseClient,
+  ids: string[],
+  pageSize: number = COUNT_ROWS_PAGE_SIZE,
+  maxRows: number = COUNT_ROWS_MAX,
+): Promise<{ rows: AllCountRow[]; truncated: boolean }> {
+  if (ids.length === 0) return { rows: [], truncated: false };
+
+  const buildQuery = () =>
+    supabase
+      .from("jobs")
+      .select("id, seen_at, applied_at, dismissed_at, starred_at, profile_id, jd_quality, manual_jd_text, role_match, has_email, employment_types")
+      .in("profile_id", ids)
+      .eq("is_expired", false)
+      .eq("is_dead_link", false)
+      .order("id", { ascending: true });
+
+  const rows: AllCountRow[] = [];
+  let offset = 0;
+  while (offset < maxRows) {
+    const { data, error } = await buildQuery().range(offset, offset + pageSize - 1);
+    if (error || !data) break;
+    rows.push(...(data as AllCountRow[]));
+    if (data.length < pageSize) return { rows, truncated: false };
+    offset += pageSize;
+  }
+  return { rows, truncated: true };
+}
+
 /**
  * Fold the acted-on rows into the capped page of active jobs, deduped by id —
  * the two queries overlap for anything recent enough to be in both. Must run
@@ -525,7 +566,7 @@ export async function getDashboardData(args: {
     { data: jobs },
     { data: dismissedJobs },
     { data: actionedJobs },
-    { data: countRows },
+    { rows: countRows, truncated: countRowsTruncated },
     { data: runLogData },
     { data: completedRuns },
     { count: anyJobCount, error: anyJobCountError },
@@ -533,12 +574,7 @@ export async function getDashboardData(args: {
     q,
     dq,
     aq,
-    supabase
-      .from("jobs")
-      .select("id, seen_at, applied_at, dismissed_at, starred_at, profile_id, jd_quality, manual_jd_text, role_match, has_email, employment_types")
-      .in("profile_id", ids)
-      .eq("is_expired", false)
-      .eq("is_dead_link", false),
+    fetchAllCountRows(supabase, ids),
     supabase
       .from("run_logs")
       .select("profile_id, jobs_fetched, jobs_after_dedup, jobs_saved, jobs_deduped, sources_saved")
@@ -608,7 +644,10 @@ export async function getDashboardData(args: {
   );
   const jobIds          = jobList.map((j) => j.id);
   // Same work-type predicate as the board list so funnel counts agree.
-  const allRows         = ((countRows ?? []) as AllCountRow[]).filter((r) =>
+  if (countRowsTruncated) {
+    console.error(`getDashboardData: countRows hit the ${COUNT_ROWS_MAX}-row backstop for profiles [${ids.join(",")}] — counts may undercount`);
+  }
+  const allRows         = countRows.filter((r) =>
     r.applied_at || r.starred_at || passesWorkTypes(r, userWorkTypes),
   );
   const jobIdsForCounts = allRows.map((r) => r.id);

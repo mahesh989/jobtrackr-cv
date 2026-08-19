@@ -370,11 +370,27 @@ export async function sendApplicationEmail(
     }
   } catch (err) {
     // Send failed — release the claim so the user can retry.
-    await admin
+    // C67: this release's own result was discarded — if IT also fails
+    // (transient DB error, network blip), email_sent_at stays stamped from
+    // the claim above even though no email was ever sent. The next attempt
+    // then always fails step 7's `is("email_sent_at", null)` check with
+    // "Email already sent" (409) — the application is permanently stuck,
+    // since retrying is exactly what can never work once the claim itself
+    // can't be released. Distinguished here so the user gets an honest
+    // "contact support" message instead of a misleading "try again".
+    const { error: releaseError } = await admin
       .from("cover_letters")
       .update({ email_sent_at: null })
       .eq("id", letter_id);
     console.error("[send-email] send failed:", err instanceof Error ? err.message : String(err));
+    if (releaseError) {
+      console.error(
+        "[send-email] CRITICAL: send failed AND releasing the claim also failed — " +
+        `letter ${letter_id} is stuck with email_sent_at set but no email sent:`,
+        releaseError.message,
+      );
+      return jsonError("Send failed and this application is now stuck — please contact support.", 500);
+    }
     return jsonError("Send failed — please try again.", 502);
   }
 

@@ -140,7 +140,7 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
         statusRef.current === "failed"    ||
         statusRef.current === "picking"
       ) return;
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("cover_letters")
         .select(
           "id, status, generation_status, pass_3_final, burstiness_score, " +
@@ -151,6 +151,10 @@ export function CoverLetterPanel({ jobId, initial, jobHiringManager, cvStoragePa
         )
         .eq("id", letterId)
         .single();
+      // C67: error was discarded — a persistent failure (RLS denial, the
+      // row being deleted, etc.) made this poll silently no-op forever,
+      // every 3s, with zero signal anywhere that anything was wrong.
+      if (error) console.error("[CoverLetterPanel] poll failed:", error.message);
       if (data && active) setLetter(data as unknown as CoverLetterRow);
     }
 
