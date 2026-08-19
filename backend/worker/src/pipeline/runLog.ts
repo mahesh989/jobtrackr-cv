@@ -71,7 +71,13 @@ export async function finishRunLog(
   // still be sitting unflushed when the row is updated, with no future
   // interval tick left to catch it.
   await flushRunLog(runLogId);
-  await db
+  // C67: this terminal write — the ONE write that marks a run completed or
+  // failed — had no error handling at all. A silent failure (transient DB
+  // blip, connection issue) left the run_logs row stuck at status:"running"
+  // forever, invisible everywhere (dashboard, admin pipeline page, the
+  // worker-restart alert's getLastKnownRun) even though the run itself had
+  // actually finished.
+  const { error } = await db
     .from("run_logs")
     .update({
       finished_at: new Date().toISOString(),
@@ -87,4 +93,7 @@ export async function finishRunLog(
       current_stage: null,
     })
     .eq("id", runLogId);
+  if (error) {
+    console.error(`[runLog] finishRunLog(${runLogId}) failed — run_logs row stuck at status:"running": ${error.message}`);
+  }
 }

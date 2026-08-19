@@ -55,12 +55,27 @@ interface ExistingJob {
 }
 
 async function fetchExistingJobsForProfile(profileId: string): Promise<ExistingJob[]> {
-  const { data } = await db
+  // C67: this had no .order() before .limit(5000) — PostgREST's row choice
+  // for an unordered LIMIT is unspecified (same class of bug fixed in
+  // bucket.ts's serve query, execution chunk C58), so a profile with more
+  // than 5000 non-duplicate jobs got an ARBITRARY, run-to-run-unstable 5000
+  // instead of a consistent one, silently missing real duplicates against
+  // whichever rows didn't make the cut that run. Ordered most-recent-first
+  // so a truncation drops the oldest (least likely to still be actively
+  // re-scraped) rows, not a random subset. The query's own error was also
+  // previously discarded — a failed fetch silently returned an empty
+  // "existing" set, meaning EVERY job that run would look brand new to L1
+  // dedup, defeating cross-run dedup entirely with no error anywhere.
+  const { data, error } = await db
     .from("jobs")
     .select("id, url_hash, title, company, location, source, description")
     .eq("profile_id", profileId)
     .neq("dedup_status", "duplicate")  // already-dropped rows shouldn't influence new dedup
+    .order("created_at", { ascending: false })
     .limit(5000);
+  if (error) {
+    console.error(`[dedup] fetchExistingJobsForProfile failed — cross-run dedup skipped this run: ${error.message}`);
+  }
   return (data ?? []) as ExistingJob[];
 }
 

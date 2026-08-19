@@ -4,7 +4,7 @@ import { applyKeywordFilter } from "../keywordFilter.js";
 import { dedup } from "../dedup.js";
 import { saveJobs } from "../save.js";
 import { resolveSlices, recordCoverage, releaseSliceLocks } from "../coverage.js";
-import { bucketEnabled, upsertGlobalJobs, serveProfileFromBucket } from "../bucket.js";
+import { bucketEnabled, upsertGlobalJobs, serveProfileFromBucket, dropServedCrossProfileDuplicates } from "../bucket.js";
 import { postFetchFilter, formatExcludeBreakdown } from "../postFetchFilter.js";
 import { startRunLog, finishRunLog, setStage } from "../runLog.js";
 import { runLogContext } from "../logContext.js";
@@ -373,7 +373,13 @@ export async function runPipeline(profileId: string, trigger: "manual" | "auto" 
         if (served.length !== toSave.length) {
           console.log(`[pipeline] bucket serve — replacing ${toSave.length} scraped with ${served.length} from bucket`);
         }
-        toSave = served;
+        // C67: earlyDedup's stage 3b cross-profile check (line ~168 above)
+        // only filtered the fresh scrape delta — `served` is an independent
+        // full-retention-window re-serve from the SHARED bucket, so that
+        // check never touches it. Without this, two of the user's own
+        // profiles with overlapping criteria both serve the same postings.
+        const { jobs: crossProfileDeduped } = await dropServedCrossProfileDuplicates(served, profileId, profile.user_id);
+        toSave = crossProfileDeduped;
       } else {
         // Finding B5-P2 (chunk C15) — the raw scrape was previously saved
         // as-is here, having never passed through ANY of the three filters

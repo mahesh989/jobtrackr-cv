@@ -136,6 +136,7 @@ export const agedCareWorkdayAdapter: SourceAdapter = {
 
   async fetchJobs(_profile: SearchProfile): Promise<RawJob[]> {
     const out: RawJob[] = [];
+    let anyTenantFailed = false;
 
     for (const { tenant, wdN, board, company } of TENANTS) {
       // 1) Page the cheap LIST endpoint and collect title-matched jobs.
@@ -164,10 +165,19 @@ export const agedCareWorkdayAdapter: SourceAdapter = {
         await sleep(this.rateLimitDelay);
       }
 
-      // If the very first list call failed (network/403), surface it so the
-      // orchestrator's failure tracker can back off this source.
+      // C67: this used to throw here — which discarded every job ALREADY
+      // collected from tenants processed earlier in this same loop, since a
+      // thrown fetchJobs() returns nothing at all to the caller (sourceFetch.ts's
+      // catch branch never uses a partial result). One tenant's Workday
+      // instance being unreachable shouldn't poison jobs the other tenants
+      // already found. Skip this tenant and keep going; only fail the whole
+      // adapter call (see below, after the loop) if literally nothing was
+      // found anywhere, so the orchestrator's failure tracker still backs off
+      // a genuinely total outage.
       if (listFailed && matched.length === 0) {
-        throw new Error(`[agedcare] ${tenant}: list endpoint unreachable`);
+        console.warn(`[agedcare] ${tenant}: list endpoint unreachable — skipping this tenant, keeping other tenants' results`);
+        anyTenantFailed = true;
+        continue;
       }
 
       console.log(`[agedcare] ${tenant}: ${matched.length} role-matched titles → fetching JDs`);
@@ -221,6 +231,12 @@ export const agedCareWorkdayAdapter: SourceAdapter = {
     }
 
     console.log(`[agedcare] done — ${out.length} jobs across ${TENANTS.length} tenant(s)`);
+    // A genuinely total outage (nothing from any tenant, and at least one
+    // tenant hard-failed) still needs to reach the orchestrator's failure
+    // tracker so it can back off — there's no partial result to protect here.
+    if (out.length === 0 && anyTenantFailed) {
+      throw new Error("[agedcare] all tenants unreachable or errored");
+    }
     return out;
   },
 

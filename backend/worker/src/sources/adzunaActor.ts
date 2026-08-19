@@ -64,12 +64,18 @@ export async function enrichAdzunaJDsViaActor(
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       console.error(`[adzuna-jd] Apify ${res.status}: ${body.slice(0, 300)}`);
-      return { jobs, costUsd: COST_PER_RUN_USD, merged: 0, fetched: targets.length };
+      // C67: was billing COST_PER_RUN_USD and reporting `fetched:
+      // targets.length` on a run that produced ZERO merged descriptions —
+      // charging for a failure and, worse, reporting it to source_methods
+      // (the diagnostic dashboard for paid-tier source failures) as if it
+      // had succeeded, masking the very failure that dashboard exists to
+      // surface.
+      return { jobs, costUsd: 0, merged: 0, fetched: 0 };
     }
     items = (await res.json()) as JdItem[];
   } catch (err) {
     console.error(`[adzuna-jd] actor call failed: ${err instanceof Error ? err.message : err}`);
-    return { jobs, costUsd: COST_PER_RUN_USD, merged: 0, fetched: targets.length };
+    return { jobs, costUsd: 0, merged: 0, fetched: 0 };
   }
 
   // The actor normalizes URLs to /details/<id>, but our survivor jobs may

@@ -243,6 +243,10 @@ vi.mock("./bucket.js", () => ({
     H.state.trace.push("bucketServe");
     return H.state.serveResult;
   }),
+  dropServedCrossProfileDuplicates: vi.fn(async (jobs: unknown[]) => {
+    H.state.trace.push(`crossProfileDedup:${jobs.length}`);
+    return { jobs, dropped: 0 };
+  }),
 }));
 
 vi.mock("./coverage.js", () => ({
@@ -668,6 +672,7 @@ describe("A5. collaborator call order", () => {
       "settings:3",
       "bucketUpsert:3",
       "bucketServe",
+      "crossProfileDedup:0",
       "save:0",
       "finishRunLog:completed",
       "recordCoverage",

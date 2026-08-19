@@ -664,3 +664,54 @@ export async function serveProfileFromBucket(
     return null;
   }
 }
+
+/**
+ * C67: cross-profile dedup ("a job already in another of this user's
+ * profiles shouldn't reappear in this one" — see earlyDedup.ts's stage 3b
+ * docstring for the original design intent) is void in bucket mode.
+ * earlyDedup's stage 3b only filters the fresh SCRAPE DELTA before it's
+ * upserted into the shared bucket — but serveProfileFromBucket above then
+ * REPLACES `toSave` wholesale with the full retention window re-served from
+ * `global_jobs`, independent of what earlyDedup already dropped. Two of a
+ * user's profiles with overlapping search criteria both independently
+ * served the same postings from the shared bucket, with nothing downstream
+ * re-applying the sibling check to the served set.
+ *
+ * Reuses NormalisedJob.url_hash directly (set by dedup.ts's stage 5 —
+ * sha256(canonicalUrl(url).toLowerCase())) rather than recomputing a hash,
+ * since that's the SAME scheme already written to `jobs.url_hash` by
+ * saveJobs — no risk of the case-sensitivity divergence earlyDedup.ts's own
+ * L1 hashing docstring warns about.
+ */
+export async function dropServedCrossProfileDuplicates(
+  jobs: NormalisedJob[],
+  profileId: string,
+  userId: string,
+): Promise<{ jobs: NormalisedJob[]; dropped: number }> {
+  if (jobs.length === 0) return { jobs, dropped: 0 };
+
+  const { data: siblingProfiles, error: siblingErr } = await db
+    .from("search_profiles")
+    .select("id")
+    .eq("user_id", userId)
+    .neq("id", profileId);
+  if (siblingErr) {
+    console.warn(`[bucket] cross-profile dedup — sibling lookup failed, skipping: ${siblingErr.message}`);
+    return { jobs, dropped: 0 };
+  }
+  const siblingIds = (siblingProfiles ?? []).map((p) => p.id as string);
+  if (siblingIds.length === 0) return { jobs, dropped: 0 };
+
+  const { rows: existingRows } = await selectInChunked(
+    jobs.map((j) => j.url_hash),
+    (chunk) =>
+      db.from("jobs").select("url_hash").in("profile_id", siblingIds).in("url_hash", chunk),
+  );
+  const seenInSiblings = new Set(existingRows.map((r) => r.url_hash as string));
+  const kept = jobs.filter((j) => !seenInSiblings.has(j.url_hash));
+  const dropped = jobs.length - kept.length;
+  if (dropped > 0) {
+    console.log(`[bucket] cross-profile dedup (served set): ${dropped} dropped (already in sibling profile), ${kept.length} remain`);
+  }
+  return { jobs: kept, dropped };
+}
