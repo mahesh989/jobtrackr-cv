@@ -1,7 +1,15 @@
 # JobTrackr Dashboard Demo — Handoff Report
 
-**Target file:** `user-dashboard-demo.html` (repo root) — 2,127 lines, standalone clickable replica of the JobTrackr user dashboard (no build step; open in browser).
-**Goal for you:** implement the validated design decisions into `frontend/web` (dashboard + job board).
+> **HISTORICAL — this handoff is complete and its target file no longer exists.**
+> The work described here shipped in commit `6de05f90` ("feat(web): dashboard
+> job-board redesign to match demo prototype"), and `user-dashboard-demo.html`
+> was deleted on 2026-08-19 because its mock CV pane carried a real user's name,
+> mobile number and email in a public repo. Kept only as a record of the design
+> rationale; do not go looking for the demo file. The live implementation in
+> `frontend/web` is the reference now.
+
+**Target file (deleted):** `user-dashboard-demo.html` (repo root) — 2,127 lines, standalone clickable replica of the JobTrackr user dashboard (no build step; open in browser).
+**Goal (done):** implement the validated design decisions into `frontend/web` (dashboard + job board).
 
 ---
 
@@ -117,6 +125,6 @@ Favourite / Applied views render the **same gauge cards** as the main feed (was:
 
 ## 5. Files
 
-- `user-dashboard-demo.html` — the demo (only file changed).
+- ~~`user-dashboard-demo.html`~~ — the demo (deleted 2026-08-19, see the note at the top).
 - `DASHBOARD-DESIGN-BRIEF.md` — the design principles brief (keep).
 - `frontend/web/src/app/globals.css` — token source of truth (reference only, never edited).

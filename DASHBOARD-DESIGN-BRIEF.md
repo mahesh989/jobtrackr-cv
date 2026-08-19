@@ -1,7 +1,14 @@
 # Job-Card Design Brief — user dashboard
 
-For any AI agent iterating on the JobTrackr-CV dashboard UI. Prototype playground:
-`user-dashboard-demo.html` (single file, no dependencies, design tokens at `:root`).
+For any AI agent iterating on the JobTrackr-CV dashboard UI.
+
+> **The prototype file this brief referred to is gone.** `user-dashboard-demo.html`
+> (repo root) was deleted on 2026-08-19: its mock CV pane contained a real user's
+> name, mobile number and email, and this repo is public. The design it validated
+> already shipped into `frontend/web` (commit `6de05f90`), so the live dashboard —
+> not a prototype file — is now the reference. The principles below still stand on
+> their own; only the "open the playground and tweak tokens" workflow is no longer
+> available. Design tokens live in `frontend/web/src/app/globals.css`.
 
 ## The goal
 
@@ -50,7 +57,8 @@ surface, energetic through scale, spacing, and a single well-placed accent per c
 
 ## Process
 
-- Prototype in `user-dashboard-demo.html`; tokens live at `:root`.
+- Prototype directly in `frontend/web` (the standalone demo file is gone — see the
+  note at the top); tokens live at `:root` in `frontend/web/src/app/globals.css`.
 - When exploring directions, ship 3-5 **distinct archetypes** side by side (different
   padding/type/layout), so the user picks — don't micro-tweak one design.
 - After a pick: apply it everywhere, unify, remove dead variant code.
