@@ -13,6 +13,7 @@
 
 import { Actor, log, Dataset } from "apify";
 import { PlaywrightCrawler, createPlaywrightRouter } from "crawlee";
+import { parseListingDateToIso } from "./dateParse.js";
 
 interface Input {
   keywords?:   string[];
@@ -172,7 +173,7 @@ router.addHandler("LISTING", async ({ page, request, crawler }) => {
       area:        raw.area,
       salary:      raw.salary,
       teaser:      raw.teaser,
-      listingDate: raw.listingDate,
+      listingDate: parseListingDateToIso(raw.listingDate),
       url:         cleanJobUrl(raw.href),
       workType:    raw.workType,
       keyword,

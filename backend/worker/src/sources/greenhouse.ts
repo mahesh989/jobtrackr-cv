@@ -138,6 +138,14 @@ interface GHJob {
   content: string;           // full JD as HTML (requires ?content=true)
   absolute_url: string;
   updated_at: string;
+  // C67: was posted_at's ONLY source below — updated_at bumps on ANY edit
+  // (a minor typo fix, a budget tweak), so a job posted months ago with a
+  // trivial edit yesterday read as "posted yesterday", jumping the queue
+  // ahead of genuinely new postings on every recency-sorted/filtered view.
+  // Greenhouse's public Job Board API exposes the job's true original
+  // publish date as first_published — optional here (kept as a fallback to
+  // updated_at, not a hard requirement) in case a board config omits it.
+  first_published?: string;
 }
 interface GHResponse { jobs: GHJob[] }
 
@@ -206,7 +214,7 @@ export const greenhouseAdapter: SourceAdapter = {
           description: plainText,    // ← full plain-text JD, not a snippet
           source: "greenhouse",
           source_tier: 2,
-          posted_at: j.updated_at ?? null,
+          posted_at: j.first_published ?? j.updated_at ?? null,
           expires_at: null,
           raw: j,
         });

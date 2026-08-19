@@ -14,7 +14,7 @@ vi.mock("./logContext.js", () => ({
   flushRunLog: (...args: unknown[]) => flushRunLogMock(...args),
 }));
 
-function fakeDb() {
+function fakeDb(updateError: { message: string } | null = null) {
   const calls: { table: string; update: Record<string, unknown>; eqCol: string; eqVal: string }[] = [];
   return {
     calls,
@@ -28,7 +28,7 @@ function fakeDb() {
           },
           eq(col: string, val: string) {
             calls.push({ table, update: updatePayload, eqCol: col, eqVal: val });
-            return Promise.resolve({ error: null });
+            return Promise.resolve({ error: updateError });
           },
         };
       },
@@ -82,5 +82,25 @@ describe("finishRunLog", () => {
     expect(flushRunLogMock).toHaveBeenCalledWith("run-2");
     expect(calls).toHaveLength(1);
     expect(calls[0].update).toMatchObject({ status: "failed", error_message: "boom" });
+  });
+
+  it("C67: logs loudly instead of silently swallowing a failed terminal write", async () => {
+    const { db } = fakeDb({ message: "connection reset" });
+    vi.doMock("../db/client.js", () => ({ db }));
+    vi.resetModules();
+    const { finishRunLog } = await import("./runLog.js");
+
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    await finishRunLog("run-3", {
+      status: "completed",
+      jobs_fetched: 1,
+      jobs_after_dedup: 1,
+      jobs_saved: 1,
+      sources_run: ["seek"],
+    });
+
+    expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("run-3"));
+    expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("connection reset"));
+    errSpy.mockRestore();
   });
 });

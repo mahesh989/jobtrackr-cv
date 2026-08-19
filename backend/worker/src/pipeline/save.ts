@@ -93,11 +93,22 @@ export async function saveJobs(
     // notifications need (otherwise every re-scrape of a still-live posting
     // gets counted as "new" again).
     const batchHashes = batch.map((r) => r.url_hash as string);
-    const { data: existingRows } = await db
+    const { data: existingRows, error: existingErr } = await db
       .from("jobs")
       .select("url_hash")
       .eq("profile_id", profileId)
       .in("url_hash", batchHashes);
+    // C67: this probe's error was discarded entirely — a failed lookup left
+    // existingRows null, which `?? []` silently turned into an EMPTY set,
+    // making every hash in the batch read as "new" below (line ~126) even
+    // when most were old, already-saved jobs from a prior run. That inflated
+    // newSaved into a false "new jobs" notification for postings the user
+    // had already seen. Treat a failed probe as "unknown, assume not new" —
+    // safer to under-notify than to spam a stale re-alert.
+    const probeFailed = !!existingErr;
+    if (probeFailed) {
+      console.warn(`[save] existence probe failed for batch — treating as not-new to avoid a false alert: ${existingErr.message}`);
+    }
     const existingHashes = new Set((existingRows ?? []).map((r) => r.url_hash as string));
 
     let { error, count, data } = await db
@@ -123,7 +134,9 @@ export async function saveJobs(
       errors += batch.length;
     } else {
       saved += count ?? batch.length;
-      newSaved += batchHashes.filter((h) => !existingHashes.has(h)).length;
+      if (!probeFailed) {
+        newSaved += batchHashes.filter((h) => !existingHashes.has(h)).length;
+      }
       for (const row of (data ?? []) as Array<{ id: string }>) {
         savedIds.push(row.id);
       }
