@@ -276,15 +276,24 @@ export function SmartFeed({
     setProgress({ done: 0, total: ids.length });
     let idx = 0;
     let done = 0;
+    // C67: every attempt — network failure OR a non-2xx response (fetch()
+    // only throws on the former; a 402 billing cap / 500 error resolves
+    // normally with res.ok=false and was never checked) — was silently
+    // counted as "done" with no distinction from a real success. The bulk
+    // operation always reported as if every job analyzed successfully.
+    let failed = 0;
     const worker = async () => {
       while (idx < ids.length && !cancelledRef.current) {
         const id = ids[idx++];
         try {
-          await fetch(`/api/jobs/${id}/analyze?override=all`, {
+          const res = await fetch(`/api/jobs/${id}/analyze?override=all`, {
             method:  "POST",
             headers: { "Content-Type": "application/json" },
             body:    "{}" });
-        } catch { /* best-effort */ }
+          if (!res.ok) failed++;
+        } catch {
+          failed++;
+        }
         if (!cancelledRef.current) {
           done++;
           setProgress({ done, total: ids.length });
@@ -296,6 +305,9 @@ export function SmartFeed({
       setProgress(null);
       exitAllSelectModes();
       router.refresh();
+      if (failed > 0) {
+        window.alert(`${failed} of ${ids.length} job${ids.length === 1 ? "" : "s"} failed to analyze. The rest completed — try the failed ones again individually.`);
+      }
     }
   }
 

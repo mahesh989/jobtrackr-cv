@@ -43,8 +43,20 @@ export function useCoverLetter(
   if (seededFor !== letterId) {
     setSeededFor(letterId);
     setLoaded(false);
-    setText("");
-    setSaved("");
+    // C67: this used to unconditionally wipe text/saved to "" on ANY
+    // letterId change — including CoverLetterTab's own `sent ? null :
+    // letter.id` mapping, which passes null the instant a letter transitions
+    // to sent (e.g. a Realtime update from the letter being sent through
+    // another tab). A user with an in-progress unsaved edit (text !== saved)
+    // at that exact moment had it silently destroyed with zero warning and
+    // no way to recover it. Only wipe when there's nothing unsaved to lose —
+    // switching to a genuinely different, never-edited letter still clears
+    // cleanly; an in-flight edit now survives (visible only if the caller
+    // re-enables editing, e.g. the letterId later becomes non-null again).
+    if (text === saved) {
+      setText("");
+      setSaved("");
+    }
   }
 
   // Refs can't be written during render (would break under concurrent

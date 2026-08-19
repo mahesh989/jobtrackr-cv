@@ -179,18 +179,29 @@ export function ApplyModal({
   /** Persist the message so the Applied record shows what the user actually
    *  used, and so `/email-draft` stops re-rewriting it (POST /review sets
    *  `reviewed_at`, which is that route's "the user approved this" signal).
-   *  Best-effort: a failure here must not block applying. */
+   *  Best-effort: a failure here must not block applying.
+   *
+   *  C67: the "nothing is lost either way" claim below only holds for
+   *  sendEmail()'s caller — that path passes subject/body as an EXPLICIT
+   *  override to /send-email, so even a failed persist here doesn't affect
+   *  what actually gets sent. copyMessage() and openListing() have no such
+   *  compensating step: this fetch is the ONLY place the user's edited
+   *  wording is saved for those two flows. A silent failure there loses
+   *  the edit for good — the Applications history and a later re-open of
+   *  this modal would show the stale default text, not what was actually
+   *  copied/opened. Still deliberately non-blocking (must not stop the
+   *  user from applying), but now at least logged instead of invisible. */
   async function persistMessage(): Promise<void> {
     if (!effectiveLetterId || !body.trim()) return;
     try {
-      await fetch(`/api/applications/${effectiveLetterId}/review`, {
+      const res = await fetch(`/api/applications/${effectiveLetterId}/review`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ subject: subject.trim() || defaultSubject, body }),
       });
-    } catch {
-      // Non-fatal — the send below carries the same text as an explicit
-      // override, so nothing the user typed is lost either way.
+      if (!res.ok) console.error(`[ApplyModal] failed to persist the edited message: HTTP ${res.status}`);
+    } catch (e) {
+      console.error("[ApplyModal] failed to persist the edited message:", e);
     }
   }
 
