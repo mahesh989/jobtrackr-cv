@@ -48,9 +48,15 @@ export default async function AdminActivityPage({ searchParams }: PageProps) {
   const safeQuery = <T,>(q: PromiseLike<{ data: T[] | null }>) =>
     Promise.resolve(q).then((r) => r.data ?? []).catch((): T[] => []);
 
-  const eventsQuery = filterUser
-    ? admin.from("user_events").select("*").eq("user_id", filterUser)
-    : admin.from("user_events").select("*");
+  // C67: filterEvent used to be applied client-side, AFTER the newest-200
+  // query already ran unfiltered — so filtering to a rare event type that
+  // doesn't happen to appear in the newest 200 overall showed zero rows,
+  // even when older matching events genuinely exist. Pushed into the query
+  // itself so the 200-row cap applies to the FILTERED set, matching how
+  // filterUser was already handled.
+  let eventsQuery = admin.from("user_events").select("*");
+  if (filterUser) eventsQuery = eventsQuery.eq("user_id", filterUser);
+  if (filterEvent) eventsQuery = eventsQuery.eq("event_type", filterEvent);
   const rawEvents = await safeQuery(
     eventsQuery.order("created_at", { ascending: false }).limit(200)
   );
@@ -67,15 +73,22 @@ export default async function AdminActivityPage({ searchParams }: PageProps) {
   const lettersByUser = letters.filter((l) => l.status === "completed")
     .reduce<Record<string, number>>((a, l) => { a[l.user_id] = (a[l.user_id] ?? 0) + 1; return a; }, {});
 
-  // Available event types for filter chips (empty until migration 055 applied)
-  const allEventsResult = await safeQuery(admin.from("user_events").select("event_type"));
+  // Available event types for filter chips (empty until migration 055 applied).
+  // C67: was select("event_type") with no limit — fetched the WHOLE table
+  // (every row, unbounded) just to compute a handful of distinct chip
+  // labels. event_type is a small, fixed catalog (~12 known values, see
+  // eventColor above) — a recent sample is enough to see every type that's
+  // genuinely in use, without scanning a table that only grows over time.
+  const allEventsResult = await safeQuery(
+    admin.from("user_events").select("event_type")
+      .order("created_at", { ascending: false }).limit(5000)
+  );
   const eventTypes = [...new Set((allEventsResult as { event_type: string }[]).map((e) => e.event_type))].sort();
 
-  // Filtered events
-  const filtered = events.filter((e) => {
-    if (filterEvent && e.event_type !== filterEvent) return false;
-    return true;
-  });
+  // C67: event_type is now filtered in the query itself (see eventsQuery
+  // above) — `events` already reflects the filter, no client-side re-check
+  // needed.
+  const filtered = events;
 
   // Color per event type
   const eventColor: Record<string, string> = {

@@ -92,14 +92,21 @@ export default async function AdminPipelinePage({ searchParams }: PageProps) {
   // ── Run status breakdown ─────────────────────────────────────────────────
   const total     = runs.length;
   const completed = runs.filter((r) => r.status === "completed").length;
-  const failed    = runs.filter((r) => r.status === "failed").length;
   const cancelled = runs.filter((r) => r.status === "failed" && (r.error_message ?? "").toLowerCase().startsWith("cancelled")).length;
+  // ── Failure taxonomy from error_message ─────────────────────────────────
+  // C67: `failed` (below) used to be every status='failed' row, including
+  // user-initiated cancellations (also stored as status='failed', see
+  // orchestrator.py's _CancelledByUser handling) — a user choosing to stop
+  // a run isn't a pipeline reliability signal, so lumping it in inflated
+  // the reported failure rate. `failedRuns` already excluded cancellations
+  // correctly for the error taxonomy/step-failure breakdown below; `failed`
+  // now uses the same predicate instead of a separately-computed, wider one.
+  const failedRuns = runs.filter((r) => r.status === "failed" && !(r.error_message ?? "").toLowerCase().startsWith("cancelled"));
+  const failed    = failedRuns.length;
   const running   = runs.filter((r) => r.status === "running").length;
   const successPct = total > 0 ? (completed / total) * 100 : 0;
   const failPct    = total > 0 ? (failed / total) * 100 : 0;
 
-  // ── Failure taxonomy from error_message ─────────────────────────────────
-  const failedRuns = runs.filter((r) => r.status === "failed" && !(r.error_message ?? "").toLowerCase().startsWith("cancelled"));
   const errGroups: Record<string, number> = {};
   failedRuns.forEach((r) => {
     const msg = r.error_message ?? "Unknown";

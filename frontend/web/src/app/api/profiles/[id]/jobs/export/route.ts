@@ -34,34 +34,54 @@ export const GET = withUser(async (
 
   const sp = req.nextUrl.searchParams;
 
-  let query = supabase
-    .from("jobs")
-    .select("title, company, location, source, source_tier, posted_at, visa_likelihood, keywords_matched, url, applied_at, dismissed_at, created_at")
-    .eq("profile_id", id)
-    .eq("is_expired", false)
-    .eq("is_dead_link", false);
-
   const minKeywords = sp.get("min_keywords");
   const minVisa  = sp.get("min_visa");
   const source   = sp.get("source");
-  if (minVisa)  query = query.gte("visa_likelihood",    parseFloat(minVisa));
-  if (source)   query = query.eq("source", source);
-  if (sp.get("hide_applied") === "1") query = query.is("applied_at", null);
-  if (sp.get("hide_dismissed") !== "0") query = query.is("dismissed_at", null);
+  const sort     = sp.get("sort") ?? "created_at";
 
-  const sort = sp.get("sort") ?? "created_at";
-  if (sort === "score" || sort === "ai_relevance_score")  query = query.order("created_at", { ascending: false, nullsFirst: false });
-  else if (sort === "visa") query = query.order("visa_likelihood", { ascending: false, nullsFirst: false });
-  else query = query.order("posted_at", { ascending: false, nullsFirst: false });
+  // Builds a fresh query each call — a Supabase query builder is a
+  // single-use, awaited-once object, so paginating below needs a new
+  // instance per page rather than re-invoking .range() on an already-run one.
+  function buildQuery() {
+    let q = supabase
+      .from("jobs")
+      .select("title, company, location, source, source_tier, posted_at, visa_likelihood, keywords_matched, url, applied_at, dismissed_at, created_at")
+      .eq("profile_id", id)
+      .eq("is_expired", false)
+      .eq("is_dead_link", false);
+    if (minVisa)  q = q.gte("visa_likelihood", parseFloat(minVisa));
+    if (source)   q = q.eq("source", source);
+    if (sp.get("hide_applied") === "1") q = q.is("applied_at", null);
+    if (sp.get("hide_dismissed") !== "0") q = q.is("dismissed_at", null);
+    if (sort === "score" || sort === "ai_relevance_score")  q = q.order("created_at", { ascending: false, nullsFirst: false });
+    else if (sort === "visa") q = q.order("visa_likelihood", { ascending: false, nullsFirst: false });
+    else q = q.order("posted_at", { ascending: false, nullsFirst: false });
+    return q;
+  }
 
-  query = query.limit(1000);
-
-  const { data: jobs, error } = await query;
-  // A discarded error here previously produced a silently-empty CSV that
-  // looked like a successful export of zero matching jobs.
-  if (error) return jsonError(error.message, 500);
   type JobRow = { title: string; company: string; location: string; source: string; source_tier: number; posted_at: string | null; visa_likelihood: number | null; keywords_matched: string[]; url: string; applied_at: string | null; dismissed_at: string | null; created_at: string };
-  let jobList = (jobs ?? []) as JobRow[];
+
+  // C67: was a flat .limit(1000) — a profile with more than 1000 matching
+  // jobs silently exported only the first page, with nothing in the CSV
+  // indicating the export was incomplete. Paginate through .range() until
+  // a page comes back short, so "download my jobs" actually downloads all
+  // of them. PAGE_SIZE matches PostgREST's own default row cap.
+  // MAX_ROWS is a sane backstop against a truly runaway profile, not a
+  // silent truncation point — if ever hit, the CSV says so explicitly.
+  const PAGE_SIZE = 1000;
+  const MAX_ROWS  = 20_000;
+  let jobList: JobRow[] = [];
+  let truncated = false;
+  for (let offset = 0; offset < MAX_ROWS; offset += PAGE_SIZE) {
+    const { data: page, error } = await buildQuery().range(offset, offset + PAGE_SIZE - 1);
+    // A discarded error here previously produced a silently-empty CSV that
+    // looked like a successful export of zero matching jobs.
+    if (error) return jsonError(error.message, 500);
+    const rows = (page ?? []) as JobRow[];
+    jobList = jobList.concat(rows);
+    if (rows.length < PAGE_SIZE) break;
+    if (offset + PAGE_SIZE >= MAX_ROWS) truncated = true;
+  }
 
   if (minKeywords) {
     const minK = parseInt(minKeywords, 10);
@@ -87,7 +107,10 @@ export const GET = withUser(async (
     ])
   );
 
-  const csv = [header, ...lines].join("\r\n");
+  const truncationNotice = truncated
+    ? [row([`# Export truncated at ${MAX_ROWS} rows — this profile has more matching jobs than fit in one export.`])]
+    : [];
+  const csv = [header, ...lines, ...truncationNotice].join("\r\n");
   const filename = `jobtrackr-${(profile as { name: string }).name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-${new Date().toISOString().slice(0, 10)}.csv`;
 
   return new NextResponse(csv, {

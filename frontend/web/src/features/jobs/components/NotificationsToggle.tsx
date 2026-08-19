@@ -29,5 +29,12 @@ export function NotificationsToggle({ initial }: { initial: boolean }) {
     }
   }
 
-  return <ToggleSwitch checked={enabled} onChange={handleToggle} disabled={pending} />;
+  return (
+    <ToggleSwitch
+      checked={enabled}
+      onChange={handleToggle}
+      disabled={pending}
+      ariaLabel="Email me when new jobs are found"
+    />
+  );
 }

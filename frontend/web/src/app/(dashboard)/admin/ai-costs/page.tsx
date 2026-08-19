@@ -87,10 +87,19 @@ export default async function AdminAiCostsPage({ searchParams }: PageProps) {
   const noData = calls.length === 0;
 
   // Aggregates
+  // C67: these were named/labeled "month" (monthTokensIn, "(mo)" UI
+  // suffixes) but are computed from `calls`, which is filtered by the
+  // admin-selected `range` (7d/30d/90d/all — see resolveRange/RANGE_LABELS,
+  // lib/admin/guard.ts), NOT a calendar month-to-date window. Even the
+  // default "30d" is a ROLLING 30-day window ending now, not "since the
+  // 1st of this month" — and the label stayed "(mo)" for every other range
+  // too, actively misleading (e.g. 90 days of tokens shown as "(mo)").
+  // Renamed to match the already-correctly-named `rangeTotal` above; UI
+  // labels below now use the dynamic RANGE_LABELS text instead.
   const rangeTotal    = calls.reduce((s, c) => s + c.cost_millicents, 0);
   const todayTotal    = todayRows.reduce((s, c) => s + c.cost_millicents, 0);
-  const monthTokensIn = calls.reduce((s, c) => s + c.input_tokens, 0);
-  const monthTokensOut= calls.reduce((s, c) => s + c.output_tokens, 0);
+  const rangeTokensIn = calls.reduce((s, c) => s + c.input_tokens, 0);
+  const rangeTokensOut= calls.reduce((s, c) => s + c.output_tokens, 0);
   const cachedTokens  = calls.reduce((s, c) => s + c.cached_tokens, 0);
   const errorCalls    = calls.filter((c) => c.status === "error").length;
   const retryCalls    = calls.filter((c) => c.retry_count > 0).length;
@@ -192,10 +201,10 @@ export default async function AdminAiCostsPage({ searchParams }: PageProps) {
         {/* Token breakdown */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { label: "Input tokens (mo)",  value: formatTokens(monthTokensIn)  },
-            { label: "Output tokens (mo)", value: formatTokens(monthTokensOut) },
-            { label: "Error calls (mo)",   value: String(errorCalls),  color: errorCalls > 0 ? "text-danger" : undefined },
-            { label: "Retry calls (mo)",   value: String(retryCalls),  color: retryCalls > 0 ? "text-warning" : undefined },
+            { label: `Input tokens (${RANGE_LABELS[range]})`,  value: formatTokens(rangeTokensIn)  },
+            { label: `Output tokens (${RANGE_LABELS[range]})`, value: formatTokens(rangeTokensOut) },
+            { label: `Error calls (${RANGE_LABELS[range]})`,   value: String(errorCalls),  color: errorCalls > 0 ? "text-danger" : undefined },
+            { label: `Retry calls (${RANGE_LABELS[range]})`,   value: String(retryCalls),  color: retryCalls > 0 ? "text-warning" : undefined },
           ].map((s) => (
             <div key={s.label} className="border border-border bg-surface rounded-md px-4 py-3">
               <p className="text-caption font-medium text-text-3 mb-0.5">{s.label}</p>

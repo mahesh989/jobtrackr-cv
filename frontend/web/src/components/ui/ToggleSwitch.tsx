@@ -6,18 +6,25 @@
  * recurs — worth its own single-sourced primitive from the start.
  */
 export function ToggleSwitch({
-  checked, onChange, disabled = false, className = "",
+  checked, onChange, disabled = false, className = "", ariaLabel,
 }: {
   checked: boolean;
   onChange: () => void;
   disabled?: boolean;
   className?: string;
+  /** C67: role="switch" has no visible text of its own (the knob is purely
+   * decorative) — without this, a screen reader announces only "switch,
+   * on/off" with no indication of what it controls. Required in practice;
+   * kept optional in the type only so an adjacent visible <label> wired via
+   * aria-labelledby (not yet used by any call site) remains possible later. */
+  ariaLabel?: string;
 }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-label={ariaLabel}
       onClick={onChange}
       disabled={disabled}
       className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
