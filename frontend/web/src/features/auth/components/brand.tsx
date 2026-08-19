@@ -35,16 +35,6 @@ export const GOOGLE_SVG = (
   </svg>
 );
 
-// NOTE: unused by any current consumer (all four forms compose the shared
-// `Input`, which owns its own styling via the `.field` class). Kept as a
-// small exported constant rather than deleted since it's not this pass's
-// job to prune dead exports — background/border hardcoding removed; the
-// `.field` class already supplies both via the auth-shell-scoped tokens.
-export const inputStyle = {
-  fontSize: 14,
-  fontFamily: "var(--font-cv-sans), system-ui, sans-serif",
-} as React.CSSProperties;
-
 export function Spinner({ size = 16 }: { size?: number }) {
   return (
     <svg className="animate-spin" width={size} height={size} viewBox="0 0 24 24" fill="none">

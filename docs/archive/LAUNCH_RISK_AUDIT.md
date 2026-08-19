@@ -1,5 +1,9 @@
 # JobTrackr-CV — Launch Risk Audit
 
+> **Archived 2026-08-19** — written pre-launch (2026-07-08); this repo has
+> since been live in production for weeks with no open item pointing back
+> here. Moved here as a completed record; not maintained.
+
 > Written from `docs/ARCHITECTURE_MAP.md`, `docs/CONTRACTS.md`, and `.claude/graph.json`
 > (2026-07-08). Scope: what breaks, embarrasses, or costs money once 10-50 paying
 > strangers depend on this. Not a request for a perfect system — a request to launch

@@ -1,5 +1,10 @@
 # Handoff — Job Board Master-Detail Redesign (finish the v5 implementation)
 
+> **Archived 2026-08-19** — this redesign shipped (`BoardDetailPanel.tsx`,
+> `MatchScoreTab.tsx`, `TailoredCvTab.tsx` etc. are live and wired into
+> `SmartFeed.tsx`/`DetailHeader.tsx`, `6de05f90`). Moved here as a completed
+> record; not maintained.
+
 Paste everything below into a fresh session as the opening prompt.
 
 ---
@@ -23,7 +28,7 @@ content, and copy. Open it in a browser and match it pixel-for-behaviour.
   `npm run lint` both pass from `frontend/web`.
 - Dev server: `cd frontend/web && npm run dev` → localhost:3000. Requires login (the human
   must sign in; you cannot type the password).
-- The plan doc is `docs/board-detail-redesign-plan.md`.
+- The plan doc is `docs/archive/board-detail-redesign-plan.md`.
 
 ## THE FOUR THINGS THAT ARE WRONG (fix these — they're why the current build was rejected)
 

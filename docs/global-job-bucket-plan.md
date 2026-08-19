@@ -46,15 +46,21 @@ Hard requirements from the product owner:
 
 ## 2. Current architecture (grounded)
 
+> **Corrected 2026-08-19** — this section is the June 2026 baseline this plan
+> was written against, not a live reference: `orchestrator.ts` (a single file
+> when this was written) has since been split into the `pipeline/orchestrator/`
+> package (one file per stage), so the specific line-number citations below no
+> longer point at real locations. `dedup.ts` and `save.ts` are unchanged.
+
 | Concern | Where | Behaviour today |
 |---|---|---|
-| Orchestration | [orchestrator.ts](../backend/worker/src/pipeline/orchestrator.ts) | Runs per profile; one run per `run_pipeline` job. |
-| Lookback window | orchestrator.ts:290–330 | First run = 28d deep; else incremental `min(daysSince(lastRun)+1, 30)`. Driven by the **profile's** `run_logs`. |
+| Orchestration | [pipeline/orchestrator/](../backend/worker/src/pipeline/orchestrator/) | Runs per profile; one run per `run_pipeline` job. |
+| Lookback window | `pipeline/orchestrator/lookback.ts` | First run = 28d deep; else incremental `min(daysSince(lastRun)+1, 30)`. Driven by the **profile's** `run_logs`. |
 | Source method by tier | migration 064 (platform_source_tiers — see 001_full_schema.sql; original in git history @9f7a729) | `weekly`/`monthly` → Adzuna **api** (snippet), SEEK direct. `unlimited` → Adzuna **direct/actor** (full JD), SEEK direct. |
 | Dedup | [dedup.ts](../backend/worker/src/pipeline/dedup.ts) | L1 url_hash, L2-strong (title+city+company), L2-weak (`possible_duplicate`). Universe = new candidates **+ existing rows for THIS profile** (`fetchExistingJobsForProfile`). |
 | Canonical URL | [normalise.ts:44](../backend/worker/src/pipeline/normalise.ts) | Strips utm/ref/src, lowercases, trims trailing slash. |
 | Normalisation keys | [normalise/keys.ts](../backend/worker/src/pipeline/normalise/keys.ts) | `normaliseCity` → metro or state code (our **location-cell** primitive). `normaliseTitle`, `normaliseCompany`, `bucketKey`. |
-| JD enrichment | orchestrator.ts:669–750 | **Post-dedup** — full JDs fetched only for dedup *survivors* (SEEK direct stage 7, Careerjet actor 7c, Adzuna actor 7d). This is the expensive step. |
+| JD enrichment | `pipeline/orchestrator/enrichment.ts` | **Post-dedup** — full JDs fetched only for dedup *survivors* (SEEK direct stage 7, Careerjet actor 7c, Adzuna actor 7d). This is the expensive step. |
 | Filters | stages 4c, 10b | Title include/exclude + description-exclude (postFetchFilter), then working-rights filter. Applied **before save**. |
 | Save | [save.ts](../backend/worker/src/pipeline/save.ts) | Idempotent upsert into `jobs` on conflict `(profile_id, url_hash)`. |
 | Per-user state | `jobs` columns | `seen_at`, `applied_at`, `dismissed_at`, `pool_decision_at`, `manual_jd_text`, `contact_email`, `ai_relevance_score`, `keywords_matched`, `distance_km`. |
@@ -418,10 +424,11 @@ Each phase ends on a Vercel-preview manual gate, per CLAUDE.md.
   `0xx_profile_jobs_rls.sql`, `0xx_backfill_bucket.sql` (numbers assigned via
   `migration-checker`).
 - Worker: `pipeline/coverage.ts` (slice resolve + freshness + lock), `pipeline/bucket.ts`
-  (`fetchBucketCandidates`, `upsertGlobalJobs`), `pipeline/project.ts`
-  (`projectForProfile` + tier JD), `pipeline/evict.ts` (cleanup cron). Edits to
-  `orchestrator.ts` (lookback + stage wiring), `dedup.ts` (universe source), `save.ts`
-  (split writes).
+  (`upsertGlobalJobs`, `serveProfileFromBucket`). Anticipated-but-not-built-separately:
+  the `pipeline/project.ts`/`pipeline/evict.ts` split above never happened — that logic
+  landed as `projectDescription()`/`evictStaleBucket()` inside `bucket.ts` itself.
+  Edits to `pipeline/orchestrator/` (split from a single `orchestrator.ts` since this
+  was written), `dedup.ts` (universe source), `save.ts` (split writes).
 - Web: read paths (`dashboard/page.tsx`, applications, analyze) switch to `profile_jobs`
   behind a flag; admin sourcing page gains bucket metrics.
 - Docs/graph: update `.claude/graph.json` build_state + entities; this doc kept current.

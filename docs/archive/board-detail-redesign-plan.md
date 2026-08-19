@@ -1,5 +1,9 @@
 # Job Board → Master-Detail Redesign — Plan
 
+> **Archived 2026-08-19** — this redesign shipped; see the companion
+> handoff doc in this same folder. Moved here as a completed record; not
+> maintained.
+
 Branch: `feat/board-detail-redesign` (off `dev-5`)
 Status: PLAN — awaiting confirmation before implementation.
 
