@@ -29,7 +29,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from app.enums import Provider
+from app.schemas._byok import BYOK
 
 
 class OpeningVariant(BaseModel):
@@ -40,7 +40,7 @@ class OpeningVariant(BaseModel):
     pattern_label: str = Field()
 
 
-class GenerateCoverLetterRequest(BaseModel):
+class GenerateCoverLetterRequest(BYOK):
     """
     Request body for POST /internal/generate-cover-letter.
 
@@ -79,11 +79,6 @@ class GenerateCoverLetterRequest(BaseModel):
     tone_target:      Literal["professional", "warm", "direct"] = Field(default="professional")
     word_count_target: int = Field(default=170, ge=100, le=400)
 
-    # ── AI provider ────────────────────────────────────────────────────────────
-    ai_provider: Provider
-    ai_api_key:  str = Field(min_length=1, description="Decrypted BYOK key. Not logged.")
-    ai_model:    Optional[str] = Field(default=None)
-
     # ── Phase 11: chosen opener ────────────────────────────────────────────────
     chosen_opening: Optional[str] = Field(default=None)
 
@@ -95,7 +90,7 @@ class GenerateCoverLetterResponse(BaseModel):
     status:    Literal["accepted"] = "accepted"
 
 
-class GenerateOpeningVariantsRequest(BaseModel):
+class GenerateOpeningVariantsRequest(BYOK):
     """
     Request body for POST /internal/generate-opening-variants.
 
@@ -127,11 +122,6 @@ class GenerateOpeningVariantsRequest(BaseModel):
     # ── Company fact ───────────────────────────────────────────────────────────
     company_hook_text: str = Field(min_length=1)
 
-    # ── AI provider ────────────────────────────────────────────────────────────
-    ai_provider: Provider
-    ai_api_key:  str = Field(min_length=1, description="Decrypted BYOK key. Not logged.")
-    ai_model:    Optional[str] = Field(default=None)
-
 
 class GenerateOpeningVariantsResponse(BaseModel):
     """Response from POST /internal/generate-opening-variants."""
@@ -142,7 +132,7 @@ class GenerateOpeningVariantsResponse(BaseModel):
 # ── /internal/voice-rewrite-email ─────────────────────────────────────────────
 
 
-class VoiceRewriteEmailRequest(BaseModel):
+class VoiceRewriteEmailRequest(BYOK):
     """
     Request body for POST /internal/voice-rewrite-email.
 
@@ -171,10 +161,6 @@ class VoiceRewriteEmailRequest(BaseModel):
     # The boilerplate body to rewrite. The AI preserves its meaning, paragraph
     # count, and order — only the rhythm/phrasing/formality changes.
     boilerplate_body:  str = Field(min_length=1)
-
-    ai_provider: Provider
-    ai_api_key:  str = Field(min_length=1, description="Decrypted BYOK key. Not logged.")
-    ai_model:    Optional[str] = Field(default=None)
 
 
 class VoiceRewriteEmailResponse(BaseModel):

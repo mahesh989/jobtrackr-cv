@@ -9,7 +9,7 @@ from app.enums import Provider
 
 
 class BYOK(BaseModel):
-    """Bring-Your-Own-Key fields — repeated in every AI-calling request schema."""
+    """Bring-Your-Own-Key fields — shared by every AI-calling request schema."""
     ai_provider: Provider
-    ai_api_key:  str = Field(min_length=1)
+    ai_api_key:  str = Field(min_length=1, description="Decrypted BYOK key. Not logged.")
     ai_model:    Optional[str] = None

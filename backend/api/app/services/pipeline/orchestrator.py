@@ -274,7 +274,11 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
             await mark_step(run_id, step_status, StepName.ATS_SCORING, StepState.COMPLETED)
         else:
             await mark_step(run_id, step_status, StepName.ATS_SCORING, StepState.RUNNING)
-            ats = run_ats_scoring(payload.cv_text, jd_analysis, matching)
+            # C67: offloaded to a thread — a synchronous, CPU-bound (regex/
+            # keyword) deterministic scorer previously ran directly on the
+            # event loop, blocking every other concurrent pipeline run and
+            # API request this process was serving for its full duration.
+            ats = await asyncio.to_thread(run_ats_scoring, payload.cv_text, jd_analysis, matching)
             await save_step_result(run_id, "ats_scoring_result", ats)
             await save_step_result(run_id, "match_score", ats.get("overall_score"))
 
@@ -314,7 +318,11 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
 
         # ── Step 4 — Input recommendations (deterministic) ─────────────────────
         await mark_step(run_id, step_status, StepName.INPUT_RECOMMENDATIONS, StepState.RUNNING)
-        input_recs = run_input_recommendations(payload.cv_text, jd_analysis, matching, ats)
+        # C67: offloaded to a thread — same event-loop-blocking concern as
+        # run_ats_scoring above.
+        input_recs = await asyncio.to_thread(
+            run_input_recommendations, payload.cv_text, jd_analysis, matching, ats,
+        )
         await save_step_result(run_id, "input_recommendations", input_recs)
         await mark_step(run_id, step_status, StepName.INPUT_RECOMMENDATIONS, StepState.COMPLETED)
 
@@ -434,8 +442,11 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
         # non-deterministic call could push the tailored score BELOW the
         # original — the "bizarre regression" bug.) Identical to the beta
         # /analyze-eval harness, so beta and production agree exactly.
-        rescore = run_tailored_rescoring(
-            tailored_md, jd_analysis, matching, feasibility, ats,
+        # C67: offloaded to a thread — same event-loop-blocking concern as
+        # run_ats_scoring above; this is the tailored-CV re-score pass over
+        # the full generated markdown.
+        rescore = await asyncio.to_thread(
+            run_tailored_rescoring, tailored_md, jd_analysis, matching, feasibility, ats,
         )
         tailored_ats_scored = rescore["tailored_ats_scoring_result"]
         tailored_score = rescore["tailored_match_score"]
@@ -449,8 +460,11 @@ async def _run_analysis_pipeline_inner(payload: AnalyzeRequest) -> None:
         )
 
         # ── Step 6.6 — Deterministic structural validation ─────────────────────
-        structural_report = run_tailored_structural_validation(
-            tailored_md, payload.cv_text, jd_analysis=jd_analysis,
+        # C67: offloaded to a thread — same event-loop-blocking concern as
+        # run_ats_scoring above; this runs all 17 structural-validation
+        # gates over the full generated markdown.
+        structural_report = await asyncio.to_thread(
+            run_tailored_structural_validation, tailored_md, payload.cv_text, jd_analysis=jd_analysis,
         )
         tailored_ats_payload = dict(tailored_ats_scored)
         tailored_ats_payload["structural_report"] = structural_report
