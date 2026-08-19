@@ -19,6 +19,7 @@ import {
   computeFunnelCounts,
   computeLensData,
   countAppliedSince,
+  fetchAllCountRows,
   type DashboardProfile,
   type AllCountRow,
   type ActiveJobRow,
@@ -454,5 +455,59 @@ describe("countAppliedSince", () => {
       applied(null),
       applied("not-a-date"),
     ], since)).toBe(0);
+  });
+});
+
+// ── fetchAllCountRows ─────────────────────────────────────────────────────────
+// C67: this query previously had no .limit()/.range() at all, so it rode
+// PostgREST's default row cap — an account with more matching jobs than that
+// cap had totalJobs/totalNew/totalApplied (and every id list derived from
+// allRows) silently undercounted. Unlike the rest of this file, this one
+// function does real pagination logic (not just query construction), so a
+// mock is not tautological here.
+function makeMockSupabase(pages: AllCountRow[][]) {
+  let call = 0;
+  const builder = {
+    select: () => builder,
+    in: () => builder,
+    eq: () => builder,
+    order: () => builder,
+    range: () => {
+      const data = pages[call] ?? [];
+      call += 1;
+      return Promise.resolve({ data, error: null });
+    },
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return { from: () => builder } as any;
+}
+
+describe("fetchAllCountRows", () => {
+  const r = (id: string) => row({ id, profile_id: "p1" });
+
+  it("returns [] without querying when there are no profile ids", async () => {
+    const supabase = makeMockSupabase([[r("should-not-be-seen")]]);
+    const result = await fetchAllCountRows(supabase, [], 2, 10);
+    expect(result).toEqual({ rows: [], truncated: false });
+  });
+
+  it("stops at the first short page instead of capping at one page", async () => {
+    const supabase = makeMockSupabase([
+      [r("a"), r("b")],
+      [r("c")],
+    ]);
+    const result = await fetchAllCountRows(supabase, ["p1"], 2, 10);
+    expect(result.rows.map((x) => x.id)).toEqual(["a", "b", "c"]);
+    expect(result.truncated).toBe(false);
+  });
+
+  it("flags truncated when the row count hits the backstop", async () => {
+    const supabase = makeMockSupabase([
+      [r("a"), r("b")],
+      [r("c"), r("d")],
+    ]);
+    const result = await fetchAllCountRows(supabase, ["p1"], 2, 4);
+    expect(result.rows.map((x) => x.id)).toEqual(["a", "b", "c", "d"]);
+    expect(result.truncated).toBe(true);
   });
 });

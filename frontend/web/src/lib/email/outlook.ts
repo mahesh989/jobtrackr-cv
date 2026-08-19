@@ -16,6 +16,20 @@ export interface OutlookSendOptions {
   attachments?: OutlookAttachment[];
 }
 
+// Graph's toRecipients[].emailAddress.address field wants a bare SMTP
+// address — callers (see sendApplication.ts's toAddress) pass the combined
+// "Display Name <email>" form Gmail's raw-MIME To: header accepts, which
+// Graph either rejects outright or silently mishandles. Split the two apart
+// and carry the name via the address object's own `name` field instead.
+function parseRecipient(to: string): { name?: string; address: string } {
+  const match = to.match(/^\s*(.*?)\s*<([^<>]+)>\s*$/);
+  if (match && match[2].trim()) {
+    const name = match[1].trim();
+    return name ? { name, address: match[2].trim() } : { address: match[2].trim() };
+  }
+  return { address: to.trim() };
+}
+
 export async function sendViaOutlook(
   accessToken: string,
   opts:        OutlookSendOptions,
@@ -28,7 +42,7 @@ export async function sendViaOutlook(
       content:     opts.body,
     },
     toRecipients: [
-      { emailAddress: { address: opts.to } },
+      { emailAddress: parseRecipient(opts.to) },
     ],
   };
 
