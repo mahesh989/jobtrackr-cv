@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useSearchParams, type ReadonlyURLSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ADMIN_ROLES } from "@/lib/constants";
 import { Button, HoverPrefetchLink } from "@/components/ui";
 import { resetScrollFor } from "@/components/providers/ScrollRestoration";
@@ -215,10 +215,15 @@ export function SidebarLinks({ email, profiles = [], favouriteCount = 0, role, u
   // section collapsed, since nothing re-synced savedOpen when isSavedActive
   // flipped to true. One-directional: only force it open when the active
   // page enters this section; never force it closed, so a user's manual
-  // toggle on an unrelated page isn't overwritten.
-  useEffect(() => {
+  // toggle on an unrelated page isn't overwritten. Adjusted during render
+  // (React's documented "adjusting state on prop change" pattern) rather
+  // than in an effect, since an unconditional setState-in-effect trips
+  // react-hooks/set-state-in-effect and costs an extra render pass anyway.
+  const [prevIsSavedActive, setPrevIsSavedActive] = useState(isSavedActive);
+  if (isSavedActive !== prevIsSavedActive) {
+    setPrevIsSavedActive(isSavedActive);
     if (isSavedActive) setSavedOpen(true);
-  }, [isSavedActive]);
+  }
   const [showAllProfiles, setShowAllProfiles] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
 

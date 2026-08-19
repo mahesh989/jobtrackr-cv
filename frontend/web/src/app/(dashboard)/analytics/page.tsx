@@ -391,7 +391,7 @@ function EmptyState({ queryErrored = false }: { queryErrored?: boolean }) {
                   a failed query and a quiet platform rendered identically. */}
               <h2 className="text-lead font-semibold text-text mb-2">Couldn&apos;t load pipeline data</h2>
               <p className="text-body text-text-2 leading-relaxed mb-6">
-                One or more queries failed to load. This is NOT necessarily "no data" —
+                One or more queries failed to load. This is NOT necessarily &quot;no data&quot; —
                 reload the page to retry.
               </p>
             </>
