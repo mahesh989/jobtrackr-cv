@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useSearchParams, type ReadonlyURLSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ADMIN_ROLES } from "@/lib/constants";
 import { Button, HoverPrefetchLink } from "@/components/ui";
 import { resetScrollFor } from "@/components/providers/ScrollRestoration";
@@ -210,6 +210,15 @@ export function SidebarLinks({ email, profiles = [], favouriteCount = 0, role, u
   const pathname = usePathname();
   const isSavedActive = (pathname === "/profiles" || pathname.startsWith("/profiles/")) && !pathname.startsWith("/profiles/new");
   const [savedOpen, setSavedOpen] = useState(isSavedActive);
+  // C67: useState's initial value only seeds the FIRST render — a
+  // client-side nav from elsewhere into /profiles/* afterward left this
+  // section collapsed, since nothing re-synced savedOpen when isSavedActive
+  // flipped to true. One-directional: only force it open when the active
+  // page enters this section; never force it closed, so a user's manual
+  // toggle on an unrelated page isn't overwritten.
+  useEffect(() => {
+    if (isSavedActive) setSavedOpen(true);
+  }, [isSavedActive]);
   const [showAllProfiles, setShowAllProfiles] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
 

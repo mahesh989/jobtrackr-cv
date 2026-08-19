@@ -46,7 +46,15 @@ export default async function AdminRetentionPage() {
     admin.from("cv_versions").select("user_id").eq("is_active", true),
     admin.from("voice_profiles").select("user_id"),
     admin.from("email_integrations").select("user_id"),
-    admin.from("jobs").select("user_id: profile_id, applied_at").not("applied_at", "is", null).gte("applied_at", d30ago.toISOString()),
+    // C67: was select("user_id: profile_id, ...") — jobs.profile_id is a
+    // search_profiles id, NOT a users id (one user can own multiple
+    // profiles, per max_profiles), so every downstream Set/comparison
+    // against a real users.id silently never matched — the "applied"
+    // retention cohort was effectively always empty. Join through
+    // search_profiles for the real owning user_id, matching the pattern
+    // already established elsewhere (lib/coverLetterPdfStore.ts,
+    // lib/email/sendApplication.ts, api/user/runs/route.ts, ...).
+    admin.from("jobs").select("profile_id, applied_at, search_profiles!inner(user_id)").not("applied_at", "is", null).gte("applied_at", d30ago.toISOString()),
   ]);
 
   // Optional: user_events for engagement depth
@@ -65,7 +73,12 @@ export default async function AdminRetentionPage() {
   const cvVersions     = (cvVersionsRaw         ?? []) as { user_id: string }[];
   const voiceProfiles  = (voiceProfilesRaw      ?? []) as { user_id: string }[];
   const emailIntgs     = (emailIntegrationsRaw  ?? []) as { user_id: string }[];
-  const appliedJobs    = (appliedJobsRaw        ?? []) as { user_id: string; applied_at: string }[];
+  const appliedJobsRows = (appliedJobsRaw ?? []) as unknown as {
+    profile_id: string; applied_at: string; search_profiles: { user_id: string } | null;
+  }[];
+  const appliedJobs = appliedJobsRows
+    .filter((r) => r.search_profiles?.user_id)
+    .map((r) => ({ user_id: r.search_profiles!.user_id, applied_at: r.applied_at }));
 
   const totalUsers = allUsers.length;
 

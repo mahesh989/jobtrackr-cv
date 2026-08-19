@@ -73,7 +73,10 @@ export const metadata: Metadata = {
   // Resolves all relative URL-based metadata fields (openGraph.url, images,
   // canonicals) to absolute URLs. Derived from the shared SITE_URL so it stays
   // in lockstep with the sitemap and robots output.
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://jobtrackr.app"),
+  // C67: fallback was "https://jobtrackr.app" — not this project's domain
+  // (production is jobtrackr.com.au, CLAUDE.md's own Production Safety
+  // section); only fires when NEXT_PUBLIC_SITE_URL is unset.
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://jobtrackr.com.au"),
   title: DEFAULT_TITLE,
   description: DEFAULT_DESCRIPTION,
   openGraph: {

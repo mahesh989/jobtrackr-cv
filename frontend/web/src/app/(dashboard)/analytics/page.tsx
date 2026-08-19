@@ -94,8 +94,8 @@ export default async function AnalyticsPage() {
   // page's funnel counts would silently go to zero as the platform grows,
   // with no error surfaced anywhere.
   const [
-    { rows: runLogData },
-    { rows: jobRows },
+    { rows: runLogData, hadError: runLogsErrored },
+    { rows: jobRows, hadError: jobsErrored },
   ] = await Promise.all([
     selectInChunked(ids, (chunk) =>
       supabase.from("run_logs").select("profile_id, jobs_saved, sources_saved").in("profile_id", chunk),
@@ -128,8 +128,8 @@ export default async function AnalyticsPage() {
   // "keep first (=latest) row per job_id" dedup below only needs order to
   // hold within a job_id's own rows, not across the merged array.
   const [
-    { rows: runData },
-    { rows: letterRows },
+    { rows: runData, hadError: runsErrored },
+    { rows: letterRows, hadError: lettersErrored },
   ] = await Promise.all([
     selectInChunked<{ job_id: string; tailored_cv_storage_path: string | null; tailored_pdf_storage_path: string | null }>(
       jobIds,
@@ -149,6 +149,14 @@ export default async function AnalyticsPage() {
         .eq("is_stale", false),
     ),
   ]);
+
+  // C67: selectInChunked() returns hadError specifically so a partial
+  // failure can be told apart from genuine zero activity — this page
+  // destructured only `rows` from all 4 calls and never checked it, so a
+  // failed chunk (network blip, transient DB error) silently rendered as
+  // if the funnel genuinely had no data, indistinguishable from a real
+  // quiet period. Surfaced as a visible banner below instead.
+  const anyQueryErrored = runLogsErrored || jobsErrored || runsErrored || lettersErrored;
 
   const latestRunByJob = new Map<string, { tailored_cv_storage_path: string | null; tailored_pdf_storage_path: string | null }>();
   for (const r of (runData ?? []) as Array<{ job_id: string; tailored_cv_storage_path: string | null; tailored_pdf_storage_path: string | null }>) {
@@ -210,7 +218,9 @@ export default async function AnalyticsPage() {
     }))
     .sort((a, b) => b.scraped - a.scraped);
 
-  if (sourceRows.length === 0 && profileFunnelRows.length === 0) return <EmptyState />;
+  if (sourceRows.length === 0 && profileFunnelRows.length === 0) {
+    return <EmptyState queryErrored={anyQueryErrored} />;
+  }
 
   const totalScraped = sumStage(profileFunnelRows, "scraped");
   const totalApplied = sumStage(profileFunnelRows, "applied");
@@ -235,6 +245,12 @@ export default async function AnalyticsPage() {
       </div>
 
       <div className="px-6 py-5 space-y-7">
+        {anyQueryErrored && (
+          <div className="bg-warning-subtle border border-warning-border rounded-md px-4 py-3 text-label text-warning">
+            One or more queries failed while loading this data — the numbers below may be
+            incomplete. Reload the page to retry.
+          </div>
+        )}
         <p className="text-label text-text-2 anim-in max-w-3xl">
           Each row tracks jobs through the pipeline. The small percentage under a count is
           its conversion from the previous step. Cover Letter and Applied are manual,
@@ -358,7 +374,7 @@ function FunnelRow({ row, isTotal = false }: { row: FunnelRowData; isTotal?: boo
   );
 }
 
-function EmptyState() {
+function EmptyState({ queryErrored = false }: { queryErrored?: boolean }) {
   return (
     <div className="min-h-full">
       <div className="border-b border-border bg-surface px-4 sm:px-6 py-4">
@@ -369,11 +385,25 @@ function EmptyState() {
           <div className="w-14 h-14 rounded-xl bg-[var(--brand)]/10 border border-[var(--brand)]/20 flex items-center justify-center mx-auto mb-4">
             <BarChart3 className="w-7 h-7 text-[var(--brand)]" />
           </div>
-          <h2 className="text-lead font-semibold text-text mb-2">No pipeline data yet</h2>
-          <p className="text-body text-text-2 leading-relaxed mb-6">
-            Once your profiles have run and saved jobs, you&apos;ll see the pipeline funnel
-            broken down by source and profile here.
-          </p>
+          {queryErrored ? (
+            <>
+              {/* C67: was indistinguishable from genuine "no activity yet" —
+                  a failed query and a quiet platform rendered identically. */}
+              <h2 className="text-lead font-semibold text-text mb-2">Couldn&apos;t load pipeline data</h2>
+              <p className="text-body text-text-2 leading-relaxed mb-6">
+                One or more queries failed to load. This is NOT necessarily "no data" —
+                reload the page to retry.
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 className="text-lead font-semibold text-text mb-2">No pipeline data yet</h2>
+              <p className="text-body text-text-2 leading-relaxed mb-6">
+                Once your profiles have run and saved jobs, you&apos;ll see the pipeline funnel
+                broken down by source and profile here.
+              </p>
+            </>
+          )}
           <Link href="/dashboard" className="inline-flex">
             <Button variant="blue" className="px-4 py-2">
               Go to the job board →

@@ -35,7 +35,7 @@ export default async function AnalyzeRunPage({ params }: Props) {
         "input_recommendations, keyword_feasibility, ai_recommendations, " +
         "tailored_cv_storage_path, tailored_pdf_storage_path, tailored_ats_scoring_result, injected_keywords, " +
         "match_score, tailored_match_score, ats_lift, quality_flags, " +
-        "error_message, jd_text, ai_provider, ai_model, cv_version_id, created_at, user_id",
+        "error_message, jd_text, ai_provider, ai_model, cv_version_id, created_at, completed_at, user_id",
       )
       .eq("id", runId)
       .eq("job_id", jobId)

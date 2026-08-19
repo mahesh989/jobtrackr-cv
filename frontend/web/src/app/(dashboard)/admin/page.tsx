@@ -62,6 +62,7 @@ export default async function AdminOverviewPage() {
   const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
   const d7ago      = new Date(now.getTime() - 7 * 86400_000);
   const d30ago     = new Date(now.getTime() - 30 * 86400_000);
+  const d60ago     = new Date(now.getTime() - 60 * 86400_000);
   const h24ago     = new Date(now.getTime() - 86400_000);
 
   // Core queries — always exist
@@ -94,11 +95,20 @@ export default async function AdminOverviewPage() {
     admin.from("search_profiles").select("id, user_id, name, is_active"),
     admin.from("subscriptions").select("user_id, plan_id, status"),
     admin.from("plans").select("id, price_cents, billing_interval"),
-    // For TTV: earliest completed run per user (completed_at asc)
+    // For TTV: earliest completed run per user (completed_at asc).
+    // C67: had no .gte() bound at all — PostgREST's default row cap (1000)
+    // meant that once total completed runs exceeded it, only the
+    // CHRONOLOGICALLY OLDEST rows survived (ascending order), silently
+    // excluding every user whose first completion happened after that
+    // cutoff — i.e. every recent signup. The metric only ever reflected
+    // old users' onboarding speed. Bounded to the last 60 days (2x the
+    // downstream 30-day TTV window, so no valid recent pair is clipped)
+    // to keep the returned rows recent regardless of table growth.
     admin.from("analysis_runs")
       .select("user_id, completed_at")
       .eq("status", "completed")
       .not("completed_at", "is", null)
+      .gte("completed_at", d60ago.toISOString())
       .order("completed_at", { ascending: true }),
   ]);
 
