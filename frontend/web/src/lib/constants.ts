@@ -28,7 +28,6 @@ export const StepState = {
 export type StepState = (typeof StepState)[keyof typeof StepState];
 
 export const ADMIN_ROLES = ["founder", "admin"] as const;
-export type AdminRole = (typeof ADMIN_ROLES)[number];
 
 // Mirrors backend/worker/src/ai/jdFacts.ts (EmploymentType / ALL_EMPLOYMENT_TYPES) —
 // keep the two in sync, same mirror discipline as lib/eligibility.ts.

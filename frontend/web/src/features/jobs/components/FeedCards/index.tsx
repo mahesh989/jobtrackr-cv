@@ -6,7 +6,7 @@
  * still importable from "./FeedCards".
  * 
  */
-export { AtsChip, CardChips, ChipWarn, Distance, FactsChips, MatchBar, ProfileChip, ProgressDots, SourcePill, SponsorshipBadge } from "./chips";
+export { Distance, ProgressDots, SourcePill } from "./chips";
 export { CardActions, CardMeta, CardTitle } from "./parts";
 export { CardShell } from "./shell";
 export { Gauge } from "./gauge";

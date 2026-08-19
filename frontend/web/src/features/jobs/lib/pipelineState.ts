@@ -152,19 +152,3 @@ export const PIPELINE_STATE_META: Record<PipelineState, PipelineStateMeta> = {
   needs_jd:        { label: "Needs full JD",  tone: "warning", short: "Job description too short to analyse — paste the full JD to continue", showAsBadge: false },
   discovered:      { label: "—",              tone: "neutral", short: "Not yet processed",                                                 showAsBadge: false },
 };
-
-/**
- * Tailwind utility classes per tone for a small pill badge. Was raw
- * numbered-shade palette classes — correct-looking in dev, wrong on
- * 6 of 7 themes, and invisible to check-theme-tokens.mjs's CI gate because
- * this file is a .ts, not .tsx (audit finding #41 / DetailHeader.tsx,
- * execution chunk C37/C38 — both the bug and the gate's blind spot fixed
- * together). Now the same semantic vocabulary "neutral" already used.
- */
-export const TONE_CLASSES: Record<PipelineStateMeta["tone"], { pill: string; dot: string }> = {
-  success: { pill: "text-success bg-success-subtle border-success-border", dot: "bg-success" },
-  warning: { pill: "text-warning bg-warning-subtle border-warning-border", dot: "bg-warning" },
-  danger:  { pill: "text-danger  bg-danger-subtle  border-danger-border",  dot: "bg-danger"  },
-  info:    { pill: "text-info    bg-info-subtle    border-info-border",    dot: "bg-info"    },
-  neutral: { pill: "text-text-2  bg-[var(--surface-2)] border-[var(--border)]", dot: "bg-text-3" },
-};

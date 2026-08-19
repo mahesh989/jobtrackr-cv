@@ -13,8 +13,6 @@ import { createAdminClient }            from "@/lib/supabase/admin";
 import { decryptApiKey }                from "@/lib/integrations/crypto";
 import { DEFAULT_MODELS, type AiProvider } from "@/lib/ai/models";
 
-export type { AiProvider };
-
 export interface ActiveAiCredentials {
   provider: AiProvider;
   apiKey:   string;
