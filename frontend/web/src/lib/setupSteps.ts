@@ -55,8 +55,14 @@ export const SETUP_STEPS: SetupStep[] = [
     href: "/settings/account",
   },
   {
-    key: "searchProfile", icon: Briefcase, title: "Create a search profile & run it", tag: "required",
-    blurb: "Your job radar: keywords + location + schedule. Save it, then hit Run now — your first AI-scored results land in a minute or two.",
+    // C67: the step is done the instant the profile row is saved
+    // (setupStatus.ts: `searchProfile: hasIds` — deliberately, so a
+    // legitimate 0-result first run can't leave onboarding stuck). The
+    // blurb previously read "Save it, then hit Run now" as if running were
+    // required to finish THIS step, mismatching the real completion rule —
+    // worded here as what happens next, not as a second requirement.
+    key: "searchProfile", icon: Briefcase, title: "Create a search profile", tag: "required",
+    blurb: "Your job radar: keywords + location + schedule. Save it and this step is done — hit Run now whenever you're ready to see AI-scored results.",
     href: "/profiles/new",
   },
 ];

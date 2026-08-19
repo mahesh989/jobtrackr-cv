@@ -8,7 +8,7 @@
  * resolution → OAuth token → Gmail/Outlook dispatch → sent stamps.
  */
 
-import { NextRequest, NextResponse }  from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createAdminClient }          from "@/lib/supabase/admin";
 import { getValidAccessToken }        from "@/lib/email/tokens";
 import { sendViaGmail }               from "@/lib/email/gmail";
@@ -404,11 +404,14 @@ export async function sendApplicationEmail(
     sentAt:   now,
   });
 
-  void emitEvent({
+  // C67: `after()` instead of a bare `void` — see analyze/start.ts's note on
+  // this same class of bug (serverless can freeze right after the response,
+  // silently dropping an un-awaited fire-and-forget promise).
+  after(() => emitEvent({
     userId:    user.id,
     eventType: "email_sent",
     metadata:  { letter_id, job_id: letter.job_id, to: job.contact_email },
-  });
+  }));
 
   return NextResponse.json({ sent: true, to: job.contact_email });
 }

@@ -281,12 +281,22 @@ export async function copyProfile(profileId: string) {
 
 export async function deleteProfile(profileId: string) {
   const { supabase, user } = await authedClient();
-  const { error } = await supabase
+  // C67: a DELETE whose WHERE clause matches zero rows — wrong owner, a
+  // stale/tampered id, or a profile already deleted by a concurrent request
+  // — is NOT an error to Supabase/PostgREST; it returns {error: null} the
+  // same as a genuine delete. Without `.select()` to see what actually came
+  // back, this reported success and redirected to /profiles having deleted
+  // nothing. `.select("id")` + a row-count check catches the no-op case.
+  const { data: deleted, error } = await supabase
     .from("search_profiles")
     .delete()
     .eq("id", profileId)
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .select("id");
   if (error) throw new Error(error.message);
+  if (!deleted || deleted.length === 0) {
+    throw new Error("Profile not found, or already deleted");
+  }
   triggerScheduleSync();
   revalidateTag(`profiles-${user.id}`, "default");
   revalidatePath("/dashboard");

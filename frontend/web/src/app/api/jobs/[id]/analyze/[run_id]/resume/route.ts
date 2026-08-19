@@ -145,7 +145,15 @@ export const POST = withUser(async (
   }
   const usageEventId = cvGate.eventId ?? null;
   // Link to the (existing) run row so the status trigger commits/voids it.
-  if (usageEventId) await linkUsageEvent(usageEventId, runId);
+  // Non-fatal: the run already exists — a link failure means this one
+  // reservation won't auto-reconcile, not that the resume failed.
+  if (usageEventId) {
+    try {
+      await linkUsageEvent(usageEventId, runId);
+    } catch (err) {
+      console.error("[analyze/resume] linkUsageEvent failed — reservation stuck pending:", err);
+    }
+  }
 
   // ── 3. Reset the skipped steps + flip the run back to running ─────────────
   const resetSteps = { ...stepStatus };

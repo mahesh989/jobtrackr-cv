@@ -256,10 +256,21 @@ export async function consumeCoverLetter(userId: string, jobId: string): Promise
 
 // ── Reservation lifecycle ───────────────────────────────────────────────────
 
-/** Link a pending reservation to the artifact row so triggers can commit/void it. */
+/**
+ * Link a pending reservation to the artifact row so triggers can commit/void
+ * it. C67: this update's result — including any error — used to be
+ * discarded entirely, unlike every sibling in this reservation lifecycle
+ * (release/commit both check and throw below). A silent failure here left
+ * the reservation stuck "pending" with no ref_id forever: the commit/void
+ * trigger keys off ref_id, so it would never fire, and if pending
+ * reservations count toward the usage cap (they do — that's the point of
+ * reserving before consuming), this silently and permanently burns one of
+ * the user's credits for nothing.
+ */
 export async function linkUsageEvent(eventId: string, refId: string): Promise<void> {
   const admin = createAdminClient();
-  await admin.from("usage_events").update({ ref_id: refId }).eq("id", eventId);
+  const { error } = await admin.from("usage_events").update({ ref_id: refId }).eq("id", eventId);
+  if (error) throw new Error(`usage event link failed: ${error.message}`);
 }
 
 /** Void a reservation when the action fails before the artifact row exists. */
