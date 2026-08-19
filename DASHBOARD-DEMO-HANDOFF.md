@@ -125,6 +125,6 @@ Favourite / Applied views render the **same gauge cards** as the main feed (was:
 
 ## 5. Files
 
-- `user-dashboard-demo.html` — the demo (only file changed).
+- ~~`user-dashboard-demo.html`~~ — the demo (deleted 2026-08-19, see the note at the top).
 - `DASHBOARD-DESIGN-BRIEF.md` — the design principles brief (keep).
 - `frontend/web/src/app/globals.css` — token source of truth (reference only, never edited).

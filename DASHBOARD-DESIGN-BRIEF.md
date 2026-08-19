@@ -57,7 +57,8 @@ surface, energetic through scale, spacing, and a single well-placed accent per c
 
 ## Process
 
-- Prototype in `user-dashboard-demo.html`; tokens live at `:root`.
+- Prototype directly in `frontend/web` (the standalone demo file is gone — see the
+  note at the top); tokens live at `:root` in `frontend/web/src/app/globals.css`.
 - When exploring directions, ship 3-5 **distinct archetypes** side by side (different
   padding/type/layout), so the user picks — don't micro-tweak one design.
 - After a pick: apply it everywhere, unify, remove dead variant code.
