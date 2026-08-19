@@ -134,20 +134,27 @@ backend/api/app/
 
 ### Button System
 
-Canonical sizing defined in `lib/button-sizes.ts`:
+> **Corrected 2026-08-19** — there is no shared `lib/button-sizes.ts`; each
+> component defines its own local `sizeClass` map, and the values had
+> drifted to Tailwind's semantic typography tokens (`text-caption` etc.)
+> rather than the raw pixel sizes below. Table corrected in place.
 
-| Token | Classes | Used By |
+| Token | Classes | Defined in |
 |-------|---------|---------|
-| `BUTTON_SIZE.xs` | `text-[11px] px-2.5 py-1` | Button, Chip(sm), SegmentedControl(sm) |
-| `BUTTON_SIZE.sm` | `text-[12px] px-3 py-1.5` | Button, Chip(md) |
-| `BUTTON_SIZE.md` | `text-[13px] px-3 py-[5px]` | Button |
-| `BUTTON_SIZE.lg` | `text-sm px-4 py-2` | Button |
-| `ICON_BUTTON_SIZE.sm` | `w-6 h-6` | IconButton |
-| `ICON_BUTTON_SIZE.md` | `w-7 h-7` | IconButton |
-| `ICON_BUTTON_SIZE.lg` | `w-9 h-9` | IconButton |
+| `Button` `xs` | `text-caption px-2.5 py-1` | `Button.tsx` |
+| `Button` `sm` | `text-label px-3 py-1.5` | `Button.tsx` |
+| `Button` `md` | `text-body px-3 py-[5px]` | `Button.tsx` |
+| `Button` `lg` | `text-title px-4 py-2` | `Button.tsx` |
+| `IconButton` `sm` | `w-6 h-6` | `IconButton.tsx` |
+| `IconButton` `md` | `w-7 h-7` | `IconButton.tsx` |
+| `IconButton` `lg` | `w-9 h-9` | `IconButton.tsx` |
+| `Chip` `sm` | `px-2.5 py-1 text-caption` | `Chip.tsx` |
+| `Chip` `md` | `px-3 py-1.5 text-label` | `Chip.tsx` |
 
-`Button.tsx` and `IconButton.tsx` import these maps directly — sizing change in `button-sizes.ts` propagates everywhere they're used.
-`Chip.tsx` sizes are intentionally aligned to `BUTTON_SIZE` values.
+Each component owns its own map (no shared file to keep in sync) — but
+`Chip`'s sizes are still deliberately aligned to `Button`'s (same semantic
+typography token per tier), so a font-size change in one class's design
+system should be mirrored in the others by hand.
 Inline `<button>` elements in feature code should use a `Button` component variant when possible; when a raw `<button>` is necessary (distinct visual like filter chips, dismiss links), use matching Tailwind classes from the table above.
 
 ### Ponytail Mode — Lazy Guidance
