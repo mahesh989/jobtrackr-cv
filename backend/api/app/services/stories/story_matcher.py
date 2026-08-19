@@ -24,7 +24,16 @@ from app.services.text_tokenise import tokenise as _tokenise
 
 logger = logging.getLogger(__name__)
 
-_NUMBERS_BONUS = 0.15  # added to raw overlap when a story has concrete numbers
+# C67: this used to be a flat 0.15 added to `overlap` (matched_unique_tokens /
+# jd_unique_token_count). `overlap` shrinks as the JD gets longer (more unique
+# tokens in the denominator), but the old bonus didn't — so on a realistic
+# JD (100-150+ unique tokens after stopword removal), a typical strong-match
+# overlap (0.05-0.08) was smaller than the flat bonus alone. A story with
+# ANY number, however irrelevant, could outrank a highly relevant
+# number-free story. Scaled to the same denominator as overlap so it stays
+# a small, proportionally-consistent tie-breaker regardless of JD length —
+# roughly "worth" this many extra matched tokens, not a fixed score jump.
+_NUMBERS_BONUS_TOKEN_EQUIVALENT = 1.5
 
 
 def _story_text(story: dict) -> str:
@@ -78,7 +87,8 @@ def score_stories(jd_text: str, stories: list[dict]) -> list[dict]:
         overlap = len(jd_tokens & story_tokens) / jd_size
 
         has_numbers = bool(story.get("numbers"))
-        raw = overlap + (_NUMBERS_BONUS if has_numbers else 0.0)
+        numbers_bonus = (_NUMBERS_BONUS_TOKEN_EQUIVALENT / jd_size) if has_numbers else 0.0
+        raw = overlap + numbers_bonus
         final_score = min(raw, 1.0)
 
         scored.append({"story_id": story_id, "score": round(final_score, 4)})

@@ -387,6 +387,20 @@ def _classify_heading(line: str) -> str:
 # avoid stripping content from unstructured JDs.
 _MIN_SKILL_SECTIONS = 1
 
+# C67: section_map["_boilerplate"] joins multiple discarded heading strings
+# into one field (Dict[str, str] has no list value type). A plain ",".join()
+# is lossy round-trip: a heading legitimately containing a comma ("Our
+# Benefits, Perks & Culture") is indistinguishable from a delimiter once
+# joined, so jd_enrichment.py's downstream .split(",") corrupts BOTH that
+# heading and its neighbour — the corrupted fragments no longer match any
+# key in section_map, silently dropping that section's body from the
+# boilerplate-provenance blob (jd_enrichment.build_boilerplate_blob), which
+# exists specifically to catch fabricated skills/credentials whose only
+# support is in a discarded section. ASCII Unit Separator: a control
+# character with no legitimate reason to appear in human-authored JD
+# heading text, unlike a comma.
+BOILERPLATE_HEADING_SEP = "\x1f"
+
 
 def clean_jd_text(raw_text: str) -> Tuple[str, Dict[str, str]]:
     """Strip boilerplate sections from a raw job description.
@@ -422,7 +436,9 @@ def clean_jd_text(raw_text: str) -> Tuple[str, Dict[str, str]]:
         recall-floor scoping. Special keys:
         - ``"_preamble"``   — content before the first heading
         - ``"_fallback"``   — ``"true"`` when fallback was used
-        - ``"_boilerplate"``— comma-separated list of discarded headings
+        - ``"_boilerplate"``— discarded headings joined by
+          ``BOILERPLATE_HEADING_SEP`` (NOT a comma — a heading can legitimately
+          contain one; see that constant's docstring)
     """
     if not raw_text:
         return "", {}
@@ -494,7 +510,7 @@ def clean_jd_text(raw_text: str) -> Tuple[str, Dict[str, str]]:
                 kept_parts.append(content_text)
 
     if boilerplate_headings:
-        section_map["_boilerplate"] = ", ".join(boilerplate_headings)
+        section_map["_boilerplate"] = BOILERPLATE_HEADING_SEP.join(boilerplate_headings)
 
     cleaned_text = "\n".join(kept_parts).strip()
 

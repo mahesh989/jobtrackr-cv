@@ -280,3 +280,45 @@ def test_boilerplate_key_lists_stripped_headings():
     # The boilerplate string should name the discarded headings.
     boilerplate_str = sections["_boilerplate"].lower()
     assert "about us" in boilerplate_str or "benefits" in boilerplate_str
+
+
+_SYNTHETIC_WITH_COMMA_IN_BOILERPLATE_HEADING = """\
+Residential Care Worker — Aged Care
+
+We are hiring compassionate care workers for our 80-bed home.
+
+Our Benefits, Perks & Culture:
+Enjoy a supportive team and the Golden Trophy Award, given annually to
+top performers across the network.
+
+Key Responsibilities:
+- Provide personal care including showering, dressing and grooming.
+- Assist residents with mobility and hoist transfers.
+
+About Us:
+Founded in 2005, Sunshine Care Group is proud of its heritage.
+
+What We Are Looking For:
+- Certificate III in Individual Support or equivalent.
+"""
+
+
+def test_boilerplate_heading_containing_a_comma_survives_the_provenance_blob():
+    """C67: section_map["_boilerplate"] used to join headings with ",", and
+    jd_enrichment.build_boilerplate_blob split on the same character to look
+    each one back up in section_map. A heading legitimately containing a
+    comma ("Our Benefits, Perks & Culture") corrupted itself AND its
+    neighbour on that round trip — the resulting fragments matched no key
+    in section_map, so BOTH sections' bodies silently vanished from the
+    provenance blob that exists specifically to catch fabricated
+    skills/credentials whose only support is in a discarded section."""
+    from app.services.pipeline.jd_enrichment import build_boilerplate_blob
+
+    _, sections = clean_jd_text(_SYNTHETIC_WITH_COMMA_IN_BOILERPLATE_HEADING)
+    assert any("," in k for k in sections if not k.startswith("_")), (
+        "fixture setup check: the comma-bearing heading must actually be "
+        "classified as boilerplate for this test to be meaningful"
+    )
+    blob = build_boilerplate_blob(sections).lower()
+    assert "golden trophy award" in blob
+    assert "sunshine care group" in blob
