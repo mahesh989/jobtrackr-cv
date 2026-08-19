@@ -1,5 +1,9 @@
 # UI Improvement Design — 2026-08-06
 
+> **Archived 2026-08-19** — this plan's core proposal shipped
+> (`scripts/check-theme-tokens.mjs` is now a hard CI gate per CLAUDE.md).
+> Moved here as a completed record; not maintained.
+
 Companion to [UI_AUDIT_2026-08-06.md](./UI_AUDIT_2026-08-06.md). The audit
 catalogues symptoms; this document argues about causes and proposes the
 structural fix, then sequences it.

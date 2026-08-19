@@ -1,6 +1,6 @@
 # JobTrackr Dashboard Demo — Handoff Report
 
-> **HISTORICAL — this handoff is complete and its target file no longer exists.**
+> **HISTORICAL — moved to docs/archive/ 2026-08-19. This handoff is complete and its target file no longer exists.**
 > The work described here shipped in commit `6de05f90` ("feat(web): dashboard
 > job-board redesign to match demo prototype"), and `user-dashboard-demo.html`
 > was deleted on 2026-08-19 because its mock CV pane carried a real user's name,
