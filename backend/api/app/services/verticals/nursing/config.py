@@ -16,8 +16,16 @@ PROFILE = RoleFamilyProfile(
         "personal care worker", "nursing assistant",
     ],
     section_order=[
+        # "Awards" is prescribed explicitly. The universal prompt routes
+        # awards/recognitions under ## Certifications and relies on a
+        # downstream relabel to rename that heading to ## Awards — but this
+        # family now forbids a Certifications heading outright
+        # (cert_policy=excluded), closing that route. Without naming Awards
+        # here it lands under an unprescribed ad-hoc heading, which
+        # _reorder_sections can only dump at the very end (after
+        # Registration & Licences) instead of placing it.
         "Professional Summary", "Experience", "Education", "Skills",
-        "Registration & Licences",
+        "Awards", "Registration & Licences",
     ],
     # skills_categories[0] is overwritten per nursing sub-type at resolve time
     # (Care Skills / Clinical Skills / Core Skills — see nursing/hooks.py);

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from app.services.ai.client import AIClient, TAILORED_CV_GENERATION
+from app.services.pipeline.steps.tailored_cv.summary import _SUMMARY_HEADING_RE
 
 logger = logging.getLogger(__name__)
 
@@ -25,17 +26,42 @@ logger = logging.getLogger(__name__)
 
 _CAREER_HIGHLIGHTS_FLOOR = 35
 
-def _career_highlights_word_count(md: str) -> tuple[int, str]:
-    """Return (word_count, prose) for the canonical '## Career Highlights' body."""
-    heading = "## Career Highlights"
+def _summary_bounds(md: str) -> tuple[int | None, int]:
+    """Locate the summary block by ANY of its heading aliases.
+
+    Must not hardcode "## Career Highlights": restore_and_order() renames
+    the canonical heading to the family's own name well before the end of
+    the pipeline (for nursing, back to "## Professional Summary"), and
+    _apply_display_heading can swap it again at the very end. A
+    heading-literal lookup silently returns "no summary found" for every
+    nursing CV once that rename has happened, which is exactly how an
+    under-length summary reached production unnoticed. Reuses the same
+    alias regex the production summary enforcers use.
+    """
     lines = md.split("\n")
-    start = next((i for i, ln in enumerate(lines) if ln.strip() == heading), None)
+    start = next(
+        (i for i, ln in enumerate(lines) if _SUMMARY_HEADING_RE.match(ln.strip())),
+        None,
+    )
     if start is None:
-        return 0, ""
+        return None, 0
     end = next(
         (i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")),
         len(lines),
     )
+    return start, end
+
+
+def _career_highlights_word_count(md: str) -> tuple[int, str]:
+    """Return (word_count, prose) for the summary body, under any heading alias.
+
+    Bullet lines and italic-only lines are excluded — the latter keeps the
+    stamped "*Available: …*" note out of the prose word count.
+    """
+    lines = md.split("\n")
+    start, end = _summary_bounds(md)
+    if start is None:
+        return 0, ""
     prose = " ".join(
         ln.strip() for ln in lines[start + 1 : end]
         if ln.strip() and not ln.strip().startswith(("-", "*"))
@@ -43,16 +69,26 @@ def _career_highlights_word_count(md: str) -> tuple[int, str]:
     return len(prose.split()), prose
 
 def _replace_career_highlights_prose(md: str, new_prose: str) -> str:
-    heading = "## Career Highlights"
+    """Swap the summary prose, preserving any non-prose lines in the block.
+
+    The stamped "*Available: …*" italic line lives inside this block; the
+    earlier version rebuilt the block as [heading, "", prose, ""] and so
+    DELETED it. That was harmless when this only ran pre-verify (before the
+    availability line is stamped) but silently drops it on the post-verify
+    re-run, so non-prose lines are now carried through explicitly.
+    """
     lines = md.split("\n")
-    start = next((i for i, ln in enumerate(lines) if ln.strip() == heading), None)
+    start, end = _summary_bounds(md)
     if start is None:
         return md
-    end = next(
-        (i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")),
-        len(lines),
+    preserved = [
+        ln for ln in lines[start + 1 : end]
+        if ln.strip().startswith(("-", "*"))
+    ]
+    new_lines = (
+        lines[: start + 1] + ["", new_prose, ""] + preserved
+        + ([""] if preserved else []) + lines[end:]
     )
-    new_lines = lines[: start + 1] + ["", new_prose, ""] + lines[end:]
     return "\n".join(new_lines)
 
 async def _ensure_career_highlights_floor(
@@ -98,7 +134,22 @@ async def _ensure_career_highlights_floor(
     new_n = len(new_prose.split()) if new_prose else 0
     if new_n <= n:
         # Retry didn't actually expand it — keep the original rather than regress.
+        logger.warning(
+            "career-highlights floor retry did not expand (%d -> %d words); "
+            "keeping original, still below the %d-word floor",
+            n, new_n, _CAREER_HIGHLIGHTS_FLOOR,
+        )
         return md
 
-    logger.info("career-highlights floor retry: %d -> %d words", n, new_n)
+    # An improvement that is STILL under the floor is taken (better than the
+    # original) but must not be logged as a success — the previous
+    # unconditional info-level "31 -> 33 words" read as compliant when the
+    # summary was still short of the hard minimum.
+    if new_n < _CAREER_HIGHLIGHTS_FLOOR:
+        logger.warning(
+            "career-highlights floor retry: %d -> %d words — still below the "
+            "%d-word floor", n, new_n, _CAREER_HIGHLIGHTS_FLOOR,
+        )
+    else:
+        logger.info("career-highlights floor retry: %d -> %d words", n, new_n)
     return _replace_career_highlights_prose(md, new_prose)

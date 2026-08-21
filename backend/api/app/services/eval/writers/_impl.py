@@ -845,6 +845,35 @@ async def _writer_w8_verified(
     # when both top-2 employers are already named) guarantees the final S2
     # names them. See OPS-32.
     verified_md = _enforce_company_anchor(verified_md, anchor_cv_text)
+    # RE-RUN the summary word FLOOR. Same reasoning as the anchor above, and
+    # the same gap that let an under-length summary ship: the floor retry ran
+    # once inside _writer_w8_integrated, pre-verify. verify_claims STRIPS
+    # unentailed clauses, so it structurally tends to SHRINK the summary —
+    # it is the single most likely step to push a compliant 38-word summary
+    # under the 35-word floor, and nothing re-measured it afterwards. (The
+    # 50-word cap in _enforce_structure is likewise pre-verify, but an AI
+    # strip pass cannot push a summary OVER a cap, so only the floor needs
+    # re-running here.) Runs BEFORE the availability re-stamp below so the
+    # italic note is re-applied over whatever prose this produces.
+    _floor_n_before, _ = _career_highlights_word_count(verified_md)
+    verified_md = await _ensure_career_highlights_floor(
+        client, verified_md,
+        # Rebuilt rather than threaded through WriterResult: the composition
+        # system prompt is a pure function of (role_family, seniority), both
+        # already resolved here, and it carries the Career Highlights rules
+        # the retry must obey (anchor, no tool names, no status openers).
+        system_prompt=build_composition_system(
+            role_family, resolve_seniority(result.jd_analysis)
+        ),
+        cv_text=anchor_cv_text, jd_text=jd_text,
+    )
+    _floor_n_after, _ = _career_highlights_word_count(verified_md)
+    if _floor_n_after != _floor_n_before:
+        _hg_notes.append(
+            "Expanded the summary back to the 35-word minimum after "
+            "honesty verification shortened it"
+        )
+        result.extras["honesty_guard_notes"] = _hg_notes
     # RE-STAMP the opt-in availability note LAST. It was stamped mid-pipeline
     # inside _writer_w8_integrated, but verify_claims (+ the summary repair
     # pass) can bundle the italic "*Available: …*" line into the summary prose

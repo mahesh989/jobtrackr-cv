@@ -114,12 +114,42 @@ class TestGateExperienceBulletLength:
         assert result["status"] == "warn"
         assert "No Experience/Project bullets to check" in result["detail"]
 
-    def test_short_bullet_still_passes_gate_only_enforces_an_upper_bound(self):
-        # Docstring says "target 18-30 words" but the code never checks a
-        # floor — only >30 warns and >40 fails. Pinning current behaviour.
+    def test_short_bullet_now_warns(self):
+        # DELIBERATE BEHAVIOUR CHANGE. This test previously pinned the
+        # opposite ("short bullet still passes"), with a comment noting the
+        # gate's own docstring promised an 18-30 word target that the code
+        # never enforced on the low side. That gap was not academic: a real
+        # nursing CV shipped with 8/11/12-word bullets and the report said
+        # every bullet passed, so nothing surfaced the thinness. The floor
+        # is now checked and warns.
         body = _entry("Role A", [_words(5) + "."])
         result = _gate_experience_bullet_length({"experience": body})
+        assert result["status"] == "warn"
+        assert "under 18 words" in result["detail"]
+
+    def test_boundary_exactly_18_words_passes(self):
+        body = _entry("Role A", [_words(18) + "."])
+        result = _gate_experience_bullet_length({"experience": body})
         assert result["status"] == "pass"
+
+    def test_boundary_17_words_warns(self):
+        body = _entry("Role A", [_words(17) + "."])
+        result = _gate_experience_bullet_length({"experience": body})
+        assert result["status"] == "warn"
+        assert "under 18 words" in result["detail"]
+
+    def test_over_and_under_length_bullets_are_reported_together(self):
+        body = _entry("Role A", [_words(5) + ".", _words(31) + "."])
+        result = _gate_experience_bullet_length({"experience": body})
+        assert result["status"] == "warn"
+        assert "over 30 words" in result["detail"]
+        assert "under 18 words" in result["detail"]
+
+    def test_a_run_on_bullet_still_outranks_an_under_length_one(self):
+        # >40w is the only hard fail; an under-length bullet must not mask it.
+        body = _entry("Role A", [_words(5) + ".", _words(41) + "."])
+        result = _gate_experience_bullet_length({"experience": body})
+        assert result["status"] == "fail"
 
     def test_boundary_exactly_30_words_passes(self):
         body = _entry("Role A", [_words(30) + "."])

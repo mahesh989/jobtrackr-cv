@@ -103,9 +103,20 @@ def _gate_experience_bullet_length(sections: Dict[str, str]) -> Dict[str, Any]:
     Experience and Project bullets target 18-30 words. Anything beyond 30
     words is a soft warn — the bullet has gone run-on and should be split
     or trimmed. Hard fails reserved for >40 words (truly unreadable).
+
+    UNDER-length bullets warn too. This gate previously checked only the
+    upper bound while its pass message asserted "within 18-30 word target",
+    so a CV whose bullets ran 8-12 words was reported as fully passing and
+    the thin-bullet case the 18-word floor exists to catch went completely
+    unreported. Under-length is a WARN, never a fail: the only way to
+    lengthen a bullet is to add content, and inventing content to clear a
+    word count is precisely the fabrication the composer prompt forbids —
+    so this surfaces the problem for a human/prompt fix rather than
+    pressuring an automated rewrite.
     """
     issues_warn: List[str] = []
     issues_fail: List[str] = []
+    issues_short: List[str] = []
     total = 0
     for sec_aliases in (_EXPERIENCE_ALIASES, _PROJECTS_ALIASES):
         body = _resolve_section(sections, sec_aliases)
@@ -117,6 +128,8 @@ def _gate_experience_bullet_length(sections: Dict[str, str]) -> Dict[str, Any]:
                     issues_fail.append(f"{w}w: '{bullet[:50]}…'")
                 elif w > 30:
                     issues_warn.append(f"{w}w: '{bullet[:50]}…'")
+                elif w < 18:
+                    issues_short.append(f"{w}w: '{bullet[:50]}…'")
 
     if total == 0:
         return _result(
@@ -130,13 +143,21 @@ def _gate_experience_bullet_length(sections: Dict[str, str]) -> Dict[str, Any]:
             + "; ".join(issues_fail[:3])
             + (f" (+{len(issues_fail) - 3} more)" if len(issues_fail) > 3 else ""),
         )
-    if issues_warn:
-        return _result(
-            "experience_bullet_length", "warn",
-            f"{len(issues_warn)} of {total} bullets over 30 words: "
-            + "; ".join(issues_warn[:3])
-            + (f" (+{len(issues_warn) - 3} more)" if len(issues_warn) > 3 else ""),
-        )
+    if issues_warn or issues_short:
+        parts: List[str] = []
+        if issues_warn:
+            parts.append(
+                f"{len(issues_warn)} of {total} bullets over 30 words: "
+                + "; ".join(issues_warn[:3])
+                + (f" (+{len(issues_warn) - 3} more)" if len(issues_warn) > 3 else "")
+            )
+        if issues_short:
+            parts.append(
+                f"{len(issues_short)} of {total} bullets under 18 words: "
+                + "; ".join(issues_short[:3])
+                + (f" (+{len(issues_short) - 3} more)" if len(issues_short) > 3 else "")
+            )
+        return _result("experience_bullet_length", "warn", " | ".join(parts))
     return _result(
         "experience_bullet_length", "pass",
         f"All {total} Experience/Project bullets within 18-30 word target.",
