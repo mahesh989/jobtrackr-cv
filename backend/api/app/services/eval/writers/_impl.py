@@ -71,6 +71,7 @@ from app.services.pipeline.steps.tailored_cv import (
     _enforce_summary_s1_title_case,  # S1 title-case (runs before opener strip)
     _extract_employers_from_cv,  # multi-month employer extraction (anchor enforcement)
     _inject_missing_skills,    # production-stable safety net
+    recap_s2_preserving_anchors,  # S2 cap re-run post-verify, anchor-safe
     _strip_certs_when_excluded,  # health-sector cert exclusion (re-run post-verify)
     _upload_to_storage,        # production-stable Supabase upload (same path contract)
     build_family_label_map,    # convert RoleFamilyProfile → bold label map for injector
@@ -466,6 +467,15 @@ async def _writer_w8_integrated(
     md = enforce_skills_section(
         md,
         original_cv_text=cv_text,
+        # NOT extended to "direct_only" (nursing). Tried and reverted: the
+        # grounding test matches whole tokens against the CV, with no
+        # stemming, so it dropped "Collaboration" (CV says "Collaborate
+        # with multidisciplinary teams"), "Teamwork" ("teams") and
+        # "Emergency Response" ("Respond to emergencies") — Soft Skills fell
+        # from 7 entries to 4. Trading one fabricated entry for several
+        # false drops is a net loss. Ungrounded entries for these families
+        # are removed by _strip_honest_gap_skills below instead, which uses
+        # the feasibility plan's own gap list and so cannot false-positive.
         drop_ungrounded=(role_family.injection_policy == "none"),
     )
     # 3a. Re-surface JD terms the matcher confirmed but the rewrite dropped, so the
@@ -473,7 +483,7 @@ async def _writer_w8_integrated(
     #     Honest (matched-only) and AFTER the hygiene cap so it can't be stripped.
     #     Skipped for the "none" policy (trades) where minimalism is intentional.
     if role_family.injection_policy != "none":
-        md = _surface_matched_skills(md, up["matching"])
+        md = _surface_matched_skills(md, up["matching"], original_cv_text=cv_text)
     # 3a-pre. CV-named brand tools the writer dropped (BESTMed, MedMobile,
     #     Leecare, ...). Independent of the JD — these are the candidate's
     #     differentiators and must never disappear, even when the writer
@@ -844,7 +854,43 @@ async def _writer_w8_verified(
     # leaving a generic, anchor-less S2. Re-applying here (idempotent: no-op
     # when both top-2 employers are already named) guarantees the final S2
     # names them. See OPS-32.
+    # Re-apply the S2 word cap BEFORE the anchor pass. The cap runs
+    # pre-verify inside _enforce_structure, and verify_claims REWRITES (not
+    # merely strips) so S2 can return over the cap with nothing left to trim
+    # it — an observed 23-word S2. Ordered before the anchor enforcer because
+    # that one appends and is itself budget-aware; running the cap after it
+    # would trim the anchor straight back off.
+    verified_md = recap_s2_preserving_anchors(verified_md)
     verified_md = _enforce_company_anchor(verified_md, anchor_cv_text)
+    # RE-RUN the summary word FLOOR. Same reasoning as the anchor above, and
+    # the same gap that let an under-length summary ship: the floor retry ran
+    # once inside _writer_w8_integrated, pre-verify. verify_claims STRIPS
+    # unentailed clauses, so it structurally tends to SHRINK the summary —
+    # it is the single most likely step to push a compliant 38-word summary
+    # under the 35-word floor, and nothing re-measured it afterwards. (The
+    # 50-word cap in _enforce_structure is likewise pre-verify, but an AI
+    # strip pass cannot push a summary OVER a cap, so only the floor needs
+    # re-running here.) Runs BEFORE the availability re-stamp below so the
+    # italic note is re-applied over whatever prose this produces.
+    _floor_n_before, _ = _career_highlights_word_count(verified_md)
+    verified_md = await _ensure_career_highlights_floor(
+        client, verified_md,
+        # Rebuilt rather than threaded through WriterResult: the composition
+        # system prompt is a pure function of (role_family, seniority), both
+        # already resolved here, and it carries the Career Highlights rules
+        # the retry must obey (anchor, no tool names, no status openers).
+        system_prompt=build_composition_system(
+            role_family, resolve_seniority(result.jd_analysis)
+        ),
+        cv_text=anchor_cv_text, jd_text=jd_text,
+    )
+    _floor_n_after, _ = _career_highlights_word_count(verified_md)
+    if _floor_n_after != _floor_n_before:
+        _hg_notes.append(
+            "Expanded the summary back to the 35-word minimum after "
+            "honesty verification shortened it"
+        )
+        result.extras["honesty_guard_notes"] = _hg_notes
     # RE-STAMP the opt-in availability note LAST. It was stamped mid-pipeline
     # inside _writer_w8_integrated, but verify_claims (+ the summary repair
     # pass) can bundle the italic "*Available: …*" line into the summary prose

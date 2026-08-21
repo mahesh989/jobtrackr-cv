@@ -15,6 +15,7 @@ from .summary import (
     _find_summary_block,
     _get_summary_prose,
 )
+from .text import _trim_to_words
 
 # Heading pattern that starts an Experience entry ("### Employer | Location").
 _EXP_ENTRY_RE = re.compile(r"^###\s+(.+?)\s*(?:\|.*)?$")
@@ -101,9 +102,131 @@ _DANGLING_END_RE = re.compile(
 )
 
 
+#: S2's hard word cap — mirrors the `cap=22` that _enforce_structure passes
+#: to _enforce_summary_s2_word_cap, and the prompt's "Sentence 2 ≤22 words".
+_S2_WORD_CAP = 22
+
+
+def _fit_body_for_anchor(s2_body: str, anchor: str) -> str:
+    """Trim `s2_body` so that "<body> <anchor>." fits the S2 word cap.
+
+    Returns the body unchanged when it already fits, or when trimming would
+    leave too little to carry a meaningful clause (in that case a slightly
+    long S2 with a correct employer anchor beats a mangled stub — the anchor
+    is the load-bearing part of the rule).
+    """
+    anchor_len = len(anchor.split())
+    budget = _S2_WORD_CAP - anchor_len
+    if len(s2_body.split()) <= budget:
+        return s2_body
+    if budget < 6:            # nothing coherent survives that trim
+        return s2_body
+    trimmed = _trim_to_words(s2_body, budget).rstrip().rstrip(".")
+    # _trim_to_words can strip trailing connectives; if it left a dangling
+    # word the appended "at <Employer>" would read as a fragment.
+    if not trimmed or _DANGLING_END_RE.search(trimmed):
+        return s2_body
+    return trimmed
+
+
+def recap_s2_preserving_anchors(markdown: str, cap: int = _S2_WORD_CAP) -> str:
+    """Re-apply the S2 word cap after verify_claims, but never at the cost of
+    an employer anchor.
+
+    _enforce_summary_s2_word_cap runs inside _enforce_structure, PRE-verify.
+    verify_claims does not only strip clauses — it rewrites them — so S2 can
+    come back over the cap with nothing left to re-trim it (observed: a 23-word
+    S2 naming two employers).
+
+    The plain cap trims from the END, which is exactly where the "…at <E1> and
+    <E2>" anchor lives, so applying it blindly converts a one-word overage into
+    a lost employer name. That is a strictly worse CV: the anchor rule is a
+    hard prompt requirement, the word cap is a length preference. So the trim
+    is applied only when every employer named before it is still named after.
+    """
+    from .summary import _enforce_summary_s2_word_cap
+
+    employers = _extract_employers_from_markdown(markdown)
+    trimmed = _enforce_summary_s2_word_cap(markdown, cap)
+    if trimmed == markdown:
+        return markdown
+    low = trimmed.lower()
+    for e in employers:
+        if e.lower() in markdown.lower() and e.lower() not in low:
+            logger.info(
+                "s2 re-cap skipped: trimming to %d words would drop the "
+                "employer anchor '%s'", cap, e,
+            )
+            return markdown
+    return trimmed
+
+
+def _extract_employers_from_markdown(markdown: str) -> list[str]:
+    """Employers with multi-month tenure, read off the TAILORED markdown.
+
+    Why this exists: _extract_employers_from_cv only ever assigns an
+    employer from a line matching ``^### `` (_EXP_ENTRY_RE). A CV uploaded
+    as a PDF/DOCX arrives as PLAIN TEXT — "Jesmond Miranda Nursing Home
+    Miranda, NSW, Australia" on its own line, no markdown — so that
+    function returns [] for it, and every caller gated on
+    ``len(employers) >= 2`` silently no-ops. The summary employer-anchor
+    net was therefore dead for ordinary uploaded CVs, which is how a
+    summary with no employer anchor at all reached the user.
+
+    Parsing the tailored markdown instead is reliable: by this point in
+    the pipeline the composer has already emitted the strict two-line
+    entry shape ("### Employer | Location" then "*Title | Dates*"), so
+    the employer name is delimited and the dates are on a known line.
+    Names are returned most-recent-first, matching the cv_text extractor.
+
+    Same two exclusions as the cv_text extractor, for consistency:
+      • an entry whose lines mention "placement" is not a tenure anchor;
+      • an entry with no multi-month date span is skipped.
+    """
+    lines = [ln.strip() for ln in markdown.split("\n")]
+    has_sections = any(
+        ln.startswith("## ") and not ln.startswith("###") for ln in lines
+    )
+    in_experience = not has_sections
+    employers: list[str] = []
+    pending: str | None = None
+
+    for line in lines:
+        if has_sections and line.startswith("## ") and not line.startswith("###"):
+            in_experience = bool(_EXP_SECTION_RE.match(line))
+            pending = None
+            continue
+        if not in_experience:
+            continue
+        m = _EXP_ENTRY_RE.match(line)
+        if m:
+            # Take only the segment before the first "|" — the rest is the
+            # location, which must never end up inside the summary prose.
+            pending = m.group(1).split("|")[0].strip()
+            if _MD_DATE_SPAN_RE.search(line):
+                if "placement" not in line.lower() and pending not in employers:
+                    employers.append(pending)
+                pending = None
+            continue
+        if pending and _MD_DATE_SPAN_RE.search(line):
+            if "placement" not in line.lower() and pending not in employers:
+                employers.append(pending)
+            pending = None
+    return employers
+
+
+# Multi-month span: a month/Present token, then a separator, then another
+# month/Present/year token. Mirrors the cv_text extractor's own span rule so
+# the two agree on what counts as tenure.
+_MD_DATE_SPAN_RE = re.compile(
+    r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Present)"
+    r".{1,20}(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Present|\d{4})",
+    re.IGNORECASE,
+)
+
+
 def _enforce_company_anchor(markdown: str, cv_text: str = "") -> str:
-    """Two-mode anchor enforcer for the summary S2. Relies on the CV having
-    2+ multi-month employers; no-op otherwise.
+    """Anchor enforcer for the summary S2.
 
       • ZERO named — neither top-2 employer appears in the prose: append
                      "at <E1> and <E2>." to S2 (legacy behaviour).
@@ -114,14 +237,41 @@ def _enforce_company_anchor(markdown: str, cv_text: str = "") -> str:
                      so BOTH appear, and convert a trailing "..., and have
                      <verb>" present-perfect tail into simple past (rule:
                      completed roles use past tense).
+      • SINGLE     — the CV has exactly ONE multi-month employer and the
+                     prose names nobody: append "at <E1>.". The composer
+                     prompt's TENURE TIEBREAKER is explicit that a single
+                     nameable anchor MUST still be named ("choosing BREADTH
+                     framing that hides a nameable anchor is FORBIDDEN"),
+                     but this enforcer previously required 2+ and returned
+                     early, leaving one-employer candidates with no anchor
+                     at all — exactly the anchorless S2 observed in
+                     production for an AIN with one nursing-home role plus
+                     a short placement.
+
+      Employers are read from cv_text when that yields a usable list, and
+      otherwise from the tailored markdown — see
+      _extract_employers_from_markdown for why the cv_text path comes up
+      empty for ordinary (plain-text) uploaded CVs.
 
       Skipped when S2 ends mid-clause (dangling preposition/conjunction).
-      Safe to no-op when cv_text is empty.
     """
-    if not cv_text:
+    employers = _extract_employers_from_cv(cv_text) if cv_text else []
+    md_employers = _extract_employers_from_markdown(markdown)
+    if len(employers) < 2 and len(md_employers) > len(employers):
+        # cv_text gave us nothing usable (the common plain-text-CV case) —
+        # fall back to the tailored markdown, which always carries the
+        # structured "### Employer | Location" shape.
+        employers = md_employers
+    if not employers:
         return markdown
-    employers = _extract_employers_from_cv(cv_text)
-    if len(employers) < 2:
+    if len(employers) == 1 and employers[0] not in md_employers:
+        # SINGLE-anchor injection is only safe when the tailored CV itself
+        # still shows that employer as a role. Without this guard the sole
+        # remaining "employer" can be one the composer deliberately dropped
+        # as off-axis — e.g. an accounting job on an aged-care CV, or the
+        # university row that once produced "...at Akala Motors and CQ
+        # University, Sydney, Australia" in a care summary. Naming a role
+        # the CV does not show is worse than having no anchor.
         return markdown
 
     lines = markdown.split("\n")
@@ -135,8 +285,13 @@ def _enforce_company_anchor(markdown: str, cv_text: str = "") -> str:
     top2 = employers[:2]
     prose_lower = prose.lower()
     named = [e for e in top2 if e.lower() in prose_lower]
-    if len(named) >= 2:
-        return markdown  # both named — compliant
+    # Compliant once EVERY anchor we know about is named — not just when two
+    # are. With a single-employer CV, `>= 2` could never be satisfied, so the
+    # code fell through to the partial branch below and its
+    # `next(e for e in top2 if e not in prose)` raised StopIteration on an
+    # already-compliant summary.
+    if len(named) >= len(top2):
+        return markdown
 
     sent_re = re.compile(r"(?<=[.!?])\s+")
     sentences = [s.strip() for s in sent_re.split(prose) if s.strip()]
@@ -149,7 +304,20 @@ def _enforce_company_anchor(markdown: str, cv_text: str = "") -> str:
     s2_body = s2.rstrip().rstrip(".")
 
     if len(named) == 0:
-        anchor = f"at {top2[0]} and {top2[1]}"
+        # One anchor → "at <E1>."; two → "at <E1> and <E2>.". Indexing
+        # top2[1] unconditionally would IndexError on a single-employer CV.
+        anchor = (
+            f"at {top2[0]}" if len(top2) == 1
+            else f"at {top2[0]} and {top2[1]}"
+        )
+        # BUDGET-AWARE append. The S2 ≤22-word cap
+        # (_enforce_summary_s2_word_cap) runs inside _enforce_structure,
+        # PRE-verify, while this enforcer also re-runs POST-verify — so an
+        # append here is never re-capped and silently pushes S2 over. Simply
+        # re-running the cap afterwards is not a fix either: it trims from
+        # the END and would amputate the very anchor being added. Trim the
+        # BODY to fit the anchor instead, at a clause boundary.
+        s2_body = _fit_body_for_anchor(s2_body, anchor)
         new_s2 = f"{s2_body} {anchor}."
         log_msg = f"injected anchor '{anchor}' (zero named)"
     else:

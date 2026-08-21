@@ -43,6 +43,8 @@ from app.services.pipeline.steps.tailored_cv.employers import (  # noqa: F401
     _EXP_SECTION_RE,
     _enforce_company_anchor,
     _extract_employers_from_cv,
+    _extract_employers_from_markdown,
+    recap_s2_preserving_anchors,
 )
 from app.services.pipeline.steps.tailored_cv.projects import (  # noqa: F401
     _dedup_project_bullets,

@@ -432,13 +432,40 @@ def _smartcase_atom(atom: str) -> str:
     return atom[:1].upper() + atom[1:].lower()
 
 
+# Connector words that stay lowercase inside a multi-word skill name —
+# "Activities of Daily Living", not "Activities Of Daily Living". Mirrors
+# the `small` set in tailored_cv/summary.py's _title_case_role, which
+# already got this right for role titles; the Skills normaliser had no
+# equivalent and upper-cased every token, producing the "Of"/"And" forms.
+# Never applied to the FIRST token — a skill legitimately starting with one
+# of these ("Of Counsel") keeps its capital.
+_SKILL_SMALL_WORDS = frozenset(
+    {"in", "of", "the", "and", "for", "to", "a", "an", "on", "at", "with", "or"}
+)
+
+
 def _smartcase_skill(entry: str) -> str:
     """Title-case a Skills-line entry consistently while preserving acronyms,
     mixed-case product names, and digit tokens. Hyphenated words are
-    title-cased per part: ``person-centred care`` → ``Person-Centred Care``."""
+    title-cased per part: ``person-centred care`` → ``Person-Centred Care``.
+    Interior connector words stay lowercase: ``activities of daily living``
+    → ``Activities of Daily Living``."""
     out_tokens: list[str] = []
-    for tok in entry.strip().split():
+    for i, tok in enumerate(entry.strip().split()):
         if not tok:
+            continue
+        # Interior connector word — lowercase it. The writer usually emits
+        # it already capitalised ("Activities Of Daily Living"), so this
+        # must NOT require a lowercase source token. An ALL-CAPS token is
+        # exempt: it is an acronym that merely collides with a connector
+        # (e.g. "AT" for assistive technology), and normalising it to "at"
+        # would destroy real meaning.
+        if (
+            i > 0
+            and tok.lower() in _SKILL_SMALL_WORDS
+            and not (tok.isupper() and len(tok) > 1)
+        ):
+            out_tokens.append(tok.lower())
             continue
         # Split on hyphens, smart-case each atom, rejoin so each hyphenated
         # part is title-cased independently.
