@@ -129,6 +129,38 @@ def _fit_body_for_anchor(s2_body: str, anchor: str) -> str:
     return trimmed
 
 
+def recap_s2_preserving_anchors(markdown: str, cap: int = _S2_WORD_CAP) -> str:
+    """Re-apply the S2 word cap after verify_claims, but never at the cost of
+    an employer anchor.
+
+    _enforce_summary_s2_word_cap runs inside _enforce_structure, PRE-verify.
+    verify_claims does not only strip clauses — it rewrites them — so S2 can
+    come back over the cap with nothing left to re-trim it (observed: a 23-word
+    S2 naming two employers).
+
+    The plain cap trims from the END, which is exactly where the "…at <E1> and
+    <E2>" anchor lives, so applying it blindly converts a one-word overage into
+    a lost employer name. That is a strictly worse CV: the anchor rule is a
+    hard prompt requirement, the word cap is a length preference. So the trim
+    is applied only when every employer named before it is still named after.
+    """
+    from .summary import _enforce_summary_s2_word_cap
+
+    employers = _extract_employers_from_markdown(markdown)
+    trimmed = _enforce_summary_s2_word_cap(markdown, cap)
+    if trimmed == markdown:
+        return markdown
+    low = trimmed.lower()
+    for e in employers:
+        if e.lower() in markdown.lower() and e.lower() not in low:
+            logger.info(
+                "s2 re-cap skipped: trimming to %d words would drop the "
+                "employer anchor '%s'", cap, e,
+            )
+            return markdown
+    return trimmed
+
+
 def _extract_employers_from_markdown(markdown: str) -> list[str]:
     """Employers with multi-month tenure, read off the TAILORED markdown.
 

@@ -180,6 +180,16 @@ OUTPUT SHAPE
     • Education entry:   "### Institution | Location"  then  "*Degree | Year(s)*"
   Then a blank line, then 2-3 bullets (roles/projects only). Education entries
   have NO bullets and NO descriptor line beyond the italic Degree line.
+  AWARDS ARE THE EXCEPTION — they are NOT a two-line H3 block. An award is a
+  SINGLE BULLET, with the award's own name FIRST and the organisation second:
+    - Staff Excellence Award, Jesmond Miranda Nursing Home (August 2025)
+      Recognised for hard work, caring nature, and positive attitude.
+  Emitting an award in the Experience shape ("### Jesmond Miranda Nursing
+  Home | Miranda" then "*Staff Excellence Award | August 2025*") puts the
+  EMPLOYER where the award name belongs, and downstream reads it back as an
+  award literally called "Jesmond Miranda Nursing Home". Never put the
+  organisation on the H3 line for an award; never split an award across two
+  lines.
 - NEVER invent a company/sector descriptor line (e.g. "*Property tech and
   analytics services*"); the italic line is Title|Dates (roles) or Degree|Year
   (education) only.
