@@ -796,9 +796,57 @@ def _parse_award_raw_entry(entry_lines: list) -> dict:
                 else:
                     description = _add_desc_sentence(description, content)
 
-    return {
-        "name": name.strip(),
-        "org": org.strip(),
-        "date": date.strip(),
-        "description": description.strip(),
-    }
+    return _repair_org_as_name(
+        {
+            "name": name.strip(),
+            "org": org.strip(),
+            "date": date.strip(),
+            "description": description.strip(),
+        }
+    )
+
+
+def _repair_org_as_name(parsed: dict) -> dict:
+    """Undo the EXPERIENCE-shaped award entry: "### Org | Location" followed by
+    "*Award Name | Date*".
+
+    The h3 branch above assumes the first h3 holds the award name, which is
+    true for every shape the writer was observed emitting when it was written.
+    But the composer's global OUTPUT SHAPE rule says "the H3 line holds the
+    org/place, the italic line holds the role/dates" — so the writer
+    intermittently formats an award like an Experience role, putting the
+    EMPLOYER on the h3 and the award name in the italic line. Parsed
+    literally that yields, verbatim from a production run:
+
+        * Jesmond Miranda Nursing Home, Miranda (Aug 2025)
+          Staff Excellence Award.
+
+    i.e. the employer promoted to the award title and the award demoted to
+    its description. Prompt wording alone did not stop this recurring, so it
+    is repaired structurally here.
+
+    Deliberately narrow — all four must hold, or the entry is left alone:
+      • the parsed name carries NO award vocabulary;
+      • the parsed description DOES;
+      • the description is not a real description sentence
+        ("Recognised for …", "Awarded for …");
+      • the description is short enough to be a title, not prose.
+    """
+    name, org, desc = parsed["name"], parsed["org"], parsed["description"]
+    if not name or not desc:
+        return parsed
+    if _AWARD_RE.search(name):
+        return parsed                      # name already looks like an award
+    if not _AWARD_RE.search(desc):
+        return parsed                      # nothing award-shaped to promote
+    if _DESCRIPTION_PREFIX_RE.match(desc):
+        return parsed                      # genuine description prose
+    if len(desc.split()) > 8:
+        return parsed                      # a sentence, not a title
+    # The h3 was the organisation. Promote the italic line to the name and
+    # demote the h3 to org; any prior `org` was the location residue off the
+    # h3's own "| Location" half, which _format_award_entry drops anyway.
+    parsed["name"] = desc.rstrip(".").strip()
+    parsed["org"] = name
+    parsed["description"] = ""
+    return parsed

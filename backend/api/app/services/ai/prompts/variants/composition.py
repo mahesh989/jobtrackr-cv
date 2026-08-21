@@ -180,11 +180,43 @@ OUTPUT SHAPE
     • Education entry:   "### Institution | Location"  then  "*Degree | Year(s)*"
   Then a blank line, then 2-3 bullets (roles/projects only). Education entries
   have NO bullets and NO descriptor line beyond the italic Degree line.
+  AWARDS ARE THE EXCEPTION — they are NOT a two-line H3 block. An award is a
+  SINGLE BULLET, with the award's own name FIRST and the organisation second:
+    - Staff Excellence Award, Jesmond Miranda Nursing Home (August 2025)
+      Recognised for hard work, caring nature, and positive attitude.
+  Emitting an award in the Experience shape ("### Jesmond Miranda Nursing
+  Home | Miranda" then "*Staff Excellence Award | August 2025*") puts the
+  EMPLOYER where the award name belongs, and downstream reads it back as an
+  award literally called "Jesmond Miranda Nursing Home". Never put the
+  organisation on the H3 line for an award; never split an award across two
+  lines.
 - NEVER invent a company/sector descriptor line (e.g. "*Property tech and
   analytics services*"); the italic line is Title|Dates (roles) or Degree|Year
   (education) only.
-- Every bullet is a full sentence ending in a period: action verb + method +
-  context + (quantified) result. 18-30 words.
+- Every EXPERIENCE and PROJECT bullet is a full sentence ending in a period:
+  action verb + method + context + (quantified) result. 18-30 words.
+  SCOPE (read this before applying the range): the 18-30 word range governs
+  Experience and Project bullets ONLY. It does NOT apply to Awards entries,
+  Certifications, Registration & Licences, Education, or Skills lines —
+  those have their own prescribed shapes and an award line padded out to 18
+  words corrupts them. Never lengthen a non-Experience entry to hit a word
+  count.
+  Within Experience/Projects, 18 is a HARD MINIMUM. A bullet like "Transport
+  residents to medical appointments and hospital visits." (8 words) is a
+  FAILURE — it names a task but carries no method, context, or outcome, so
+  it reads as a duty list rather than an achievement. EXPAND every short
+  bullet to 18-30 words using ONLY facts the CV supports, via the two
+  mechanisms already granted above: CONSOLIDATE (merge a related source
+  achievement into the same bullet, preserving its metrics) and IMPLIED
+  ADJACENT WORK (name the routine method/context that role self-evidently
+  involves — e.g. escorting residents safely, coordinating with families and
+  clinical staff, documenting the outcome). NEVER invent a number, a system
+  name, or an achievement to reach the count.
+  BULLET COUNT OUTRANKS BULLET LENGTH (hard): a role kept on its own merit
+  carries 2-3 bullets, and merging to reach 18 words must NEVER drop it below
+  2. If a role has exactly two short bullets, EXPAND BOTH in place — do not
+  merge them into one. A one-bullet role is reserved solely for the
+  "largely off-axis role" rule below, never a by-product of merging.
 
 EXPERIENCE — selection & rewriting
 - Keep 1-3 roles. Never zero; never keep all when there is a surplus. When 3+
@@ -297,6 +329,14 @@ display name)
   expand only with facts the CV supports.
 - Sentence 1 (positioning, ≤28 words): role title + (ACTUAL relevant years OR
   BREADTH framing — see below) + 1-2 JD specialisations + who you deliver for.
+  "1-2" IS A CEILING, NOT A TARGET RANGE TO FILL. Listing three or more
+  ("specialising in personal care, activities of daily living, dementia care,
+  and safety-focused assistance") turns the positioning sentence into a
+  keyword dump and dilutes every item in it. Pick the TWO most JD-critical
+  specialisations and drop the rest — they already appear in Skills and in
+  the Experience bullets, so nothing is lost by leaving them out here. When
+  the summary is under the 35-word floor, expand Sentence 2 with a concrete
+  outcome; NEVER pad Sentence 1 by appending more specialisations.
   FRAMING CHOICE (pick exactly one — apply the TENURE TIEBREAKER first):
   • YEARS framing: use when the candidate has ≥2 years in ONE dominant
     JD-aligned role with real tenure. State the actual years (round down).
@@ -669,9 +709,12 @@ _CERT_POLICY_TEXT = {
         "credential, and not merely because Projects is absent. Route an AQF "
         "qualification certificate (Certificate I-IV, Diploma) under "
         "Education, route an actual registration/licence/clearance under "
-        "Registration & Licences, and omit everything else — facility "
-        "training records and CPD/attendance certificates carry no "
-        "qualification value here and must not be listed anywhere."
+        "Registration & Licences, put awards/recognitions under `## Awards` "
+        "(the general OUTPUT SHAPE rule routes awards via a Certifications "
+        "heading — that route does NOT apply to this family, use `## Awards` "
+        "directly), and omit everything else — facility training records and "
+        "CPD/attendance certificates carry no qualification value here and "
+        "must not be listed anywhere."
     ),
 }
 

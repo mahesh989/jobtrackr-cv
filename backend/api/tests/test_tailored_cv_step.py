@@ -1,4 +1,5 @@
 from __future__ import annotations
+import re
 
 from app.services.pipeline.steps.tailored_cv import (
     _clean_job_title,
@@ -705,4 +706,107 @@ def test_enforce_company_anchor_no_op_when_only_education_pads_the_count():
         "Currently advancing professional expertise through a Master of "
         "Professional Accounting at CQ University Sydney.\n"
     )
+    # Still a no-op under single-anchor support: the tailored CV shows no
+    # Experience section at all, so the lone off-axis employer is not
+    # corroborated and must not be named.
     assert _enforce_company_anchor(md, cv_text) == md
+
+
+# ---------------------------------------------------------------------------
+# Single-employer anchoring + the plain-text-CV extraction gap.
+#
+# _extract_employers_from_cv only assigns an employer from a line matching
+# "^### ". A CV uploaded as PDF/DOCX arrives as PLAIN TEXT, so that function
+# returns [] for it and every caller gated on "2+ employers" silently no-ops
+# — the summary employer-anchor net was dead for ordinary uploaded CVs. The
+# enforcer now falls back to reading employers off the tailored markdown,
+# and honours the composer prompt's TENURE TIEBREAKER ("if ANY nameable
+# anchor exists, you MUST name it") for the one-employer case.
+# ---------------------------------------------------------------------------
+
+_PLAINTEXT_CV = (
+    "Experience\n"
+    "Jesmond Miranda Nursing Home Miranda, NSW, Australia\n"
+    "Assistant in Nursing (CERT IV) May. 2025 – Present\n"
+    "• Serve as primary Medication Assistant.\n"
+)
+
+_TAILORED_MD = (
+    "## Professional Summary\n\n"
+    "Assistant in Nursing with residential aged care background, specialising "
+    "in personal care and dementia care for older people. "
+    "Maintains safe, person-centred support through hygiene and mobility "
+    "assistance.\n\n"
+    "## Experience\n"
+    "### Jesmond Miranda Nursing Home | Miranda, NSW, Australia\n"
+    "*Assistant in Nursing (CERT IV) | May 2025 – Present*\n\n"
+    "- Serve as primary Medication Assistant.\n"
+    "### Anglicare Mildred Symons House | Jannali, NSW, Australia\n"
+    "*Aged Care Placement (120 Hours) | Sept 2024*\n\n"
+    "- Delivered dementia care.\n"
+)
+
+
+def test_plaintext_cv_yields_no_employers_documenting_the_gap():
+    # Pins WHY the markdown fallback is needed — not an endorsement.
+    assert _extract_employers_from_cv(_PLAINTEXT_CV) == []
+
+
+def test_markdown_extractor_finds_the_employer_and_skips_the_placement():
+    from app.services.pipeline.steps.tailored_cv.employers import (
+        _extract_employers_from_markdown,
+    )
+    # Anglicare is a 120-hour placement with no multi-month span → not tenure.
+    assert _extract_employers_from_markdown(_TAILORED_MD) == [
+        "Jesmond Miranda Nursing Home"
+    ]
+
+
+def test_single_employer_anchor_is_injected_for_a_plaintext_cv():
+    out = _enforce_company_anchor(_TAILORED_MD, _PLAINTEXT_CV)
+    assert "at Jesmond Miranda Nursing Home." in out
+    # Single anchor uses "at <E1>", never a dangling "and".
+    assert "and ." not in out
+
+
+def test_single_employer_anchor_is_idempotent():
+    once = _enforce_company_anchor(_TAILORED_MD, _PLAINTEXT_CV)
+    assert _enforce_company_anchor(once, _PLAINTEXT_CV) == once
+
+
+def test_anchor_injection_keeps_s2_within_the_22_word_cap():
+    """The S2 cap runs pre-verify inside _enforce_structure, but the anchor
+    enforcer also re-runs post-verify — so its append is never re-capped.
+    Re-running the cap afterwards would trim from the END and amputate the
+    anchor, so the BODY is trimmed to make room instead."""
+    long_s2 = (
+        "Maintained safe personal care, mobility support, and transport for "
+        "elderly residents while collaborating with multidisciplinary teams "
+        "and following individualised care plans."
+    )
+    md = _TAILORED_MD.replace(
+        "Maintains safe, person-centred support through hygiene and mobility "
+        "assistance.",
+        long_s2,
+    )
+    out = _enforce_company_anchor(md, _PLAINTEXT_CV)
+    prose = " ".join(
+        ln.strip() for ln in
+        out.split("## Professional Summary")[1].split("## Experience")[0].split("\n")
+        if ln.strip() and not ln.strip().startswith(("-", "*"))
+    )
+    s2 = [x.strip() for x in re.split(r"(?<=[.!?])\s+", prose) if x.strip()][1]
+    assert "Jesmond Miranda Nursing Home" in s2, "anchor must survive the trim"
+    assert len(s2.split()) <= 22, f"S2 is {len(s2.split())}w: {s2}"
+    assert not s2.startswith("at "), "body must not be trimmed away entirely"
+
+
+def test_single_employer_already_named_is_left_alone():
+    md = _TAILORED_MD.replace(
+        "hygiene and mobility assistance.",
+        "hygiene and mobility assistance at Jesmond Miranda Nursing Home.",
+    )
+    # len(named) >= len(top2) → compliant. Previously the `>= 2` check could
+    # never be met with one employer, so this fell into the partial branch
+    # and raised StopIteration looking for a "missing" employer.
+    assert _enforce_company_anchor(md, _PLAINTEXT_CV) == md
