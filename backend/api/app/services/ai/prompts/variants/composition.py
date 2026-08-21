@@ -663,6 +663,16 @@ _CERT_POLICY_TEXT = {
         "credential the candidate holds; topic overlap is not enough. Cap at "
         "2-3; merge same-issuer or same-year certs onto one line."
     ),
+    "excluded": (
+        "CERTIFICATIONS: do NOT emit a `## Certifications` heading for this "
+        "role family, under any circumstances — not even when the JD names a "
+        "credential, and not merely because Projects is absent. Route an AQF "
+        "qualification certificate (Certificate I-IV, Diploma) under "
+        "Education, route an actual registration/licence/clearance under "
+        "Registration & Licences, and omit everything else — facility "
+        "training records and CPD/attendance certificates carry no "
+        "qualification value here and must not be listed anywhere."
+    ),
 }
 
 

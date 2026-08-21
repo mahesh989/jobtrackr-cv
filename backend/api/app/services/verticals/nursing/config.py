@@ -17,14 +17,20 @@ PROFILE = RoleFamilyProfile(
     ],
     section_order=[
         "Professional Summary", "Experience", "Education", "Skills",
-        "Certifications", "Registration & Licences",
+        "Registration & Licences",
     ],
     # skills_categories[0] is overwritten per nursing sub-type at resolve time
     # (Care Skills / Clinical Skills / Core Skills — see nursing/hooks.py);
     # "Clinical Skills" is the base default for an unclassified clinical role.
     skills_categories=["Clinical Skills", "Soft Skills", "Other Skills"],
     headline_bucket=HeadlineBucket.DOMAIN_KNOWLEDGE,
-    cert_policy=CertPolicy.FIRST_CLASS,
+    # Health sector never gets a standalone Certifications section — a AQF
+    # qualification cert (e.g. Certificate IV in Ageing Support) belongs in
+    # Education, an actual registration/licence/clearance belongs in
+    # Registration & Licences, and a facility training record ("Certificate
+    # of Attendance"/"Certificate of Completion") isn't a portable credential
+    # and is simply dropped. See _strip_certs_when_excluded.
+    cert_policy=CertPolicy.EXCLUDED,
     injection_policy=InjectionPolicy.DIRECT_ONLY,
     metric_vocab=[
         "patients", "beds", "shifts", "rounds", "medications", "wait times",
@@ -32,9 +38,13 @@ PROFILE = RoleFamilyProfile(
     ],
     identity_guidance=(
         "IDENTITY: This is a LICENSED profession. Lead with registration / "
-        "licence status (e.g. AHPRA registration) and mandatory certifications "
-        "(BLS/ACLS/manual handling) — these ARE the qualification, never bury "
-        "or omit them. NEVER infer or imply a clinical competency the CV does "
+        "licence status and mandatory clinical certifications (e.g. AHPRA "
+        "registration, BLS/ACLS, manual handling) under Registration & "
+        "Licences — these ARE the qualification, never bury or omit them. Do "
+        "NOT create a separate Certifications section: a training/CPD "
+        "certificate that isn't a registration, licence, or mandatory "
+        "clearance is omitted entirely, not listed. NEVER infer or imply a "
+        "clinical competency the CV does "
         "not state; an invented clinical skill is a patient-safety and "
         "registration-fraud risk. Only surface clinical skills literally "
         "present in the CV.\n"
@@ -60,8 +70,12 @@ PROFILE = RoleFamilyProfile(
         "NONE of these, OMIT the section entirely — NEVER write 'eligible to "
         "work in Australia', 'available on request', or that a credential is "
         "missing. Stating eligibility or absence is nonsense on a CV.\n"
-        "- Certifications are first-class: include relevant clinical certs "
-        "even when the JD does not name them explicitly."
+        "- Do NOT emit a `## Certifications` section for this role family, "
+        "under any circumstances. Route an AQF qualification certificate "
+        "(Certificate I-IV, Diploma) under Education instead, route an "
+        "actual registration/licence/clearance under Registration & "
+        "Licences, and omit everything else (facility training records, "
+        "CPD/attendance certificates) entirely."
     ),
     equivalences=[
         ("Aged Care", ["ageing support", "aged care", "elderly care",

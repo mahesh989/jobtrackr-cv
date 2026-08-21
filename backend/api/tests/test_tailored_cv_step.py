@@ -4,11 +4,13 @@ from app.services.pipeline.steps.tailored_cv import (
     _clean_job_title,
     _enforce_career_highlights_words,
     _enforce_company_anchor,
+    _enforce_structure,
     _enforce_summary_opener,
     _extract_employers_from_cv,
     _lowercase_generic_care_phrases,
     _promote_qualification_cert_to_education,
     _split_cert_entry,
+    _strip_certs_when_excluded,
     _title_case_role,
     _trim_to_words,
 )
@@ -591,6 +593,76 @@ def test_promote_no_op_for_non_first_class_policy():
     assert _promote_qualification_cert_to_education(md, cert_policy="plus") == md
     assert _promote_qualification_cert_to_education(md, cert_policy="") == md
 
+
+def test_promote_also_runs_for_excluded_policy():
+    """Health sector (cert_policy="excluded") still gets the AQF qual rescued
+    into Education — _strip_certs_when_excluded then drops what's left."""
+    md = (
+        "## Education\n\n"
+        "### Bachelor of Science | Sept. 2019 - June 2022\n\n"
+        "## Certifications\n\n"
+        "- Certificate IV in Ageing Support — Heritage Skills Institute 2025\n"
+    )
+    out = _promote_qualification_cert_to_education(md, cert_policy="excluded")
+    assert "Certificate IV in Ageing Support" in out.split("## Certifications")[0]
+
+
+def test_strip_certs_when_excluded_removes_section_unconditionally():
+    md = (
+        "## Career Highlights\nSome summary.\n\n"
+        "## Certifications\n\n"
+        "- Navigating Changed Behaviour — Dementia Training Australia (DTA)\n"
+        "- Building Personal Capacity Workshop — DTA\n\n"
+        "## Awards\n\n"
+        "- Staff Excellence Award, Acme (August 2025)\n"
+    )
+    out = _strip_certs_when_excluded(md, cert_policy="excluded")
+    assert "## Certifications" not in out
+    assert "## Awards" in out  # unrelated sections untouched
+
+
+def test_strip_certs_when_excluded_is_no_op_for_other_policies():
+    md = "## Certifications\n\n- Certificate IV in Cyber Security — TAFE 2023\n"
+    assert _strip_certs_when_excluded(md, cert_policy="first_class") == md
+    assert _strip_certs_when_excluded(md, cert_policy="plus") == md
+    assert _strip_certs_when_excluded(md, cert_policy="rare") == md
+    assert _strip_certs_when_excluded(md, cert_policy="") == md
+
+
+def test_strip_certs_when_excluded_no_op_when_no_certifications_section():
+    md = "## Career Highlights\nSome summary.\n\n## Awards\n\n- Employee Award\n"
+    assert _strip_certs_when_excluded(md, cert_policy="excluded") == md
+
+
+def test_enforce_structure_drops_certifications_for_excluded_policy():
+    """Reproduces the reported bug: a nursing/AIN CV whose raw AI output
+    still carries a Certifications section (facility training certs) must
+    end up with no Certifications heading at all, while the AQF Certificate
+    IV already correctly placed under Education survives untouched."""
+    md = (
+        "## Career Highlights\nAssistant in Nursing with recent experience.\n\n"
+        "## Professional Experience\n"
+        "### Jesmond Miranda Nursing Home | Miranda, NSW\n"
+        "*Assistant in Nursing (CERT IV) | May 2025 - Present*\n"
+        "- Serve as primary Medication Assistant.\n\n"
+        "## Education\n"
+        "### Heritage Skills Institute | Arncliffe, NSW\n"
+        "*Certificate IV in Ageing Support | May 2025*\n\n"
+        "## Skills\n"
+        "- **Care Skills:** Medication Administration\n\n"
+        "## Awards\n"
+        "- Staff Excellence Award, Jesmond Miranda Nursing Home (August 2025)\n\n"
+        "## Certifications\n"
+        "- Electronic Medication Administration System — Certificate of "
+        "Attendance | Jesmond Miranda Nursing Home\n"
+        "- Navigating Changed Behaviour for People Living with Dementia — "
+        "Dementia Training Australia (DTA) | Oct. 2025\n"
+    )
+    out = _enforce_structure(md, cert_policy="excluded")
+    assert "## Certifications" not in out
+    assert "Certificate IV in Ageing Support" in out
+    assert "## Awards" in out
+    assert "Staff Excellence Award" in out
 
 
 def test_extract_employers_ignores_education_and_certification_sections():
