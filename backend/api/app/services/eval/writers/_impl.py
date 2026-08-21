@@ -71,6 +71,7 @@ from app.services.pipeline.steps.tailored_cv import (
     _enforce_summary_s1_title_case,  # S1 title-case (runs before opener strip)
     _extract_employers_from_cv,  # multi-month employer extraction (anchor enforcement)
     _inject_missing_skills,    # production-stable safety net
+    _strip_certs_when_excluded,  # health-sector cert exclusion (re-run post-verify)
     _upload_to_storage,        # production-stable Supabase upload (same path contract)
     build_family_label_map,    # convert RoleFamilyProfile → bold label map for injector
 )
@@ -720,6 +721,15 @@ async def _writer_w8_verified(
     # Sprint D is implicit in _normalise_awards_entries above.
     verified_md = split_awards_and_certifications(verified_md)
     verified_md = _normalise_awards_entries(verified_md)
+    # Re-run the health-sector cert exclusion LAST of the Certifications-
+    # touching passes. verify_claims (an AI step) can rewrite/reintroduce a
+    # Certifications section, and split_awards_and_certifications above can
+    # itself materialise a fresh "## Certifications" heading out of mixed
+    # Awards content — neither is gated on cert_policy, so an "excluded"
+    # family (health sector) needs this backstop even though
+    # _writer_w8_integrated already stripped it once, earlier, pre-verify.
+    # Idempotent — no-op for every other cert_policy.
+    verified_md = _strip_certs_when_excluded(verified_md, role_family.cert_policy)
     verified_md = sort_experience_chronologically(verified_md)
     verified_md = normalise_experience_tense(verified_md)
     verified_md = canonicalise_body_spelling(verified_md)
