@@ -55,6 +55,7 @@ from app.services.pipeline.steps.tailored_cv.credentials import (  # noqa: F401
     _norm_credential,
     _promote_qualification_cert_to_education,
     _split_cert_entry,
+    _strip_certs_when_excluded,
     _strip_certs_when_projects_exist,
     _strip_education_bullets,
 )

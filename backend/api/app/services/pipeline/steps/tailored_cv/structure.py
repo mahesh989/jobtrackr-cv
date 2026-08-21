@@ -13,6 +13,7 @@ import re
 from .credentials import (
     _enforce_education_count,
     _promote_qualification_cert_to_education,
+    _strip_certs_when_excluded,
     _strip_certs_when_projects_exist,
     _strip_education_bullets,
 )
@@ -234,15 +235,19 @@ def _enforce_structure(
     forbidden status/education opener with the real JD-aligned role title.
     `cv_text` (when supplied) lets the company-anchor enforcer inject employer
     names into S2 when the LLM omitted them despite having multi-month roles.
-    `cert_policy` (when supplied) keeps the Certifications section for
-    first_class families (nursing/manual) instead of dropping it for Projects,
-    and promotes an AQF qualification certificate (Certificate I–IV / Diploma)
-    into Education so an AIN's "Certificate IV in Ageing Support" lands in the
-    same section every time, regardless of where the source CV placed it.
+    `cert_policy` (when supplied) governs the Certifications section:
+    "first_class" families (manual) keep it even when Projects exists;
+    "excluded" families (nursing/health sector) never get one at all; every
+    other family drops it when Projects exists. In every case, an AQF
+    qualification certificate (Certificate I–IV / Diploma) is promoted into
+    Education first, so an AIN's "Certificate IV in Ageing Support" lands in
+    the same section every time regardless of where the source CV placed it
+    — before "excluded" wipes whatever's left under Certifications.
     """
     markdown = _dedup_project_bullets(markdown)
-    markdown = _strip_certs_when_projects_exist(markdown, cert_policy)
     markdown = _promote_qualification_cert_to_education(markdown, cert_policy)
+    markdown = _strip_certs_when_excluded(markdown, cert_policy)
+    markdown = _strip_certs_when_projects_exist(markdown, cert_policy)
     markdown = _dedup_career_highlights(markdown)
     markdown = _enforce_education_count(markdown, max_entries=3)
     markdown = _strip_education_bullets(markdown)

@@ -14,9 +14,10 @@ import re
 from ._common import logger
 
 def _cert_policy_for(jd_analysis: Optional[Dict[str, Any]]) -> str:
-    """Resolve the role family's cert_policy ("first_class" | "plus" | "rare")
-    for the given JD analysis. Empty string on any failure (treated as
-    non-first-class — i.e. the default strip behaviour)."""
+    """Resolve the role family's cert_policy
+    ("first_class" | "plus" | "rare" | "excluded") for the given JD
+    analysis. Empty string on any failure (treated as non-first-class,
+    non-excluded — i.e. the default strip-when-Projects-exists behaviour)."""
     if not jd_analysis:
         return ""
     try:
@@ -33,13 +34,16 @@ def _strip_certs_when_projects_exist(markdown: str, cert_policy: str = "") -> st
     The prompt rule (projects beat certs) is routinely ignored by the AI;
     this enforces it deterministically.
 
-    EXCEPTION — first_class cert families (nursing, manual): certs ARE the
-    qualification there (e.g. "Certificate IV in Ageing Support" for an AIN,
-    AHPRA registration, White Card). Stripping them in favour of Projects
-    silently drops the candidate's most role-relevant credential — exactly the
-    inconsistency where one AIN CV keeps the Cert IV and another loses it. For
-    these families the Certifications section is preserved even when Projects
-    exist (mirrors composition.py's first_class policy: "certs outrank projects").
+    EXCEPTION — first_class cert families (manual): certs ARE the
+    qualification there (e.g. White Card, forklift licence). Stripping them
+    in favour of Projects silently drops the candidate's most role-relevant
+    credential. For this family the Certifications section is preserved
+    even when Projects exist (mirrors composition.py's first_class policy:
+    "certs outrank projects").
+
+    "excluded" families (nursing/health sector) never reach the has_projects
+    check at all — _strip_certs_when_excluded, called earlier in
+    _enforce_structure, has already removed the section unconditionally.
     """
     if cert_policy == "first_class":
         return markdown
@@ -48,6 +52,39 @@ def _strip_certs_when_projects_exist(markdown: str, cert_policy: str = "") -> st
     if not has_projects:
         return markdown
 
+    cert_start = next(
+        (i for i, ln in enumerate(lines) if ln.strip() == "## Certifications"),
+        None,
+    )
+    if cert_start is None:
+        return markdown
+
+    cert_end = next(
+        (i for i in range(cert_start + 1, len(lines)) if lines[i].startswith("## ")),
+        len(lines),
+    )
+    return "\n".join(lines[:cert_start] + lines[cert_end:])
+
+
+def _strip_certs_when_excluded(markdown: str, cert_policy: str = "") -> str:
+    """
+    Unconditionally remove ## Certifications for "excluded" cert-policy
+    families (health sector) — regardless of whether ## Projects is present.
+
+    Distinct from _strip_certs_when_projects_exist, which only strips when
+    Projects and Certifications are competing for the one-page budget: health
+    sector CVs rarely have a Projects section at all, so that rule alone
+    never fires for them and a raw AI-written Certifications section (or one
+    reintroduced later by verify_claims — see the re-run call in _impl.py)
+    survives to the final output. Call this BEFORE
+    _strip_certs_when_projects_exist so an AQF qualification cert still gets
+    a chance to be promoted into Education first (via
+    _promote_qualification_cert_to_education, which also runs for
+    "excluded") — this function then drops whatever is left.
+    """
+    if cert_policy != "excluded":
+        return markdown
+    lines = markdown.split("\n")
     cert_start = next(
         (i for i, ln in enumerate(lines) if ln.strip() == "## Certifications"),
         None,
@@ -126,9 +163,11 @@ def _split_cert_entry(entry: str) -> Tuple[str, str, str]:
 def _promote_qualification_cert_to_education(
     markdown: str, cert_policy: str = ""
 ) -> str:
-    """For first_class cert families (nursing, manual), surface an AQF
-    qualification certificate under ## Education — consistently, regardless of
-    whether the source CV listed it under Education or Certifications.
+    """For first_class cert families (manual) AND excluded families (health
+    sector, which no longer gets a Certifications section at all), surface
+    an AQF qualification certificate under ## Education — consistently,
+    regardless of whether the source CV listed it under Education or
+    Certifications.
 
     The bug this fixes: two AINs with the same "Certificate IV in Ageing
     Support" rendered differently — one had it in Education (source put it
@@ -139,14 +178,21 @@ def _promote_qualification_cert_to_education(
     and most recent — and removed from Certifications, which is dropped if it
     becomes empty).
 
-    No-op unless cert_policy == "first_class". Conservative by construction:
+    Runs for "excluded" too so an AQF qual isn't lost when
+    _strip_certs_when_excluded wipes whatever remains under Certifications
+    right after this — see the call order in _enforce_structure.
+
+    No-op unless cert_policy is "first_class" or "excluded". Conservative by
+    construction:
       • only AQF qualification certs move (licences/checks stay put);
       • a cert already represented in Education is left untouched (the
         cross-section dedupe pass owns that case);
       • a cert with no parseable issuer is left in Certifications rather than
-        emit a malformed Education entry (it is never dropped).
+        emit a malformed Education entry (it is never dropped — for
+        "excluded" families it is instead dropped moments later by
+        _strip_certs_when_excluded, which is the intended outcome there).
     """
-    if cert_policy != "first_class":
+    if cert_policy not in ("first_class", "excluded"):
         return markdown
 
     lines = markdown.split("\n")
@@ -219,8 +265,8 @@ def _promote_qualification_cert_to_education(
         result[start:end] = repl
 
     logger.info(
-        "w8: promoted %d qualification cert(s) into Education (first_class family)",
-        len(promoted),
+        "w8: promoted %d qualification cert(s) into Education (cert_policy=%s)",
+        len(promoted), cert_policy,
     )
     return "\n".join(result)
 

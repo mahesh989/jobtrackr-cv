@@ -38,6 +38,7 @@ class CertPolicy(StrEnum):
     FIRST_CLASS = "first_class"
     PLUS = "plus"
     RARE = "rare"
+    EXCLUDED = "excluded"   # never show a Certifications section (health sector)
 
 
 class InjectionPolicy(StrEnum):
