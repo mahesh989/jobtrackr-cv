@@ -10,6 +10,7 @@ sibling writers.skills_section module.
 """
 from __future__ import annotations
 
+import os
 import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
@@ -66,17 +67,90 @@ def _line_starts_label(line: str, label: str) -> bool:
     return _LEADING_BULLET_RE.sub("", line.lstrip()).startswith(label)
 
 
-def _surface_matched_skills(markdown: str, matching: Dict[str, Any]) -> str:
+_SURFACE_STOPWORDS = frozenset(
+    {"of", "and", "the", "in", "to", "for", "with", "a", "an", "or"}
+)
+
+
+def _term_content_words(term: str) -> list[str]:
+    """Content words of a skill term — stopwords and 1-2 letter tokens out."""
+    return [
+        w for w in re.findall(r"[a-z]+", term.lower())
+        if w not in _SURFACE_STOPWORDS and len(w) > 2
+    ]
+
+
+def _is_term_grounded(term: str, haystack: str) -> bool:
+    """True when ANY content word of `term` has a lexical footprint in
+    `haystack`, compared per-word on a shared prefix so word-form
+    differences do not count as absence.
+
+    Stemming matters here: a whole-token comparison treats "Collaboration"
+    as ungrounded against a CV that says "Collaborate with multidisciplinary
+    teams". An earlier attempt at this gate used exact tokens and cut Soft
+    Skills from 7 entries to 4 — trading one fabricated entry for several
+    false drops.
+
+    Matching is per-WORD with a 6-character shared prefix, NOT a substring
+    test. A plain substring test on a short stem re-introduces the very bug
+    it is meant to catch: "housekeeping"[:4] == "hous" occurs inside
+    "Anglicare Mildred Symons House", so the fabricated term would have been
+    kept. Requiring six shared leading characters accepts
+    collaboration/collaborate (10) while rejecting housekeeping/house (5).
+
+    Deliberately permissive in every other respect: a term survives on a
+    single shared word, so legitimate rewordings ("Care Planning Adherence"
+    from "individualised care plans") and family equivalences ("Activities of
+    Daily Living") are kept. It removes only terms with NO footprint at all,
+    which is the fabrication case. False keeps are the intended failure
+    direction — this gate exists to catch invention, not to police wording.
+    """
+    words = _term_content_words(term)
+    if not words:
+        return True  # nothing to judge on — don't drop
+    hay_words = set(re.findall(r"[a-z]+", haystack))
+    for w in words:
+        if w in hay_words:
+            return True
+        for hw in hay_words:
+            common = os.path.commonprefix([w, hw])
+            if len(common) >= 6:
+                return True
+    return False
+
+
+def _surface_matched_skills(
+    markdown: str,
+    matching: Dict[str, Any],
+    original_cv_text: str = "",
+) -> str:
     """
     Re-surface JD terms the matcher confirmed the candidate has into the tailored
     Skills section, per category, if the tailoring rewrite dropped them.
 
-    Honest by construction: only terms in ``matching["matched"]`` are added — the
-    matcher verified each against the original CV — so this never fabricates. It
-    runs AFTER enforce_skills_section so the dedup/cap pass can't strip the very
+    Runs AFTER enforce_skills_section so the dedup/cap pass can't strip the very
     keywords the original CV already scored on (the ATS-regression fix).
+
+    GROUNDING GATE (`original_cv_text`): this function used to document itself
+    as "honest by construction: only terms in matching['matched'] are added —
+    the matcher verified each against the original CV — so this never
+    fabricates". That guarantee does not hold, because the matcher is an AI
+    step whose verdicts can conflate related-but-different concepts. Observed
+    in production: an aged-care JD asked for "housekeeping", the matcher
+    marked it MATCHED citing the evidence quote "hygiene support" — personal
+    hygiene care, not domestic cleaning — and this pass then surfaced
+    "Housekeeping" into the Skills of a CV that never contains the word.
+
+    So each matched term is now re-checked against the source CV and dropped
+    when it has no lexical footprint there at all. The feasibility step
+    already applies the same class of check to its own plan ("groundedness
+    gate: evidence quote did not contain keyword"); the matcher-fed path had
+    no equivalent. No-op when `original_cv_text` is not supplied, keeping the
+    previous behaviour for callers that cannot provide it.
     """
     matched = (matching or {}).get("matched") or {}
+    haystack = (original_cv_text or "").lower()
+    dropped: list[str] = []
     # Collect matched terms per category, required before preferred.
     by_cat: Dict[str, list[str]] = {c: [] for c in _SURFACE_CATS}
     for bucket in _SURFACE_BUCKETS:
@@ -84,8 +158,17 @@ def _surface_matched_skills(markdown: str, matching: Dict[str, Any]) -> str:
         for cat in _SURFACE_CATS:
             for x in (b.get(cat) or []):
                 term = str(x).strip()
-                if term:
-                    by_cat[cat].append(term)
+                if not term:
+                    continue
+                if haystack and not _is_term_grounded(term, haystack):
+                    dropped.append(term)
+                    continue
+                by_cat[cat].append(term)
+    if dropped:
+        logger.info(
+            "w8 surfacing: dropped %d ungrounded matched term(s) — %s",
+            len(dropped), ", ".join(sorted(set(dropped))),
+        )
     if not any(by_cat.values()):
         return markdown
 

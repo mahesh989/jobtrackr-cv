@@ -466,6 +466,15 @@ async def _writer_w8_integrated(
     md = enforce_skills_section(
         md,
         original_cv_text=cv_text,
+        # NOT extended to "direct_only" (nursing). Tried and reverted: the
+        # grounding test matches whole tokens against the CV, with no
+        # stemming, so it dropped "Collaboration" (CV says "Collaborate
+        # with multidisciplinary teams"), "Teamwork" ("teams") and
+        # "Emergency Response" ("Respond to emergencies") — Soft Skills fell
+        # from 7 entries to 4. Trading one fabricated entry for several
+        # false drops is a net loss. Ungrounded entries for these families
+        # are removed by _strip_honest_gap_skills below instead, which uses
+        # the feasibility plan's own gap list and so cannot false-positive.
         drop_ungrounded=(role_family.injection_policy == "none"),
     )
     # 3a. Re-surface JD terms the matcher confirmed but the rewrite dropped, so the
@@ -473,7 +482,7 @@ async def _writer_w8_integrated(
     #     Honest (matched-only) and AFTER the hygiene cap so it can't be stripped.
     #     Skipped for the "none" policy (trades) where minimalism is intentional.
     if role_family.injection_policy != "none":
-        md = _surface_matched_skills(md, up["matching"])
+        md = _surface_matched_skills(md, up["matching"], original_cv_text=cv_text)
     # 3a-pre. CV-named brand tools the writer dropped (BESTMed, MedMobile,
     #     Leecare, ...). Independent of the JD — these are the candidate's
     #     differentiators and must never disappear, even when the writer
