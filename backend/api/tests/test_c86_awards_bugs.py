@@ -26,6 +26,8 @@ the C79 writers/* read-through, documented in
 """
 from __future__ import annotations
 
+import pytest
+
 from app.services.eval.writers.awards import (
     _credential_already_in_registration,
     _extract_original_credentials,
@@ -290,3 +292,47 @@ def test_award_description_dedupe_is_stable_across_repeated_passes():
     for _ in range(3):
         out = _normalise_awards_entries(ensure_awards(out, _CV_WITH_AMERICAN_AWARD))
     assert out.lower().count("caring nature") == 1, out
+
+
+@pytest.mark.parametrize(
+    "desc,expected_sentences",
+    [
+        # The writer embellished the CV's sentence; the CV copy is a strict
+        # subset of it and must be dropped despite the spelling difference.
+        (
+            "Recognised for hard work, reliability, caring nature, and positive "
+            "attitude. Recognized for hard work, caring nature, and positive attitude.",
+            1,
+        ),
+        (
+            "Recognised for hard work, caring nature, positive attitude and "
+            "commitment to resident wellbeing and engagement. Recognized for hard "
+            "work, caring nature, and positive attitude.",
+            1,
+        ),
+        # C85 (#12) must still hold: two sentences naming DIFFERENT traits are
+        # not duplicates, and folding spelling must not start merging them.
+        (
+            "Recognised for excellent teamwork and reliability. "
+            "Recognised for excellent teamwork and punctuality.",
+            2,
+        ),
+    ],
+)
+def test_award_description_dedupe_folds_spelling(desc: str, expected_sentences: int):
+    """British/American spelling must not defeat the strict-subset dedupe.
+
+    The source CV carries the author's spelling ("Recognized…") while the
+    writer's own sentence is already British ("Recognised…"), so the token
+    sets differ and the subset test fails. canonicalise_body_spelling then
+    makes the two near-identical LATER in the chain, with no dedupe left to
+    run. Found in 3 of 9 CVs in a bulk re-analysis — the single-JD run that
+    preceded it was clean, which is exactly why the bulk bar exists
+    (docs/POST_VERIFY_INVARIANTS.md).
+    """
+    from app.services.eval.writers.awards_parsing import (
+        _dedupe_award_description_sentences,
+    )
+
+    out = _dedupe_award_description_sentences(desc)
+    assert len([s for s in out.split(". ") if s.strip()]) == expected_sentences, out

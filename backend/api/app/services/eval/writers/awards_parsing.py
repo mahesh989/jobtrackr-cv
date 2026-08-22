@@ -392,6 +392,17 @@ def _dedupe_award_description_sentences(desc: str) -> str:
         return desc
 
     def _norm(s: str) -> str:
+        # British/American spelling is folded FIRST. Without it, the CV's own
+        # "Recognized for hard work…" and the writer's "Recognised for hard
+        # work, reliability…" produce different token sets, the strict-subset
+        # test fails, and the shorter copy survives — only for
+        # canonicalise_body_spelling to make the two near-identical LATER in
+        # the chain, with no dedupe left to run. Observed in 3 of 9 CVs in a
+        # bulk re-analysis (2026-08-22); same root cause as the fold in
+        # _norm_desc_sentence.
+        from app.services.eval.writers.spelling_case import _apply_body_spelling_subs
+
+        s = _apply_body_spelling_subs(s)
         return re.sub(r"\s+", " ", re.sub(r"[^\w\s]", "", s.lower())).strip()
 
     def _tokens(s: str) -> set:
