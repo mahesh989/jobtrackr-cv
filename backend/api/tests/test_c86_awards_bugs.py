@@ -230,3 +230,63 @@ def test_c15_non_duplicate_credential_still_not_matched():
     duplicate — this isn't a blanket match-everything change."""
     registration_blob = "current driver's licence (nsw)\n"
     assert not _credential_already_in_registration("First Aid Certificate", registration_blob)
+
+
+# ---------------------------------------------------------------------------
+# Spelling-blind description dedupe (found by a live re-analysis, 2026-08-22,
+# while verifying the invariant-set refactor — docs/POST_VERIFY_INVARIANTS.md)
+# ---------------------------------------------------------------------------
+
+
+_CV_WITH_AMERICAN_AWARD = """\
+Recognition
+Staff Excellence Award, Jesmond Miranda Nursing Home Miranda, NSW, Australia
+Recognized for hard work, caring nature, and positive attitude August 2025
+"""
+
+
+def test_ensure_awards_does_not_duplicate_an_already_britishised_description():
+    """The source CV's spelling must not defeat the duplicate check.
+
+    ensure_awards re-adds award content from the SOURCE CV, which carries the
+    author's own spelling ("Recognized…"). By the time it runs, the tailored
+    document has already been through canonicalise_body_spelling
+    ("Recognised…"). A literal comparison sees two different sentences and
+    appends the CV copy — and the duplicate then survives, because
+    _dedupe_award_description_sentences already ran and the later spelling
+    pass is what makes the two identical.
+
+    Observed live: one Awards bullet rendered "Recognised for hard work,
+    caring nature, and positive attitude." twice.
+    """
+    from app.services.eval.writers.awards import (
+        _normalise_awards_entries,
+        ensure_awards,
+    )
+
+    md = (
+        "## Awards\n\n"
+        "* Staff Excellence Award, Jesmond Miranda Nursing Home (August 2025)\n"
+        "  Recognised for hard work, caring nature, and positive attitude.\n"
+    )
+    out = _normalise_awards_entries(ensure_awards(md, _CV_WITH_AMERICAN_AWARD))
+    assert out.lower().count("caring nature") == 1, out
+
+
+def test_award_description_dedupe_is_stable_across_repeated_passes():
+    """The awards passes run on both sides of verify_claims now, so a
+    single non-idempotent append compounds instead of self-correcting."""
+    from app.services.eval.writers.awards import (
+        _normalise_awards_entries,
+        ensure_awards,
+    )
+
+    md = (
+        "## Awards\n\n"
+        "* Staff Excellence Award, Jesmond Miranda Nursing Home (August 2025)\n"
+        "  Recognised for hard work, caring nature, and positive attitude.\n"
+    )
+    out = md
+    for _ in range(3):
+        out = _normalise_awards_entries(ensure_awards(out, _CV_WITH_AMERICAN_AWARD))
+    assert out.lower().count("caring nature") == 1, out

@@ -95,6 +95,25 @@ def _is_valid_date(d: str) -> bool:
     return bool(_DATE_ONLY_RE.match(d.strip()))
 
 
+def _norm_desc_sentence(text: str) -> str:
+    """Comparison key for award-description sentences.
+
+    Strips punctuation/spacing AND folds British/American spelling. The
+    spelling fold is load-bearing: the tailored document has already been
+    through canonicalise_body_spelling ("Recognised…") while the source CV
+    still carries the author's own spelling ("Recognized…"), so a literal
+    comparison sees two different sentences and appends a duplicate. That
+    duplicate then survives, because _dedupe_award_description_sentences has
+    already run by the time the later spelling pass makes the two identical.
+
+    Real instance: a live re-analysis rendered "Recognised for hard work,
+    caring nature, and positive attitude." twice in one Awards bullet.
+    """
+    from app.services.eval.writers.spelling_case import _apply_body_spelling_subs
+
+    return re.sub(r'[^a-zA-Z0-9]', '', _apply_body_spelling_subs(text)).lower()
+
+
 def _add_desc_sentence(desc: str, new_sent: str) -> str:
     """Append new_sent to desc only if it is not case-insensitively and
     character-wise (ignoring punctuation/spaces) already present as a
@@ -107,9 +126,9 @@ def _add_desc_sentence(desc: str, new_sent: str) -> str:
         return new_sent
     # Simple split by punctuation followed by space or end of string
     existing_sentences = [s.strip() for s in re.split(r'\s*\.\s*', desc) if s.strip()]
-    norm_new = re.sub(r'[^a-zA-Z0-9]', '', new_sent).lower()
+    norm_new = _norm_desc_sentence(new_sent)
     for s in existing_sentences:
-        norm_s = re.sub(r'[^a-zA-Z0-9]', '', s).lower()
+        norm_s = _norm_desc_sentence(s)
         if norm_s == norm_new or norm_s.startswith(norm_new) or norm_new.startswith(norm_s):
             return desc
     return f"{desc.rstrip('.')}. {new_sent}"
