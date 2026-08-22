@@ -1,7 +1,40 @@
 # Post-verify invariant divergence — diagnosis and plan
 
-**Status:** analysis complete, fix not started. Pick this up in a fresh session.
+**Status:** DONE — implemented 2026-08-22 on branch `dev-5`. The document is kept
+as the rationale for `app/services/eval/writers/invariants.py`; read it before
+adding or reordering a pass there.
 **Written:** 2026-08-22, after PRs #249–#257.
+
+## What shipped
+
+`app/services/eval/writers/invariants.py` declares ONE ordered list
+(`INVARIANTS`) plus the context every pass grounds against.
+`_writer_w8_integrated` applies it after composition; `_writer_w8_verified`
+applies the SAME list after `verify_claims` **and again after the
+summary-floor rewrite** — an AI call with no sweep after it was the same bug,
+one call later. Both hand-written sequences are gone, so they can no longer
+disagree.
+
+All 17 gaps below are closed. `tests/test_post_verify_invariants.py` pins the
+property rather than the symptoms: both sides are compared at runtime with an
+instrumented registry, the set is proven a fixpoint (individually and as a
+whole), the ordering constraints are asserted, and the two HIGH gaps are
+demonstrated end-to-end. The four older single-symptom source-greps
+(C22p, C82, C83, C67) now assert through its shared helper.
+
+**Adding a pass:** put it in `INVARIANTS`. It must be deterministic,
+synchronous and idempotent — the fixpoint test enforces the last one. Nothing
+else is needed; it gets a pre- and post-verify life automatically.
+
+**What the live verification found** (both fixed, `9592d9ed` + `062002cb`):
+the award-description dedupe was spelling-blind at two sites. `ensure_awards`
+re-adds from the source CV ("Recognized…") while the document is already
+British ("Recognised…"), so the duplicate check missed and
+`canonicalise_body_spelling` made the two identical *later*, with no dedupe
+left to run. Latent before (the awards passes ran once, BEFORE the spelling
+pass), live once they run on both sides. The single-JD run caught only the
+first site; the bulk run of 9 caught the second in 3 of 9 CVs — see the
+verification bar below, which earned its place again.
 
 ---
 
@@ -35,6 +68,9 @@ The divergence *is* the bug. Closing it is a refactor, not another guard.
 ---
 
 ## The gap: pre-verify passes with no post-verify counterpart
+
+*(All closed — each row is now a member of `INVARIANTS` and a case in
+`test_documented_gap_is_closed`. Kept for the reasoning behind each.)*
 
 Derived by diffing the passes in `_enforce_structure` +
 `_writer_w8_integrated` against those in `_writer_w8_verified`
