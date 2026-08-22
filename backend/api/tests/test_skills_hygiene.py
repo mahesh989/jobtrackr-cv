@@ -1561,40 +1561,26 @@ def test_REGRESSION_C22p_writer_w8_verified_reruns_the_grounding_gate_after_veri
     review): verify_claims (the AI entailment-verification step) is an AI
     call that can rewrite ANY section, including reintroducing a
     fabricated credential into a Certifications/Checks section — but the
-    grounding gate (_strip_ungrounded_credentials, step 4a) only ran ONCE,
-    before verify_claims saw the document. Everything else this exact
-    function re-runs post-verify (awards normalisers, skills hygiene,
-    Sprint A/B/C passes) is because verify_claims can undo it; the
-    grounding gate was the one deterministic pass in that category that
-    never got re-run, capping C22j's own fix's real-world effectiveness.
+    grounding gate (_strip_ungrounded_credentials) only ran ONCE, before
+    verify_claims saw the document.
 
-    Full async integration (mocking the AI client through verify_claims)
-    is disproportionate for a one-line wiring fix — this asserts the
-    actual source of _writer_w8_verified calls _strip_ungrounded_credentials
-    a second time, AFTER verify_claims, and BEFORE the awards-relabel
-    re-run (matching the original pipeline's own relative ordering:
-    ground before relabel/split), the same structural-assertion pattern
-    already used elsewhere in this test suite (see
-    test_cv_jd_matching_fixes.py's inspect.getsource call-site guards).
+    That whole class of gap is now closed structurally: the grounding gate
+    is a member of the declared invariant set, which is swept after every
+    AI step (see tests/test_post_verify_invariants.py). The relative
+    ordering C22p depended on — ground BEFORE the awards relabel/split —
+    is a property of the list itself, so it is asserted here directly.
     """
-    import inspect
-    import re as _re
+    from app.services.eval.writers.invariants import INVARIANT_NAMES
+    from tests.test_post_verify_invariants import assert_invariant_runs_after_verify
 
-    from app.services.eval.writers import _impl
-
-    src = inspect.getsource(_impl._writer_w8_verified)
-    verify_idx = src.index("verify_claims(client")
-    ground_idx = src.index("_strip_ungrounded_credentials(verified_md, cv_text)")
-    relabel_idx = src.index("_relabel_awards_only_certifications(verified_md)")
-    assert verify_idx < ground_idx < relabel_idx, (
-        "expected verify_claims -> _strip_ungrounded_credentials -> "
-        "_relabel_awards_only_certifications, in that order"
+    assert_invariant_runs_after_verify("strip_ungrounded_credentials")
+    order = list(INVARIANT_NAMES)
+    assert order.index("strip_ungrounded_credentials") < order.index(
+        "relabel_awards_only_certifications"
+    ), (
+        "expected strip_ungrounded_credentials -> "
+        "relabel_awards_only_certifications, in that order"
     )
-    # Also confirm it's called on the VERIFIED markdown, not the pre-verify
-    # variable — a copy-paste of the wrong variable name would defeat the
-    # entire point of a "re-run after verify_claims" pass.
-    call_line = _re.search(r"^\s*verified_md = _strip_ungrounded_credentials\(.*\)$", src, _re.MULTILINE)
-    assert call_line is not None
 
 
 # ---------------------------------------------------------------------------

@@ -95,6 +95,25 @@ def _is_valid_date(d: str) -> bool:
     return bool(_DATE_ONLY_RE.match(d.strip()))
 
 
+def _norm_desc_sentence(text: str) -> str:
+    """Comparison key for award-description sentences.
+
+    Strips punctuation/spacing AND folds British/American spelling. The
+    spelling fold is load-bearing: the tailored document has already been
+    through canonicalise_body_spelling ("Recognised…") while the source CV
+    still carries the author's own spelling ("Recognized…"), so a literal
+    comparison sees two different sentences and appends a duplicate. That
+    duplicate then survives, because _dedupe_award_description_sentences has
+    already run by the time the later spelling pass makes the two identical.
+
+    Real instance: a live re-analysis rendered "Recognised for hard work,
+    caring nature, and positive attitude." twice in one Awards bullet.
+    """
+    from app.services.eval.writers.spelling_case import _apply_body_spelling_subs
+
+    return re.sub(r'[^a-zA-Z0-9]', '', _apply_body_spelling_subs(text)).lower()
+
+
 def _add_desc_sentence(desc: str, new_sent: str) -> str:
     """Append new_sent to desc only if it is not case-insensitively and
     character-wise (ignoring punctuation/spaces) already present as a
@@ -107,9 +126,9 @@ def _add_desc_sentence(desc: str, new_sent: str) -> str:
         return new_sent
     # Simple split by punctuation followed by space or end of string
     existing_sentences = [s.strip() for s in re.split(r'\s*\.\s*', desc) if s.strip()]
-    norm_new = re.sub(r'[^a-zA-Z0-9]', '', new_sent).lower()
+    norm_new = _norm_desc_sentence(new_sent)
     for s in existing_sentences:
-        norm_s = re.sub(r'[^a-zA-Z0-9]', '', s).lower()
+        norm_s = _norm_desc_sentence(s)
         if norm_s == norm_new or norm_s.startswith(norm_new) or norm_new.startswith(norm_s):
             return desc
     return f"{desc.rstrip('.')}. {new_sent}"
@@ -373,6 +392,17 @@ def _dedupe_award_description_sentences(desc: str) -> str:
         return desc
 
     def _norm(s: str) -> str:
+        # British/American spelling is folded FIRST. Without it, the CV's own
+        # "Recognized for hard work…" and the writer's "Recognised for hard
+        # work, reliability…" produce different token sets, the strict-subset
+        # test fails, and the shorter copy survives — only for
+        # canonicalise_body_spelling to make the two near-identical LATER in
+        # the chain, with no dedupe left to run. Observed in 3 of 9 CVs in a
+        # bulk re-analysis (2026-08-22); same root cause as the fold in
+        # _norm_desc_sentence.
+        from app.services.eval.writers.spelling_case import _apply_body_spelling_subs
+
+        s = _apply_body_spelling_subs(s)
         return re.sub(r"\s+", " ", re.sub(r"[^\w\s]", "", s.lower())).strip()
 
     def _tokens(s: str) -> set:

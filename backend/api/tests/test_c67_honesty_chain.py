@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import re
 from unittest.mock import AsyncMock, MagicMock
 
 from app.services.eval.writers import _impl
+from app.services.eval.writers.invariants import INVARIANT_NAMES
 from app.services.eval.writers.bullet_rewrites import _targeted_bullet_rewrites
 from app.services.eval.writers.honesty_guard import (
     filter_irrelevant_roles_pre,
@@ -220,10 +222,18 @@ def test_final_company_anchor_uses_the_pre_filtered_cv() -> None:
     assert "Dimeo Cleaning" not in safe
     assert "Beta Care Home" in safe
 
-    # Pin the production wiring, where the regression lived.
+    # Pin the production wiring, where the regression lived. The anchor pass
+    # now runs from the declared invariant set, which grounds every pass on
+    # the ROLE-FILTERED cv_text — so the assertion is that the post-verify
+    # sweep is built on the filtered view, not on the raw cv_text argument.
     src = inspect.getsource(_impl._writer_w8_verified)
     assert "anchor_cv_text, _ = filter_irrelevant_roles_pre(cv_text, vertical)" in src
-    assert "_enforce_company_anchor(verified_md, anchor_cv_text)" in src
+    assert "enforce_company_anchor" in INVARIANT_NAMES
+    assert re.search(r"build_invariant_context\(\s*\n\s*cv_text=anchor_cv_text,", src), (
+        "the post-verify invariant context must be built on the role-filtered "
+        "CV view — building it on the raw cv_text lets the anchor pass name an "
+        "employer that was deliberately dropped before composition"
+    )
 
 
 _FULL_SOURCE_CV = """\

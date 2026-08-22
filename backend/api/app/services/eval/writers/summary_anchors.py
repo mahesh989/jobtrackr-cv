@@ -139,3 +139,41 @@ async def _ensure_summary_anchors_both_employers(
 
     logger.info("summary anchor retry: now names both %s and %s", top2[0], top2[1])
     return _replace_career_highlights_prose(md, new_prose)
+
+
+# C83: sentence boundary for S1, NOT a bare "." split — a bare split breaks
+# on a decimal years figure ("12.5+ years" -> "with 12", losing "years"
+# entirely, so _YEARS_FIGURE_RE never matches). Mirrors enforce_w3.py's
+# _SENT_SPLIT_RE: requires the period be followed by whitespace, so a
+# decimal point (no following whitespace) never counts as a sentence end.
+_S1_SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
+
+
+def _apply_display_heading(md: str) -> str:
+    """Set the summary heading to `## Career Highlights` (YEARS framing) or
+    `## Professional Summary` (BREADTH framing) based on S1's prose, regardless
+    of the role family's default heading name."""
+    lines = md.split("\n")
+    start = next(
+        (i for i, ln in enumerate(lines) if ln.strip() in _SUMMARY_HEADING_ALIASES),
+        None,
+    )
+    if start is None:
+        return md
+    end = next(
+        (i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")),
+        len(lines),
+    )
+    prose = " ".join(
+        ln.strip() for ln in lines[start + 1 : end]
+        if ln.strip() and not ln.strip().startswith(("-", "*"))
+    )
+    s1 = _S1_SENTENCE_END_RE.split(prose, maxsplit=1)[0].lower() if prose else ""
+    if not s1:
+        return md
+    has_years = bool(_YEARS_FIGURE_RE.search(s1))
+    target = "## Career Highlights" if has_years else "## Professional Summary"
+    if lines[start].strip() == target:
+        return md
+    lines[start] = target
+    return "\n".join(lines)

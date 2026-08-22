@@ -21,10 +21,8 @@ S1's prose mentions a years figure. Two bugs:
 """
 from __future__ import annotations
 
-import inspect
-import re
-
 from app.services.eval.writers import _impl
+from tests.test_post_verify_invariants import assert_invariant_runs_after_verify
 
 
 def test_c83a_decimal_years_figure_picks_career_highlights_not_professional_summary():
@@ -72,24 +70,10 @@ def test_c83a_plain_integer_years_figure_still_works():
 def test_c83b_writer_w8_verified_reruns_display_heading_after_verify_claims():
     """_apply_display_heading must run again inside _writer_w8_verified,
     AFTER verify_claims, so a verify_claims rewrite of S1 can't desync the
-    displayed heading from the final prose — matching this file's own
-    established repair-after-verify convention (see C22p/C82's identical
-    source-inspection pattern)."""
-    src = inspect.getsource(_impl._writer_w8_verified)
-    assert "_apply_display_heading(" in src, (
-        "_apply_display_heading is never re-run in _writer_w8_verified — "
-        "a verify_claims rewrite of S1 can desync the heading from the "
-        "final prose."
-    )
-    verify_idx = src.index("verify_claims(client")
-    heading_idx = src.index("_apply_display_heading(")
-    assert verify_idx < heading_idx, (
-        "_apply_display_heading must run AFTER verify_claims — verify_claims "
-        "is an AI step that can add or remove a years figure from S1."
-    )
-    call_line = re.search(r"^\s*verified_md = _apply_display_heading\(", src, re.MULTILINE)
-    assert call_line is not None, (
-        "_apply_display_heading must be called as "
-        "`verified_md = _apply_display_heading(...)` — found the call but "
-        "not assigning back to verified_md."
-    )
+    displayed heading from the final prose.
+
+    Asserted through the declared invariant set: the pass is a member and
+    the set is swept after verify_claims (and after the summary-floor AI
+    rewrite too — see tests/test_post_verify_invariants.py).
+    """
+    assert_invariant_runs_after_verify("apply_display_heading")
