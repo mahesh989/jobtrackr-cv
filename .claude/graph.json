@@ -535,9 +535,9 @@
     },
     {
       "id": "BUG-2",
-      "title": "GPT-5* family forced to temperature=1 → noisier output",
-      "severity": "medium",
-      "detail": "OpenAI enforces temperature=1 on gpt-5* (HTTP 400 otherwise). We strip temperature so call succeeds; user trades determinism for capability. Prefer Anthropic Sonnet 4.6."
+      "title": "RESOLVED (re-verified 2026-08-22) — gpt-5.1 DOES accept temperature; the blanket gpt-5 strip was replaced by an o-series-only strip",
+      "severity": "resolved",
+      "detail": "STALE AS WRITTEN. client.py's skip_temperature now fires ONLY for o1/o3/o4 (client.py ~line 501); gpt-5.x is sent temperature normally, with a one-shot retry-without-temperature only if OpenAI returns the specific unsupported-value error. Tailoring runs TAILORED_CV_GENERATION = {temperature: 0.0, reasoning_effort: 'none', seed: 42} — i.e. already maximally deterministic, NOT forced to 1. Verified empirically over 56 OpenAI calls across three bulk runs on 2026-08-22: zero HTTP 400s, zero 'retrying without temperature' log lines. CONSEQUENCE: run-to-run variance in tailored-CV output (garbled summaries, bullet-count drift) is NOT a temperature setting and cannot be fixed by switching provider on those grounds — it is inherent LLM non-determinism, which is why the deterministic repair passes in invariants.py exist. The old 'Prefer Anthropic Sonnet' advice rested on this stale premise; the anthropic row also has no encrypted_api_key, so switching would take the platform down."
     },
     {
       "id": "BUG-5",
@@ -588,8 +588,8 @@
     },
     {
       "id": "ARCH-1",
-      "title": "Post-verify invariant divergence: 17 pre-verify passes have no post-verify counterpart",
-      "severity": "medium",
+      "title": "RESOLVED 2026-08-22 (PR #258) — invariant set declared in eval/writers/invariants.py and applied on both sides of verify_claims",
+      "severity": "resolved",
       "detail": "verify_claims rewrites the tailored CV; the deterministic passes re-applied after it are a hand-maintained subset of those applied before it. Every tailored-CV bug in #249-#257 was one instance. Highest risk: _strip_certs_when_projects_exist (original Certifications bug still live for non-nursing families) and stamp_credentials/stamp_references (user-authoritative data, pre-verify only).",
       "plan": "docs/POST_VERIFY_INVARIANTS.md"
     },
