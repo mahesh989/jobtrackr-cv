@@ -20,6 +20,7 @@ from .credentials import (
 from .employers import _enforce_company_anchor
 from .projects import _dedup_project_bullets
 from .summary import (
+    _find_summary_block,
     _enforce_summary_opener,
     _enforce_summary_s1_title_case,
     _enforce_summary_s2_word_cap,
@@ -120,22 +121,20 @@ def _enforce_career_highlights_words(markdown: str, max_words: int = 50) -> str:
     two-employer S2 still trims as one clause pair rather than losing the
     second employer's clause.
     """
-    HEADING = "## Career Highlights"
     lines = markdown.split("\n")
 
-    # C22f: strip a trailing colon the AI writer sometimes emits — a
-    # colon'd "## Career Highlights:" previously defeated this exact-match
-    # check entirely, silently skipping the whole word-cap pass.
-    ch_start = next(
-        (i for i, ln in enumerate(lines) if ln.strip().rstrip(":") == HEADING), None
-    )
+    # Heading matched by ALIAS, not by the literal "## Career Highlights".
+    # C22f already had to strip a trailing colon here because an exact match
+    # silently skipped the whole word-cap pass; the same class of miss
+    # applies to the family rename — restore_and_order() turns this heading
+    # into "## Professional Summary" for nursing and "## Summary" for
+    # manual, so a literal match makes this cap a no-op for those families
+    # anywhere downstream of that rename. Pre-verify (its original and only
+    # call site) the heading is still canonical, so this is a superset of
+    # the previous behaviour there and changes nothing.
+    ch_start, ch_end = _find_summary_block(lines)
     if ch_start is None:
         return markdown
-
-    ch_end = next(
-        (i for i in range(ch_start + 1, len(lines)) if lines[i].startswith("## ")),
-        len(lines),
-    )
 
     body = lines[ch_start + 1 : ch_end]
     prose_idx: list[int] = []

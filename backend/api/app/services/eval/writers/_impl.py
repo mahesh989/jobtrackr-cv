@@ -71,7 +71,7 @@ from app.services.pipeline.steps.tailored_cv import (
     _enforce_summary_s1_title_case,  # S1 title-case (runs before opener strip)
     _extract_employers_from_cv,  # multi-month employer extraction (anchor enforcement)
     _inject_missing_skills,    # production-stable safety net
-    recap_s2_preserving_anchors,  # S2 cap re-run post-verify, anchor-safe
+    recap_summary_preserving_anchors,  # S2 + total caps re-run post-verify, anchor-safe
     _strip_certs_when_excluded,  # health-sector cert exclusion (re-run post-verify)
     _upload_to_storage,        # production-stable Supabase upload (same path contract)
     build_family_label_map,    # convert RoleFamilyProfile → bold label map for injector
@@ -860,7 +860,7 @@ async def _writer_w8_verified(
     # it — an observed 23-word S2. Ordered before the anchor enforcer because
     # that one appends and is itself budget-aware; running the cap after it
     # would trim the anchor straight back off.
-    verified_md = recap_s2_preserving_anchors(verified_md)
+    verified_md = recap_summary_preserving_anchors(verified_md)
     verified_md = _enforce_company_anchor(verified_md, anchor_cv_text)
     # RE-RUN the summary word FLOOR. Same reasoning as the anchor above, and
     # the same gap that let an under-length summary ship: the floor retry ran
