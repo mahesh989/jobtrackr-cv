@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 
 from app.services.eval.writers.career_highlights import summary_looks_garbled
-from app.services.pipeline.steps.tailored_cv import recap_s2_preserving_anchors
+from app.services.pipeline.steps.tailored_cv import recap_summary_preserving_anchors
 
 
 def _md(prose: str, *, experience: str = "") -> str:
@@ -90,7 +90,7 @@ class TestRecapS2PreservingAnchors:
         )
         md = _md(prose)
         assert len(_s2(md).split()) > 22, f"fixture is only {len(_s2(md).split())}w"
-        out = recap_s2_preserving_anchors(md)
+        out = recap_summary_preserving_anchors(md)
         assert len(_s2(out).split()) <= 22
 
     def test_trim_is_skipped_when_it_would_drop_an_employer_anchor(self):
@@ -105,7 +105,7 @@ class TestRecapS2PreservingAnchors:
             "Anglicare Mildred Symons House."
         )
         md = _md(prose, experience=_EXPERIENCE)
-        out = recap_s2_preserving_anchors(md)
+        out = recap_summary_preserving_anchors(md)
         assert out == md, "must no-op rather than trim off an anchor"
         assert "Anglicare Mildred Symons House" in _s2(out)
         assert "Jesmond Miranda Nursing Home" in _s2(out)
@@ -116,10 +116,10 @@ class TestRecapS2PreservingAnchors:
             "person-centred care at Jesmond Miranda Nursing Home."
         )
         md = _md(prose, experience=_EXPERIENCE)
-        assert recap_s2_preserving_anchors(md) == md
+        assert recap_summary_preserving_anchors(md) == md
 
     def test_no_summary_is_a_no_op(self):
-        assert recap_s2_preserving_anchors("## Skills\n- x\n") == "## Skills\n- x\n"
+        assert recap_summary_preserving_anchors("## Skills\n- x\n") == "## Skills\n- x\n"
 
 
 # ---------------------------------------------------------------------------
@@ -195,3 +195,72 @@ def test_repair_is_idempotent():
     )
     once = _normalise_awards_entries(md)
     assert _normalise_awards_entries(once) == once
+
+
+# ---------------------------------------------------------------------------
+# Detector precision — found by a bulk run of 9 JDs, not by unit tests.
+# ---------------------------------------------------------------------------
+
+from app.services.eval.writers.career_highlights import (
+    summary_quality_problem,
+    summary_specialisation_count,
+    summary_tool_name,
+)
+
+
+def test_behavioural_management_alone_is_not_garbled():
+    # Regression: "behavioural management" was listed as an atomic prefix
+    # requiring "techniques". It is a standalone phrase (summary.py's
+    # _GENERIC_CARE_PHRASES carries both forms), so this entirely grammatical
+    # sentence was flagged as garbled and burned two repair calls in a bulk run.
+    prose = (
+        "Assistant in Nursing with aged care experience. Delivered "
+        "behavioural management and multidisciplinary collaboration at X."
+    )
+    assert summary_looks_garbled(_md(prose)) is None
+    assert summary_quality_problem(_md(prose)) is None
+
+
+def test_tool_name_in_summary_is_flagged():
+    # Real shipped output: "Demonstrated competencies through BESTdose training".
+    prose = (
+        "Assistant in Nursing with aged care experience. Demonstrated "
+        "competencies through BESTdose training and dementia CPD at X."
+    )
+    assert summary_tool_name(_md(prose)) == "bestdose"
+    assert "tool/product" in (summary_quality_problem(_md(prose)) or "")
+
+
+def test_method_names_are_not_mistaken_for_tools():
+    prose = (
+        "Assistant in Nursing with aged care experience. Maintained accurate "
+        "electronic medication administration and person-centred care at X."
+    )
+    assert summary_tool_name(_md(prose)) is None
+    assert summary_quality_problem(_md(prose)) is None
+
+
+def test_specialisation_ceiling():
+    over = (
+        "Assistant in Nursing with aged care experience, specialising in "
+        "medication administration, personal care, hygiene support, and "
+        "mobility assistance for older people. Delivered care at X."
+    )
+    assert summary_specialisation_count(_md(over)) == 4
+    assert "specialisations" in (summary_quality_problem(_md(over)) or "")
+
+    ok = (
+        "Assistant in Nursing with aged care experience, specialising in "
+        "personal care and dementia care for older people. Delivered care at X."
+    )
+    assert summary_specialisation_count(_md(ok)) == 2
+    assert summary_quality_problem(_md(ok)) is None
+
+
+def test_no_specialising_clause_counts_zero_and_passes():
+    prose = (
+        "Assistant in Nursing with recent aged care experience across "
+        "residential settings. Maintained accurate documentation at X."
+    )
+    assert summary_specialisation_count(_md(prose)) == 0
+    assert summary_quality_problem(_md(prose)) is None
