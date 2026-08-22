@@ -7,6 +7,7 @@ Self-contained; moved verbatim (own module logger).
 from __future__ import annotations
 
 import logging
+import re
 from app.services.ai.client import AIClient, TAILORED_CV_GENERATION
 from app.services.pipeline.steps.tailored_cv.summary import _SUMMARY_HEADING_RE
 
@@ -55,12 +56,101 @@ def _summary_bounds(md: str) -> tuple[int | None, int]:
 # Multi-word care phrases that are ATOMIC — the leading words are not a
 # meaningful phrase on their own, so seeing the prefix WITHOUT the full
 # phrase means something removed the tail mid-phrase.
+#
+# The prefix MUST be meaningless standalone. "behavioural management" was
+# listed here and had to be removed: it is a perfectly good phrase in its own
+# right (summary.py's _GENERIC_CARE_PHRASES carries it separately from
+# "behavioural management techniques"), so a bulk run flagged the entirely
+# grammatical "…behavioural management and multidisciplinary collaboration
+# at X" as garbled and burned two pointless repair calls on it. Only add a
+# pair here when the prefix genuinely cannot stand alone in English.
 _ATOMIC_CARE_PHRASES: tuple[tuple[str, str], ...] = (
     ("electronic medication", "electronic medication administration"),
     ("activities of daily", "activities of daily living"),
-    ("behavioural management", "behavioural management techniques"),
-    ("behavioral management", "behavioral management techniques"),
 )
+
+
+#: The composer prompt caps Sentence 1 at "1-2 JD specialisations".
+_MAX_SPECIALISATIONS = 2
+
+_SPECIALISING_RE = re.compile(
+    r"specialis(?:ing|ed) in (.+?)(?:\.|,? (?:for|to|and working|at) )",
+    re.IGNORECASE,
+)
+
+# Brand/product tokens that must never appear in the summary (they belong in
+# Skills). Detected two ways: an explicit list, and a shape heuristic for
+# mixed-case product names — an internal capital with the token not being an
+# all-caps acronym (BESTMed, MedMobile, BESTdose, eHealth). The same
+# mixed-case signal is already used by skills_section._smartcase_atom to
+# recognise product names.
+_EXPLICIT_TOOL_NAMES = (
+    "bestmed", "bestdose", "medmobile", "leecare", "manad", "epas",
+    "cerner", "power bi", "tableau",
+)
+_MIXED_CASE_TOKEN_RE = re.compile(r"\b[A-Za-z]*[a-z][A-Z][A-Za-z]*\b")
+
+
+def summary_tool_name(md: str) -> str | None:
+    """Return a tool/product name found in the summary prose, else None.
+
+    The prompt is explicit that tools live in Skills and the summary names
+    methods ("electronic medication administration", not "BESTMed"). That was
+    enforced by wording alone, and wording alone did not hold: a bulk run
+    produced "Demonstrated competencies through BESTdose training …" in the
+    summary of a shipped CV.
+    """
+    _, prose = _career_highlights_word_count(md)
+    low = prose.lower()
+    for name in _EXPLICIT_TOOL_NAMES:
+        if name in low:
+            return name
+    m = _MIXED_CASE_TOKEN_RE.search(prose)
+    return m.group(0) if m else None
+
+
+def summary_specialisation_count(md: str) -> int:
+    """How many specialisations Sentence 1 lists (0 when it uses no
+    'specialising in …' construction)."""
+    _, prose = _career_highlights_word_count(md)
+    m = _SPECIALISING_RE.search(prose)
+    if not m:
+        return 0
+    return len([p for p in re.split(r",| and ", m.group(1)) if p.strip()])
+
+
+def summary_quality_problem(md: str) -> str | None:
+    """One-line description of a summary defect worth REGENERATING for, else
+    None.
+
+    Covers the failures that wording alone did not prevent, measured over a
+    bulk run of 9 different JDs against one CV:
+      • a care phrase cut off mid-way by verify_claims  (see below)
+      • a tool/product name in the prose                (1 of 9)
+      • more than two specialisations in Sentence 1     (3 of 9)
+
+    Length problems are NOT listed here — those are handled by trimming
+    (recap_summary_preserving_anchors), which is cheaper and cannot change
+    meaning. This function gates an AI rewrite, so it only reports defects a
+    trim cannot fix.
+    """
+    garbled = summary_looks_garbled(md)
+    if garbled:
+        return f'the phrase "{garbled}" is cut off mid-phrase'
+    tool = summary_tool_name(md)
+    if tool:
+        return (
+            f'it names the tool/product "{tool}" — tools belong in Skills, '
+            "the summary names the METHOD they enable"
+        )
+    n = summary_specialisation_count(md)
+    if n > _MAX_SPECIALISATIONS:
+        return (
+            f"Sentence 1 lists {n} specialisations — the ceiling is "
+            f"{_MAX_SPECIALISATIONS}, and more turns positioning into a "
+            "keyword dump"
+        )
+    return None
 
 
 def summary_looks_garbled(md: str) -> str | None:
@@ -136,23 +226,23 @@ def _replace_career_highlights_prose(md: str, new_prose: str) -> str:
 async def _ensure_career_highlights_floor(
     client: AIClient, md: str, *, system_prompt: str, cv_text: str, jd_text: str,
 ) -> str:
-    """Retry ONCE when Career Highlights is below the 35-word floor OR has
-    been left mid-phrase by an upstream AI rewrite (see summary_looks_garbled).
+    """Retry ONCE when the summary is below the 35-word floor OR carries a
+    defect that trimming cannot fix (see summary_quality_problem: cut-off
+    phrase, tool name, too many specialisations).
     The model is asked to rewrite from CV-grounded facts, never to invent.
     Keeps the original on any failure or non-improving retry — never loops.
     """
     n, prose = _career_highlights_word_count(md)
     if n == 0:
         return md
-    garbled = summary_looks_garbled(md)
-    if n >= _CAREER_HIGHLIGHTS_FLOOR and not garbled:
+    defect = summary_quality_problem(md)
+    if n >= _CAREER_HIGHLIGHTS_FLOOR and not defect:
         return md
 
-    if garbled:
+    if defect:
         problem = (
-            f'Your previous Career Highlights summary is broken: the phrase '
-            f'"{garbled}" is cut off mid-phrase, so the sentence is not '
-            "grammatical English. Rewrite BOTH sentences cleanly."
+            f"Your previous Career Highlights summary is unacceptable: "
+            f"{defect}. Rewrite BOTH sentences cleanly."
         )
     else:
         problem = (
@@ -191,21 +281,22 @@ async def _ensure_career_highlights_floor(
     new_prose = (retried or "").strip()
     new_n = len(new_prose.split()) if new_prose else 0
 
-    if garbled:
-        # A garbled summary is not judged on LENGTH — the original is broken
-        # English, so "did not expand" is not a reason to keep it. Accept any
-        # replacement that is itself intact and long enough to be a summary;
-        # otherwise keep the original rather than ship something worse.
+    if defect:
+        # A defective summary is not judged on LENGTH — "did not expand" is
+        # not a reason to keep prose that is broken, names a tool, or dumps
+        # keywords. Accept any replacement that is itself defect-free and
+        # long enough to be a summary; otherwise keep the original rather
+        # than ship something worse.
         candidate = _replace_career_highlights_prose(md, new_prose)
-        if new_n >= 20 and summary_looks_garbled(candidate) is None:
+        if new_n >= 20 and summary_quality_problem(candidate) is None:
             logger.info(
-                "career-highlights: replaced garbled summary (cut at '%s'), "
-                "%d -> %d words", garbled, n, new_n,
+                "career-highlights: replaced defective summary (%s), "
+                "%d -> %d words", defect, n, new_n,
             )
             return candidate
         logger.warning(
-            "career-highlights: retry failed to repair garbled summary "
-            "(cut at '%s'); keeping original", garbled,
+            "career-highlights: retry failed to repair summary (%s); "
+            "keeping original", defect,
         )
         return md
 

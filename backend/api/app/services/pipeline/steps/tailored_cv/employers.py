@@ -129,33 +129,57 @@ def _fit_body_for_anchor(s2_body: str, anchor: str) -> str:
     return trimmed
 
 
-def recap_s2_preserving_anchors(markdown: str, cap: int = _S2_WORD_CAP) -> str:
-    """Re-apply the S2 word cap after verify_claims, but never at the cost of
-    an employer anchor.
+#: Whole-summary word ceiling — mirrors the `max_words=50` that
+#: _enforce_structure passes to _enforce_career_highlights_words, and the
+#: prompt's "35-50 words total".
+_SUMMARY_WORD_CAP = 50
 
-    _enforce_summary_s2_word_cap runs inside _enforce_structure, PRE-verify.
-    verify_claims does not only strip clauses — it rewrites them — so S2 can
-    come back over the cap with nothing left to re-trim it (observed: a 23-word
-    S2 naming two employers).
 
-    The plain cap trims from the END, which is exactly where the "…at <E1> and
-    <E2>" anchor lives, so applying it blindly converts a one-word overage into
-    a lost employer name. That is a strictly worse CV: the anchor rule is a
-    hard prompt requirement, the word cap is a length preference. So the trim
-    is applied only when every employer named before it is still named after.
+def recap_summary_preserving_anchors(
+    markdown: str,
+    cap: int = _S2_WORD_CAP,
+    total_cap: int = _SUMMARY_WORD_CAP,
+) -> str:
+    """Re-apply BOTH summary word caps after verify_claims, but never at the
+    cost of an employer anchor.
+
+    Both caps — _enforce_summary_s2_word_cap (S2 ≤22) and
+    _enforce_career_highlights_words (total ≤50) — run inside
+    _enforce_structure, PRE-verify. verify_claims does not only strip clauses,
+    it rewrites them, so the summary can come back over either cap with
+    nothing left to re-trim it. A bulk run of 9 different JDs against one CV
+    put 4 summaries over the S2 cap and 2 over the 50-word total.
+
+    Both caps trim from the END, which is exactly where the "…at <E1> and
+    <E2>" anchor lives, so applying them blindly converts a one-word overage
+    into a lost employer name. That is a strictly worse CV: the anchor is a
+    hard prompt requirement, the word count is a length preference. Each trim
+    is therefore applied only when every employer named before it is still
+    named after.
     """
     from .summary import _enforce_summary_s2_word_cap
+    from .structure import _enforce_career_highlights_words
 
+    out = markdown
+    for label, fn in (
+        ("total", lambda m: _enforce_career_highlights_words(m, total_cap)),
+        ("s2", lambda m: _enforce_summary_s2_word_cap(m, cap)),
+    ):
+        out = _apply_trim_if_anchors_survive(out, fn, label)
+    return out
+
+
+def _apply_trim_if_anchors_survive(markdown: str, trim, label: str) -> str:
     employers = _extract_employers_from_markdown(markdown)
-    trimmed = _enforce_summary_s2_word_cap(markdown, cap)
+    trimmed = trim(markdown)
     if trimmed == markdown:
         return markdown
     low = trimmed.lower()
     for e in employers:
         if e.lower() in markdown.lower() and e.lower() not in low:
             logger.info(
-                "s2 re-cap skipped: trimming to %d words would drop the "
-                "employer anchor '%s'", cap, e,
+                "summary %s re-cap skipped: trimming would drop the "
+                "employer anchor '%s'", label, e,
             )
             return markdown
     return trimmed
