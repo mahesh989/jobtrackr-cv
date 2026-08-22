@@ -44,6 +44,7 @@ import inspect
 import re
 
 from app.services.eval.writers import _impl
+from tests.test_post_verify_invariants import assert_invariant_runs_after_verify
 from app.services.eval.writers.bridges import (
     _apply_setting_bridge,
     _build_jd_setting_block,
@@ -64,36 +65,15 @@ def test_C82_writer_w8_verified_calls_apply_setting_bridge_after_verify_claims()
     """_apply_setting_bridge must run inside _writer_w8_verified, AFTER
     verify_claims — matching the pre-0628a5d1 call site and this file's
     own established "stamp/repair after verify_claims, else it gets
-    undone" convention (see OPS-30/31/32 in graph.json, and C22p's
-    identical source-inspection pattern in test_skills_hygiene.py).
+    undone" convention (see OPS-30/31/32 in graph.json).
 
-    Full async integration (mocking the AI client through verify_claims)
-    is disproportionate for a wiring fix; asserting the actual source
-    calls the function, in the right order, on the right variable, is
-    the same structural-assertion pattern already used elsewhere in this
-    suite.
+    The pass now runs from the declared invariant set rather than a
+    hand-written call, so membership of that set (plus a sweep after
+    verify_claims) IS the wiring assertion — see
+    tests/test_post_verify_invariants.py, which pins the same property for
+    every pass at once instead of one incident at a time.
     """
-    src = inspect.getsource(_impl._writer_w8_verified)
-    assert "_apply_setting_bridge(" in src, (
-        "_apply_setting_bridge is never called in _writer_w8_verified — "
-        "the deterministic S1 setting-fabrication repair pass is disconnected "
-        "from the production pipeline (dead since 0628a5d1)."
-    )
-    verify_idx = src.index("verify_claims(client")
-    bridge_idx = src.index("_apply_setting_bridge(")
-    assert verify_idx < bridge_idx, (
-        "_apply_setting_bridge must run AFTER verify_claims — verify_claims "
-        "is an AI step that can rewrite the summary and reintroduce/leave a "
-        "fabricated setting claim in S1; repairing before it runs (like the "
-        "old pre-hardening call site did) lets that rewrite undo the repair."
-    )
-    # Must run on the verified markdown (verified_md), not the pre-verify
-    # `md` — a copy-paste of the wrong variable would defeat the whole point.
-    call_line = re.search(r"^\s*verified_md = _apply_setting_bridge\(", src, re.MULTILINE)
-    assert call_line is not None, (
-        "_apply_setting_bridge must be called as `verified_md = _apply_setting_bridge(...)` "
-        "— found the call but not assigning back to verified_md."
-    )
+    assert_invariant_runs_after_verify("apply_setting_bridge")
 
 
 # ---------------------------------------------------------------------------

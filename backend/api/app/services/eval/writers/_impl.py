@@ -323,6 +323,11 @@ from app.services.eval.writers.awards import (  # noqa: E402,F401
 from app.services.eval.writers.bridges import (  # noqa: E402,F401
     _SETTING_HOME, _SETTING_HOSPITAL, _SETTING_NDIS, _SETTING_LIFESTYLE, _SETTING_THEATRE, _SETTING_RESIDENTIAL, _classify_jd_setting, _build_jd_setting_block, _HIGHLIGHT_HEADINGS_SET, _S1_RESIDENTIAL_RE, _SETTING_BRIDGES, _CV_HOSPITAL_MARKERS_RE, _scan_experience_section, _cv_has_hospital_experience, _CV_HOME_MARKERS_RE, _CV_NDIS_MARKERS_RE, _CV_LIFESTYLE_MARKERS_RE, _CV_THEATRE_MARKERS_RE, _cv_has_home_care_experience, _cv_has_ndis_experience, _cv_has_lifestyle_experience, _cv_has_theatre_experience, _BRIDGE_EVIDENCE_GATES, _apply_setting_bridge,
 )
+from app.services.eval.writers.invariants import (  # noqa: E402,F401
+    INVARIANTS,
+    apply_invariants,
+    build_context as build_invariant_context,
+)
 from app.services.eval.writers.honesty_guard import (  # noqa: E402,F401
     enforce_source_dates,
     enforce_source_settings,
@@ -498,74 +503,31 @@ async def _writer_w8_integrated(
     # 4. Rename canonical headings back to the family's names and apply the
     #    family's section order (fixes W7's nursing section-order residual).
     final_md = restore_and_order(md, role_family)
-    # 4a. Drop AI-fabricated credential/checks entries not grounded in the CV
-    #     (e.g. "First Aid – [Provider not specified]", "Driver Licence (NSW)").
-    final_md = _strip_ungrounded_credentials(final_md, cv_text)
-    # 4b. Relabel an awards-only "Certifications" / "Recognition" section to "Awards".
-    #     This handles the PURE case (every entry is award-shaped). The MIXED
-    #     case (award entry + cert entry under one heading) survives this pass.
-    final_md = _relabel_awards_only_certifications(final_md)
-    # 4c. Stamp user-supplied credentials into ## Registration & Licences
-    #     (C22o: nursing + manual only — contact_line.py's
-    #     _CREDENTIAL_FAMILIES — a prior version of this comment wrongly
-    #     included manual in the no-op list; manual DOES run this pass, see
-    #     test_credentials_stamp.py's explicit manual-path assertion. No-op
-    #     when role family is tech/general or when the user has saved no
-    #     credentials). Replaces any AI-emitted body in that section — the
-    #     user's profile is authoritative for what they actually hold. Run
-    #     BEFORE the awards-split pass so it can dedupe against
-    #     Registration content.
-    final_md = stamp_credentials(final_md, contact_details, role_family.id)
-    # 4c-bis. Availability note (opt-in) — italic line at the end of the
-    #         Professional Summary, just above the next section.
-    final_md = stamp_availability_in_summary(final_md, contact_details, role_family.id)
-    # 4c-tris. Stamp the user-saved References block (role-family agnostic).
-    #          mode=details renders a 2-col table; mode=on_request renders
-    #          a single line; mode=none omits the section entirely.
-    final_md = stamp_references(final_md, contact_details)
-    # 4c-bis. Sprint A — split MIXED Certifications sections into clean Awards
-    #     + Certifications, dropping cert entries already duplicated in
-    #     Registration & Licences. Fixes the Anglicare run where "First Aid
-    #     Certification" + "Staff Excellence Award" landed under one heading;
-    #     the relabel pass at 4b refused to rename (mixed), so the award sat
-    #     under the wrong heading and the cert duplicated Registration.
-    final_md = split_awards_and_certifications(final_md)
-    # 4d. Normalise every entry in ## Awards to a single clean bullet
-    #     `- Name – Organisation (Date)` — collapses the two-line H3+italic
-    #     block shape the writer sometimes emits, and strips trailing
-    #     "Recognised for hard work…" descriptive text from verbose bullets.
-    #     Run AFTER the awards-split so newly-created Awards sections get
-    #     normalised too.
-    final_md = _normalise_awards_entries(final_md)
-    # 4e. Sprint B — sort Experience entries reverse-chronological. The LLM
-    #     gets this right ~70% of the time; locking it down deterministically
-    #     ensures Uniting (Mar 2026) → Jesmond (May 2025) → Anglicare (Sept
-    #     2024) regardless of the model. Ongoing roles first, then ended.
-    final_md = sort_experience_chronologically(final_md)
-    # 4f. Sprint B — normalise verb tense on Experience bullets. For "Present"
-    #     roles every first verb is present-tense (Serve / Deliver / Provide);
-    #     for ended roles past-tense (Served / Delivered / Provided). Fixes
-    #     the "Transported residents…" regression where one bullet drifted
-    #     past-tense even though the role is still active.
-    final_md = normalise_experience_tense(final_md)
-    # 4g. Sprint C — apply British/Australian spelling to body text
-    #     (Summary, Experience bullets, Education, Awards). Case-preserving,
-    #     so "Recognized" → "Recognised" and "individualized" → "individualised"
-    #     in mid-sentence positions. Existing _canonicalise_skill_spelling on
-    #     Skills entries is unchanged; this pass picks up everything else.
-    final_md = canonicalise_body_spelling(final_md)
-    # 4h. Sprint C — title-case italic role/qualification lines and H3
-    #     headings. "Assistant In Nursing" → "Assistant in Nursing"; preserves
-    #     ALL-CAPS tokens (IV, NSW, CPR) and mixed-case brands (BESTMed).
-    final_md = normalise_heading_title_case(final_md)
-    # 4i. Sprint C — strip day-of-month from CV dates. "Sept 20, 2024" →
-    #     "Sept 2024". Standard CV convention.
-    final_md = normalise_date_formats(final_md)
-    # 4j. Final display step — when S1 used BREADTH framing (no years figure,
-    #     scope-anchored), rename `## Career Highlights` → `## Professional
-    #     Summary`. All upstream helpers ran against the canonical name; only
-    #     the displayed PDF heading switches.
-    final_md = _apply_display_heading(final_md)
+    # 5. Apply the declared INVARIANT SET (writers/invariants.py) — grounding,
+    #    section shape, skills hygiene + honest injection, the user's own
+    #    credentials/referees, cert-vs-education placement, experience/text
+    #    normalisation, the summary honesty guards, caps and anchors, and the
+    #    final availability stamp + display heading.
+    #
+    #    This is the SAME ordered list _writer_w8_verified applies again after
+    #    verify_claims. There is deliberately no second hand-written sequence:
+    #    the two used to be maintained separately and drifted, which is what
+    #    produced PRs #249-#257 (see docs/POST_VERIFY_INVARIANTS.md).
+    inv_ctx = build_invariant_context(
+        # cv_text here is ALREADY the role-filtered view (the pre-composition
+        # honesty gate at the top of this function rebound it), which is what
+        # the invariant context requires.
+        cv_text=cv_text,
+        jd_text=jd_text,
+        jd_analysis=up["jd_analysis"],
+        role_family=role_family,
+        vertical=vertical,
+        contact_details=contact_details,
+        feasibility=up["feasibility"],
+        matching=up["matching"],
+        jd_setting=_setting,
+    )
+    final_md = apply_invariants(final_md, inv_ctx)
 
     # W8.2 — knockout pass (deterministic, no AI). Honest hard-requirement report
     # (mandatory licence / minimum years / work rights) that a CV edit can't fix.
@@ -604,6 +566,10 @@ async def _writer_w8_integrated(
             "jd_setting": _setting,  # passed to _writer_w8_verified for bridge pass
             "pre_filter_dropped_roles": _pre_dropped,
             "honesty_risk": _honesty_risk,
+            # Rewrite notes raised by the pre-verify invariant sweep. The
+            # post-verify sweep seeds its own note list from this, so a
+            # repair that happened once is reported once.
+            "honesty_guard_notes": list(inv_ctx.notes),
         },
     )
 
@@ -659,186 +625,51 @@ async def _writer_w8_verified(
         keep_skills=_inject_keyword_set(result.feasibility),
         jd_vertical=vertical,
     )
-    # Re-run the grounding gate (C22p, filed from C22j's independent review):
-    # verify_claims is an AI step that can rewrite/reintroduce a fabricated
-    # credential entry into a Certifications/Checks section — the FIRST
-    # grounding pass (step 4a, above, inside _writer_w8_integrated) already
-    # ran BEFORE verify_claims saw the document, so anything verify_claims
-    # fabricates here was never checked against the source CV at all. This
-    # closed the "runs after and is never re-checked" gap that capped C22j's
-    # own fix's real-world effectiveness. Idempotent — safe to re-run.
-    verified_md = _strip_ungrounded_credentials(verified_md, cv_text)
-    # Re-run the awards/section normalisers — verify_claims is an AI step that
-    # can rewrite the Awards/Certifications section into a messy shape (e.g.
-    # description promoted to ###). These deterministic passes are idempotent
-    # and ensure the structured Awards layout reaches the renderer.
-    verified_md = _relabel_awards_only_certifications(verified_md)
-    verified_md = _normalise_awards_entries(verified_md)
-    # Re-run skills hygiene — verify_claims can rewrite the Skills section:
-    # merging all three categories back onto one line (so the PDF renders them
-    # as a single paragraph), adding junk entries like "Person-Centred Care
-    # Principles" or care-setting descriptors, and breaking case consistency.
-    # These passes are idempotent; the cost is negligible.
-    verified_md = enforce_skills_section(verified_md)
-    verified_md = _strip_non_skill_phrases(verified_md)
-    verified_md = reroute_skills_by_lexicon(verified_md, vertical)
-    verified_md = enforce_skills_section(verified_md)
-    verified_md = _normalise_skills_case(verified_md)
-    verified_md = _dedupe_skills_across_lines(verified_md)
-    # ── PHASE 2 RE-RUN ──────────────────────────────────────────────────────
-    # verify_claims is an AI step that can rewrite ANY section, undoing the
-    # Phase 2 sprints that ran inside _writer_w8_integrated. Re-run them here
-    # so the final output is always Phase-2-canonical regardless of what the
-    # verifier emits. All passes are idempotent → cheap re-run.
-    #   • Sprint A: split mixed Certifications back into Awards + Certs
-    #   • Sprint B: chronological order + bullet tense
-    #   • Sprint C: body spelling, italic title case, date format
-    #   • Sprint E: enforce Summary S2 concreteness
-    # Sprint D is implicit in _normalise_awards_entries above.
-    verified_md = split_awards_and_certifications(verified_md)
-    verified_md = _normalise_awards_entries(verified_md)
-    # Re-run the health-sector cert exclusion LAST of the Certifications-
-    # touching passes. verify_claims (an AI step) can rewrite/reintroduce a
-    # Certifications section, and split_awards_and_certifications above can
-    # itself materialise a fresh "## Certifications" heading out of mixed
-    # Awards content — neither is gated on cert_policy, so an "excluded"
-    # family (health sector) needs this backstop even though
-    # _writer_w8_integrated already stripped it once, earlier, pre-verify.
-    # Idempotent — no-op for every other cert_policy.
-    verified_md = _strip_certs_when_excluded(verified_md, role_family.cert_policy)
-    verified_md = sort_experience_chronologically(verified_md)
-    verified_md = normalise_experience_tense(verified_md)
-    verified_md = canonicalise_body_spelling(verified_md)
-    verified_md = normalise_heading_title_case(verified_md)
-    verified_md = normalise_date_formats(verified_md)
-    # C82 (restores a call site dropped by 0628a5d1): deterministic setting
-    # bridge — replaces "residential aged care settings" in S1 with the
-    # correct bridge phrase for home care, hospital, NDIS, or theatre JDs,
-    # but ONLY when the CV's Experience section evidences the target
-    # setting (see bridges._BRIDGE_EVIDENCE_GATES) — otherwise S1 stays
-    # residential rather than fabricate cross-setting experience. Runs
-    # AFTER verify_claims, matching this file's stamp/repair-after-verify
-    # convention: verify_claims is an AI step that could otherwise rewrite
-    # S1 and drop or reintroduce a fabricated setting claim. Re-classifies
-    # directly from jd_text + result.jd_analysis rather than trusting
-    # result.extras["jd_setting"], which can be stale in resume paths.
+    # ── THE INVARIANT SWEEP ────────────────────────────────────────────────
+    # verify_claims is an AI step: it rewrites the document, so EVERY
+    # deterministic pass applied before it can have been undone — a stripped
+    # Certifications section reintroduced, a stamped credential reworded, a
+    # recovered degree dropped again, a capped summary rewritten over the cap.
+    #
+    # Re-apply the SAME declared list _writer_w8_integrated used pre-verify
+    # (writers/invariants.py). This replaces the hand-maintained second
+    # sequence that used to live here: it was a strict subset of the
+    # pre-verify passes, every gap in it cost a user-reported bug (PRs
+    # #249-#257), and nothing tested that the two sides agreed. They now
+    # cannot disagree — there is one list.
+    #
+    # The context is rebuilt on the SAME inputs as the pre-verify sweep: the
+    # role-filtered CV view (giving the passes the unfiltered source would
+    # let them re-surface a role composition deliberately excluded — C67),
+    # and a JD setting re-classified from jd_text + jd_analysis rather than
+    # from result.extras["jd_setting"], which can be stale in resume paths.
     _setting_for_bridge = _classify_jd_setting(jd_text, result.jd_analysis)
     logger.info("w8_verified: S1 bridge — JD setting = %s", _setting_for_bridge)
-    verified_md = _apply_setting_bridge(
-        verified_md, _setting_for_bridge, cv_text=cv_text,
+    inv_ctx = build_invariant_context(
+        cv_text=anchor_cv_text,
+        jd_text=jd_text,
+        jd_analysis=result.jd_analysis,
+        role_family=role_family,
+        vertical=vertical,
+        contact_details=contact_details,
+        feasibility=result.feasibility,
+        matching=result.matching,
+        jd_setting=_setting_for_bridge,
     )
-    # ── HONESTY GUARDS (single source-facts ground truth) ─────────────────
-    # Deterministic anchors against the source CV. Each guard is idempotent,
-    # returns (md, notes); the notes accumulate into result.extras so the
-    # orchestrator can surface "we omitted dates / dropped a setting label"
-    # as a per-run quality_flag (the user asked to be notified).
-    _hg_notes: list[str] = []
-    # 1. Date guard — replace fabricated/placeholder role dates with source-
-    #    verbatim values or strip the date slot if source has none. Kills
-    #    the "[Dates] – [Dates]" template leak + "2017–2021" / "2023–2024"
-    #    fabrications surfaced in the real-test audit.
-    verified_md, _n = enforce_source_dates(verified_md, cv_text)
-    _hg_notes.extend(_n)
-    # 2. Setting guard — strip setting descriptors ("retirement village",
-    #    "acute hospital ward") from role italic-headers when the source
-    #    role doesn't evidence that setting. Bullets keep their JD-vocab
-    #    reframing; the role's identity comes from source.
-    verified_md, _n = enforce_source_settings(verified_md, cv_text)
-    _hg_notes.extend(_n)
-    # 3. Skills-section label pin — force the headline label to the resolved
-    #    family/subtype convention (Care, Clinical, or Core for nursing)
-    #    regardless of what the LLM emitted.
-    _rf_id = (result.extras or {}).get("role_family") if hasattr(result, "extras") else None
-    verified_md, _n = pin_skills_section_labels(
-        verified_md,
-        _rf_id,
-        resolved_headline_label=(
-            role_family.skills_categories[0] if _rf_id == "nursing" else None
-        ),
-    )
-    _hg_notes.extend(_n)
-    # 4. Credential-claim guard — strip unverifiable compliance claims from
-    #    bullets ("AIN with current compliance for pre-employment medical,
-    #    police, and NDIS worker clearances …"). Verified against the user's
-    #    saved credentials (contact_details.credentials). Claims the user
-    #    genuinely holds (e.g. police_check=true) survive; the rest are
-    #    stripped and surfaced via quality_flags.
-    verified_md, _n = enforce_credential_claims(verified_md, contact_details)
-    _hg_notes.extend(_n)
-    # 5. Forbidden-opener RE-ENFORCEMENT + title-honesty gate. The opener strip
-    #    ran inside _writer_w8_integrated, but verify_claims (an AI step) can
-    #    rewrite S1 and re-introduce a forbidden status/identity opener
-    #    ("International student with …"). The post-verify re-run block above
-    #    re-applies the other deterministic passes but had omitted this one.
-    #    CRITICAL honesty rule: use the JD job title as the opener ONLY when it
-    #    shares the candidate's domain (role family). For an off-axis JD
-    #    ("Pharmacy Technician" on an aged-care CV) inserting the JD title
-    #    fabricates an identity the CV can't support — flag instead of aligning.
-    verified_md = _enforce_summary_s1_title_case(verified_md)
-    _before_opener = verified_md
-    _cv_family = resolve_role_family(None, {"summary": cv_text}).id
-    _title_supported = _cv_family == role_family.id
-    verified_md = _enforce_summary_opener(
-        verified_md,
-        str((result.jd_analysis or {}).get("job_title") or ""),
-        title_supported=_title_supported,
-    )
-    if verified_md != _before_opener:
-        _hg_notes.append(
-            "Adjusted the summary opener to the candidate's CV-aligned role title"
-            if _title_supported else
-            "Summary opener: the JD's role title isn't supported by the CV's "
-            "experience — flagged for a manual title rather than fabricating alignment"
-        )
-    if _hg_notes:
-        result.extras["honesty_guard_notes"] = _hg_notes
-        logger.info("w8_verified: honesty guards applied — %d rewrite(s)", len(_hg_notes))
-    # Hard cap FIRST so each line is at DEFAULT_SKILL_CAPS (15/10/10) before
-    # injection. Then cap-aware inject: approved keywords get priority over
-    # writer-only tail items; writer-only items displaced when at cap.
-    # NO enforce_skills_section after inject — it would truncate the
-    # just-placed approved keywords off the tail (the pre-Fix-C regression).
-    verified_md = enforce_skills_section(verified_md)
-    verified_md = _inject_approved_skills(verified_md, result.feasibility)
-    verified_md = _drop_subsumed_generic_skills(verified_md)
-    verified_md = _normalise_skills_case(verified_md)
-    verified_md = _dedupe_skills_across_lines(verified_md)
-    # Force-inject — catches approved keywords the regular injector dropped
-    # via label-mismatch (category=technical on nursing where only "Other
-    # Skills" exists, not "Technical Skills"). Belt-and-braces.
-    from app.services.eval.writers.injection import force_inject_missed_approved
-    verified_md, _force_notes = force_inject_missed_approved(verified_md, result.feasibility)
-    if _force_notes:
-        # Merge into extras directly so this works in both the w8_verified
-        # path (which accumulates _hg_notes locally) and the w8_critique
-        # path (which doesn't have that local).
-        prior = result.extras.get("honesty_guard_notes") or []
-        result.extras["honesty_guard_notes"] = list(prior) + list(_force_notes)
-    # RE-RUN the summary employer-anchor net. Like availability, the anchor is
-    # enforced mid-pipeline (inside _enforce_structure, pre-verify), but
-    # verify_claims rewrites the summary and can drop the employer name(s),
-    # leaving a generic, anchor-less S2. Re-applying here (idempotent: no-op
-    # when both top-2 employers are already named) guarantees the final S2
-    # names them. See OPS-32.
-    # Re-apply the S2 word cap BEFORE the anchor pass. The cap runs
-    # pre-verify inside _enforce_structure, and verify_claims REWRITES (not
-    # merely strips) so S2 can return over the cap with nothing left to trim
-    # it — an observed 23-word S2. Ordered before the anchor enforcer because
-    # that one appends and is itself budget-aware; running the cap after it
-    # would trim the anchor straight back off.
-    verified_md = recap_summary_preserving_anchors(verified_md)
-    verified_md = _enforce_company_anchor(verified_md, anchor_cv_text)
-    # RE-RUN the summary word FLOOR. Same reasoning as the anchor above, and
-    # the same gap that let an under-length summary ship: the floor retry ran
-    # once inside _writer_w8_integrated, pre-verify. verify_claims STRIPS
-    # unentailed clauses, so it structurally tends to SHRINK the summary —
-    # it is the single most likely step to push a compliant 38-word summary
-    # under the 35-word floor, and nothing re-measured it afterwards. (The
-    # 50-word cap in _enforce_structure is likewise pre-verify, but an AI
-    # strip pass cannot push a summary OVER a cap, so only the floor needs
-    # re-running here.) Runs BEFORE the availability re-stamp below so the
-    # italic note is re-applied over whatever prose this produces.
+    # Seed from the pre-verify sweep so a repair reported there is not
+    # reported twice (the notes surface to the user as run quality_flags).
+    inv_ctx.notes.extend((result.extras or {}).get("honesty_guard_notes") or [])
+    verified_md = apply_invariants(verified_md, inv_ctx)
+
+    # ── ESCALATION: the one AI rewrite ─────────────────────────────────────
+    # Deterministic repair first (above), then a single AI rewrite for the
+    # defects no deterministic pass can fix: a summary under the 35-word
+    # floor, prose garbled mid-phrase by verify_claims, a tool name in the
+    # summary, or more specialisations than the prompt's ceiling. Never
+    # in-place prose surgery — mutating prose is what produced the garbling
+    # in the first place.
     _floor_n_before, _ = _career_highlights_word_count(verified_md)
+    _before_floor_md = verified_md
     verified_md = await _ensure_career_highlights_floor(
         client, verified_md,
         # Rebuilt rather than threaded through WriterResult: the composition
@@ -850,26 +681,24 @@ async def _writer_w8_verified(
         ),
         cv_text=anchor_cv_text, jd_text=jd_text,
     )
-    _floor_n_after, _ = _career_highlights_word_count(verified_md)
-    if _floor_n_after != _floor_n_before:
-        _hg_notes.append(
-            "Expanded the summary back to the 35-word minimum after "
-            "honesty verification shortened it"
+    if verified_md != _before_floor_md:
+        _floor_n_after, _ = _career_highlights_word_count(verified_md)
+        if _floor_n_after != _floor_n_before:
+            inv_ctx.notes.append(
+                "Expanded the summary back to the 35-word minimum after "
+                "honesty verification shortened it"
+            )
+        # That rewrite is an AI step like any other, so the invariant set runs
+        # over its output too. Without this, the passes that used to be
+        # hand-listed after it (availability stamp, display heading) were the
+        # only ones re-applied — the same subset bug, one AI call later.
+        verified_md = apply_invariants(verified_md, inv_ctx)
+
+    if inv_ctx.notes:
+        result.extras["honesty_guard_notes"] = list(inv_ctx.notes)
+        logger.info(
+            "w8_verified: honesty guards applied — %d rewrite(s)", len(inv_ctx.notes),
         )
-        result.extras["honesty_guard_notes"] = _hg_notes
-    # RE-STAMP the opt-in availability note LAST. It was stamped mid-pipeline
-    # inside _writer_w8_integrated, but verify_claims (+ the summary repair
-    # pass) can bundle the italic "*Available: …*" line into the summary prose
-    # and delete it. stamp_availability_in_summary is idempotent, so applying
-    # it here guarantees the line survives to storage / PDF. See OPS-31.
-    verified_md = stamp_availability_in_summary(verified_md, contact_details, role_family.id)
-    # C83: RE-RUN the display-heading pass LAST. It ran once inside
-    # _writer_w8_integrated (pre-verify), but verify_claims can add or
-    # remove a years figure from S1 — without a re-run here, the displayed
-    # heading (Career Highlights vs Professional Summary) can desync from
-    # the final prose it's meant to describe. Idempotent (no-op if the
-    # heading already matches).
-    verified_md = _apply_display_heading(verified_md)
     result.tailored_md = verified_md
     result.extras["verify"] = vreport
     return result
